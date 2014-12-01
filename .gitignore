@@ -1,0 +1,6 @@
+# build crap
+build/*
+
+# vim crap
+tags
+types_c.taghl

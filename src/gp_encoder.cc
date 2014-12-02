@@ -9,6 +9,9 @@
 #include <windows.h>
 #include <inttypes.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../third_party/stb/stb_image.h"
+
 ///////////////////////////////////////////////////////////////////////////////
 // Language macros
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,7 +35,9 @@ typedef int64_t       int64;
 typedef uint64_t      uint64;
 typedef int32         bool32;
 
-
+///////////////////////////////////////////////////////////////////////////////
+// Code
+///////////////////////////////////////////////////////////////////////////////
 
 int CALLBACK WinMain(
         HINSTANCE hInstance,
@@ -40,6 +45,24 @@ int CALLBACK WinMain(
         LPSTR lpCmdLine,
         int nCmdShow)
 {
-    OutputDebugStringA("Hello World\n");
-}
+    int width;
+    int height;
+    int numComponents;
 
+    uint8* data = stbi_load("../in.bmp", &width, &height, &numComponents, 3);
+
+    if (!data)
+    {
+        OutputDebugStringA("Could not load bmp file.\n");
+        goto exit;
+    }
+
+    char buffer[256];
+    sprintf(buffer, "Image size is  %dx%d\nComponents: %d", width, height, numComponents);
+    OutputDebugStringA(buffer);
+
+    stbi_image_free(data);
+
+exit:
+    return 0;
+}

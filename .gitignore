@@ -1,3 +1,10 @@
+# third party
+third_party/*
+
+# heavy binary files
+*.bmp
+*.jpg
+
 # build crap
 build/*
 

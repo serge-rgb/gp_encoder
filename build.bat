@@ -2,5 +2,5 @@
 
 mkdir build
 pushd build
-cl /Zi ..\src\gp_encoder.cc
+cl /FC /Zi ..\src\gp_encoder.cc
 popd

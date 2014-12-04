@@ -1,7 +1,7 @@
 /**
  * gp_encoder.cc
  *
- * Sergio's Tiny Encoder.
+ * Tiny JPEG Encoder
  *
  * 2014 Sergio Gonzalez
  *
@@ -65,8 +65,39 @@ typedef int32         bool32;
 // DHT <p.40>
 //
 
+// =============================================================================
+//    === DQT Matrix just as with the gimp.
+// =============================================================================
+
+static uint8 dqt_1[] =
+{
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+};
+
+static uint8 dqt_2[] =
+{
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+   1,1,1,1,1,1,1,1,
+};
+
+// =============================================================================
+
 static uint8 k_jfif_id[] = "JFIF";
-static uint8 k_com_str[] = "Created by Sergio's Tiny Encoder";
+//static uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
+static uint8 k_com_str[] = "Hello World";
 #pragma pack(1)
 typedef struct JPEGHeader_s
 {
@@ -118,6 +149,21 @@ static JPEGHeader gen_jpeg_header()
     memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1);
 
     return header;
+}
+
+static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
+{
+    assert(fd);
+
+    int16 DQT = be_word(0xffdb);
+    fwrite(&DQT, sizeof(int16), 1, fd);
+    int16 len = be_word(0x0043); // 2(len) + 1(id) + 64(matrix) = 67 = 0x43
+    fwrite(&len, sizeof(int16), 1, fd);
+    assert(id < 256);
+    uint8 precision_and_id = id;  // 0x0000 8 bits | 0x00id
+    fwrite(&precision_and_id, sizeof(uint8), 1, fd);
+    // Write matrix
+    fwrite(matrix, 64*sizeof(uint8), 1, fd);
 }
 
 int CALLBACK WinMain(
@@ -190,6 +236,8 @@ int CALLBACK WinMain(
     {
         JPEGHeader header = gen_jpeg_header();
         fwrite(&header, sizeof(JPEGHeader), 1, file_out);
+        write_DQT(file_out, dqt_1, 0x00);
+        write_DQT(file_out, dqt_2, 0x01);
     }
 
     // Finish the image.

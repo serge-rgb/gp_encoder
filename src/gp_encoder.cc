@@ -134,7 +134,12 @@ static uint16 be_word(uint16 le_word)
 
 static uint8 k_jfif_id[] = "JFIF";
 static uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
+#pragma pack(push)
+#ifdef MSVC_VER
 #pragma pack(1)
+#elif defined(__clang__)
+#pragma pack(1)
+#endif
 typedef struct JPEGHeader_s
 {
     uint16 SOI;
@@ -153,7 +158,11 @@ typedef struct JPEGHeader_s
     uint16 com_len;
     char com_str[sizeof(k_com_str) - 1];
 } JPEGHeader;
+#ifdef MSVC_VER
 #pragma pack(pop)
+#elif defined(__clang__)
+#pragma pack(pop)
+#endif
 
 static JPEGHeader gen_jpeg_header()
 {
@@ -187,7 +196,7 @@ static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
     fwrite(&DQT, sizeof(int16), 1, fd);
     int16 len = be_word(0x0043); // 2(len) + 1(id) + 64(matrix) = 67 = 0x43
     fwrite(&len, sizeof(int16), 1, fd);
-    assert(id < 256);
+    assert(id < 4);
     uint8 precision_and_id = id;  // 0x0000 8 bits | 0x00id
     fwrite(&precision_and_id, sizeof(uint8), 1, fd);
     // Write matrix
@@ -208,7 +217,7 @@ static int encode(
         //         ^--- pointer
         uint16 foo = 0xaabb;
         char* pointer = (char*)&foo;
-        if (*pointer == 0xaa) {
+        if (*pointer == (char)0xaa) {
             tje_log("This machine is big endian. Not supported.");
             return 1;
         }
@@ -280,22 +289,31 @@ int tje_encode(
 
 #ifdef tje_log
 #undef tje_log
-#define tje_log OutputDebugStringA
 #endif
 
-#ifdef TJE_WIN32_STANDALONE
+#ifdef TJE_STANDALONE
+
+#ifdef _WIN64
 // Windows includes
 #include <windows.h>
+#define tje_log OutputDebugStringA
+#elif defined(__linux__) || defined(__MACH__)
+#define tje_log puts
+#endif
 
 // Local includes
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
 
+#ifdef _WIN64
 int CALLBACK WinMain(
         HINSTANCE hInstance,
         HINSTANCE hPrevInstance,
         LPSTR lpCmdLine,
         int nCmdShow)
+#elif defined(__linux__) || defined(__MACH__)
+int main()
+#endif
 {
     int width;
     int height;
@@ -328,4 +346,5 @@ int CALLBACK WinMain(
     return result;
     // stbi_image_free(data);
 }
-#endif
+
+#endif  // TJE_STANDALONE

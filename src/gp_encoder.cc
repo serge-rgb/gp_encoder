@@ -10,37 +10,42 @@
  * Supports:
  *  Windows, MSVC
  *
- * Does not support:
- *  Big endian processors.
- *
- *  TODO:
- *      Copy GIMP's quantizing & huffman matrices (aka finish header)
- *      Impl. Annex C of spec. (EHUFSI & EHUFCO) ~p57 (aka impl. huffman enc.)
- *      Impl. Annex F of spec.
- *
+ * Public domain.
  *
  */
-
-// Windows
-#include <windows.h>
 
 // C std lib
 #include <assert.h>
 #include <inttypes.h>
+#include <stdio.h>  // FILE
+#include <string.h>  // memcpy
 
-// Local includes
-#define STB_IMAGE_IMPLEMENTATION
-#include "../third_party/stb/stb_image.h"
+// ============================================================
+// Public interface:
+// ============================================================
+// In:
+//  width, height. Dimensions of image.
+//  src_data: Image data in RGB format.
+int tje_encode(
+        const unsigned char* src_data,
+        const int width,
+        const int height,
+        const char* dest_path);
 
-////////////////////////////////////////////////////////////////////////////////
+// ============================================================
+// private namespace
+// ============================================================
+namespace tje
+{
+// ============================================================
 // Language defines
-////////////////////////////////////////////////////////////////////////////////
+// ============================================================
 
-// ............
+#define tje_log(msg)  // Re-defined in platform code.
 
-////////////////////////////////////////////////////////////////////////////////
+// ============================================================
 // Define types
-////////////////////////////////////////////////////////////////////////////////
+// ============================================================
 
 typedef char          int8;
 typedef unsigned char uint8;
@@ -52,9 +57,9 @@ typedef int64_t       int64;
 typedef uint64_t      uint64;
 typedef int32         bool32;
 
-////////////////////////////////////////////////////////////////////////////////
+// ============================================================
 // Code
-////////////////////////////////////////////////////////////////////////////////
+// ============================================================
 
 // JFIF image header:
 // SOI(ffd8)
@@ -63,41 +68,72 @@ typedef int32         bool32;
 // DQT <p.39>               // TODO: Why more than once?
 // SOF <p.35>
 // DHT <p.40>
-//
 
-// =============================================================================
+/* void *memcpy( */
+/*    void *dest, */
+/*    const void *src, */
+/*    size_t count */
+/* ); */
+
+// ============================================================
 //    === DQT Matrix just as with the gimp.
-// =============================================================================
+// ============================================================
 
-static uint8 dqt_1[] =
+// K.1 - suggested luminance QT
+static uint8 qt_luma[] =
 {
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
+   16,11,10,16, 24, 40, 51, 61,
+   12,12,14,19, 26, 58, 60, 55,
+   14,13,16,24, 40, 57, 69, 56,
+   14,17,22,29, 51, 87, 80, 62,
+   18,22,37,56, 68,109,103, 77,
+   24,35,55,64, 81,104,113, 92,
+   49,64,78,87,103,121,120,101,
+   72,92,95,98,112,100,103, 99,
 };
 
-static uint8 dqt_2[] =
+// K.1 - suggested chrominance QT
+static uint8 qt_chroma[] =
 {
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
-   1,1,1,1,1,1,1,1,
+   17,18,24,47,99,99,99,99,
+   18,21,26,66,99,99,99,99,
+   24,26,56,99,99,99,99,99,
+   47,66,99,99,99,99,99,99,
+   99,99,99,99,99,99,99,99,
+   99,99,99,99,99,99,99,99,
+   99,99,99,99,99,99,99,99,
+   99,99,99,99,99,99,99,99,
+};
+/*
+ * Zig-zag order:
+   0,  1,  5,  6, 14, 15, 27, 28,
+   2,  4,  7, 13, 16, 26, 29, 42,
+   3,  8, 12, 17, 25, 30, 41, 43,
+   9, 11, 18, 24, 31, 40, 44, 53,
+  10, 19, 23, 32, 39, 45, 52, 54,
+  20, 22, 33, 38, 46, 51, 55, 60,
+  21, 34, 37, 47, 50, 56, 59, 61,
+  35, 36, 48, 49, 57, 58, 62, 63,
+   */
+static uint8 zig_zag_indices[64] = {
+   0,  1,  5,  6, 14, 15, 27, 28, 2,  4,  7, 13, 16, 26, 29, 42, 3,  8, 12, 17,
+   25, 30, 41, 43, 9, 11, 18, 24, 31, 40, 44, 53, 10, 19, 23, 32, 39, 45, 52,
+   54, 20, 22, 33, 38, 46, 51, 55, 60, 21, 34, 37, 47, 50, 56, 59, 61, 35, 36,
+   48, 49, 57, 58, 62, 63
 };
 
-// =============================================================================
+// ============================================================
+
+// Memory order as big endian. 0xhilo -> 0xlohi which looks as 0xhilo in memory.
+static uint16 be_word(uint16 le_word)
+{
+    uint8 lo = (uint8)(le_word & 0x00ff);
+    uint8 hi = (uint8)((le_word & 0xff00) >> 8);
+    return (((uint16)lo) << 8) | hi;
+}
 
 static uint8 k_jfif_id[] = "JFIF";
-//static uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
-static uint8 k_com_str[] = "Hello World";
+static uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
 #pragma pack(1)
 typedef struct JPEGHeader_s
 {
@@ -119,14 +155,6 @@ typedef struct JPEGHeader_s
 } JPEGHeader;
 #pragma pack(pop)
 
-// Memory order as big endian. 0xhilo -> 0xlohi which looks as 0xhilo in memory.
-static uint16 be_word(uint16 le_word)
-{
-    uint8 lo = (uint8)(le_word & 0x00ff);
-    uint8 hi = (uint8)((le_word & 0xff00) >> 8);
-    return (((uint16)lo) << 8) | hi;
-}
-
 static JPEGHeader gen_jpeg_header()
 {
     JPEGHeader header;
@@ -135,7 +163,7 @@ static JPEGHeader gen_jpeg_header()
     // JFIF header.
     header.APP0 = be_word(0xffe0);
 
-    header.jfif_len = be_word(16);
+    header.jfif_len = be_word(0x0016);
     memcpy(header.jfif_id, k_jfif_id, 5);
     header.version = be_word(0x0102);
     header.units = 0x01;
@@ -166,13 +194,13 @@ static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
     fwrite(matrix, 64*sizeof(uint8), 1, fd);
 }
 
-int CALLBACK WinMain(
-        HINSTANCE hInstance,
-        HINSTANCE hPrevInstance,
-        LPSTR lpCmdLine,
-        int nCmdShow)
+static int encode(
+        const unsigned char* src_data,
+        const int width,
+        const int height,
+        const char* dest_path)
 {
-
+    int res = 0;
     // Make an endianness check. We only support little endian.
     {
         //    0xaabb
@@ -181,37 +209,22 @@ int CALLBACK WinMain(
         uint16 foo = 0xaabb;
         char* pointer = (char*)&foo;
         if (*pointer == 0xaa) {
-            OutputDebugStringA("This machine is big endian. Not supported.");
+            tje_log("This machine is big endian. Not supported.");
             return 1;
         }
     }
-    int width;
-    int height;
-    int num_components;
-
-    uint8* data = stbi_load("../in.bmp", &width, &height, &num_components, 0);
-
-    if (!data)
-    {
-        OutputDebugStringA("Could not load bmp file.\n");
-        return 1;
-    }
-
-    assert (num_components == 3);
 
     // TODO: support arbitrary resolutions.
     if (((height % 8) != 0) || ((width % 8) != 0))
     {
-        OutputDebugStringA(
-                "Supported resolutions are width and height multiples of 8.");
+        tje_log("Supported resolutions are width and height multiples of 8.");
         return 1;
     }
 
     FILE* file_out = fopen("../out.jpg", "wb");
     if (!file_out)
     {
-        OutputDebugStringA(
-                "Could not open file for writing.");
+        tje_log("Could not open file for writing.");
         return 1;
     }
 
@@ -220,9 +233,9 @@ int CALLBACK WinMain(
         for (int x = 0; x < width; ++x)
         {
             int i = 3 * (x + (y * width));
-            uint8 r = data[i + 0];
-            uint8 g = data[i + 1];
-            uint8 b = data[i + 2];
+            uint8 r = src_data[i + 0];
+            uint8 g = src_data[i + 1];
+            uint8 b = src_data[i + 2];
             uint32 pixel = 0;
             // pixel: 0xRRGGBB00
             pixel += (r << 24);
@@ -232,31 +245,87 @@ int CALLBACK WinMain(
         }
     }
 
-    // == Write header
-    {
+    { // Write header
         JPEGHeader header = gen_jpeg_header();
         fwrite(&header, sizeof(JPEGHeader), 1, file_out);
-        write_DQT(file_out, dqt_1, 0x00);
-        write_DQT(file_out, dqt_2, 0x01);
     }
+
+    // Write quantization tables.
+    write_DQT(file_out, qt_luma, 0x00);
+    write_DQT(file_out, qt_chroma, 0x01);
 
     // Finish the image.
     {
         uint16 EOI = be_word(0xffd9);
         fwrite(&EOI, sizeof(uint16), 1, file_out);
     }
-    fclose(file_out);
+    res |= fclose(file_out);
+    return res;
+}
+}  // namespace tje
+
+// Define public interface.
+int tje_encode(
+        const unsigned char* src_data,
+        const int width,
+        const int height,
+        const char* dest_path)
+{
+    return tje::encode(src_data, width, height, dest_path);
+}
+
+// ============================================================
+// Standalone Windows app.
+// ============================================================
+
+#ifdef tje_log
+#undef tje_log
+#define tje_log OutputDebugStringA
+#endif
+
+#ifdef TJE_WIN32_STANDALONE
+// Windows includes
+#include <windows.h>
+
+// Local includes
+#define STB_IMAGE_IMPLEMENTATION
+#include "../third_party/stb/stb_image.h"
+
+int CALLBACK WinMain(
+        HINSTANCE hInstance,
+        HINSTANCE hPrevInstance,
+        LPSTR lpCmdLine,
+        int nCmdShow)
+{
+    int width;
+    int height;
+    int num_components;
+
+    unsigned char* data = stbi_load("../in.bmp", &width, &height, &num_components, 0);
+
+    if (!data)
+    {
+        tje_log("Could not load bmp file.\n");
+        return 1;
+    }
+
+    assert (num_components == 3);
+    int result = tje_encode(
+            data,
+            width,
+            height,
+            "../out.bmp");
 
     // Try to load the image with stb_image
     {
-        uint8* my_data =
+        unsigned char* my_data =
             stbi_load("../out.jpg", &width, &height, &num_components, 0);
         if (!my_data) {
-            OutputDebugStringA("STB could not load my JPEG\n");
+            tje_log("STB could not load my JPEG\n");
         }
     }
 
-    stbi_image_free(data);
-
-    return 0;
+    return result;
+    // stbi_image_free(data);
 }
+#endif

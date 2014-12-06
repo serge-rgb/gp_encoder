@@ -1,6 +1,6 @@
 @echo off
 
-mkdir build
+IF NOT EXIST build mkdir build
 pushd build
-cl /FC /Zi ..\src\gp_encoder.cc
+cl /DTJE_WIN32_STANDALONE /FC /Zi ..\src\gp_encoder.cc
 popd

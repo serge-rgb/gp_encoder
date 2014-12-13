@@ -10,7 +10,7 @@ build/*
 
 # vim crap
 tags
-types_c.taghl
+*.taghl
 
 # osx crap
 .DS_Store

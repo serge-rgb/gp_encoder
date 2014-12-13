@@ -15,10 +15,16 @@
  */
 
 // C std lib
-#include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>  // FILE
 #include <string.h>  // memcpy
+#include <stdlib.h>
+
+#ifdef _WIN64
+#include <windows.h>
+#define tje_log(msg) OutputDebugStringA(msg)  // Re-defined in platform code.
+#endif
+#define tje_assert(expr) if (!(expr)) {*((int*)0) = 0; }
 
 // ============================================================
 // Public interface:
@@ -26,6 +32,7 @@
 // In:
 //  width, height. Dimensions of image.
 //  src_data: Image data in RGB format.
+//  dest_path: Name of file to open and write to.
 int tje_encode(
         const unsigned char* src_data,
         const int width,
@@ -41,7 +48,6 @@ namespace tje
 // Language defines
 // ============================================================
 
-#define tje_log(msg)  // Re-defined in platform code.
 
 // ============================================================
 // Define types
@@ -65,18 +71,12 @@ typedef int32         bool32;
 // SOI(ffd8)
 // APP0 [JFIF FRAME]
 // COM | len | "blah"
-// DQT <p.39>               // TODO: Why more than once?
+// DQT <p.39>
 // SOF <p.35>
 // DHT <p.40>
 
-/* void *memcpy( */
-/*    void *dest, */
-/*    const void *src, */
-/*    size_t count */
-/* ); */
-
 // ============================================================
-//    === DQT Matrix just as with the gimp.
+//    === Define various default tables.
 // ============================================================
 
 // K.1 - suggested luminance QT
@@ -115,12 +115,27 @@ static uint8 qt_chroma[] =
   21, 34, 37, 47, 50, 56, 59, 61,
   35, 36, 48, 49, 57, 58, 62, 63,
    */
-static uint8 zig_zag_indices[64] = {
+static uint8 zig_zag_indices[64] =
+{
    0,  1,  5,  6, 14, 15, 27, 28, 2,  4,  7, 13, 16, 26, 29, 42, 3,  8, 12, 17,
    25, 30, 41, 43, 9, 11, 18, 24, 31, 40, 44, 53, 10, 19, 23, 32, 39, 45, 52,
    54, 20, 22, 33, 38, 46, 51, 55, 60, 21, 34, 37, 47, 50, 56, 59, 61, 35, 36,
    48, 49, 57, 58, 62, 63
 };
+
+// Huffman table as suggested by the spec.
+// We can derive the complete Huffman tree from this at runtime, and save ourselves
+// extra complexity / code.
+
+static uint8 ht_luma[] =
+{
+    0,
+}
+
+static uint8 ht_chroma[] =
+{
+    0,
+}
 
 // ============================================================
 
@@ -190,13 +205,13 @@ static JPEGHeader gen_jpeg_header()
 
 static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
 {
-    assert(fd);
+    tje_assert(fd);
 
     int16 DQT = be_word(0xffdb);
     fwrite(&DQT, sizeof(int16), 1, fd);
     int16 len = be_word(0x0043); // 2(len) + 1(id) + 64(matrix) = 67 = 0x43
     fwrite(&len, sizeof(int16), 1, fd);
-    assert(id < 4);
+    tje_assert(id < 4);
     uint8 precision_and_id = id;  // 0x0000 8 bits | 0x00id
     fwrite(&precision_and_id, sizeof(uint8), 1, fd);
     // Write matrix
@@ -217,7 +232,8 @@ static int encode(
         //         ^--- pointer
         uint16 foo = 0xaabb;
         char* pointer = (char*)&foo;
-        if (*pointer == (char)0xaa) {
+        if (*pointer != (char)(0xbb))
+        {
             tje_log("This machine is big endian. Not supported.");
             return 1;
         }
@@ -237,15 +253,18 @@ static int encode(
         return 1;
     }
 
+    int bytes_per_pixel = 3;  // Only supporting RGB right now..
+    int pitch = bytes_per_pixel * width;
+
+    uint8* data = (uint8*) src_data;
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
-            int i = 3 * (x + (y * width));
+            int i = bytes_per_pixel * (x + (y * width));
             uint8 r = src_data[i + 0];
             uint8 g = src_data[i + 1];
             uint8 b = src_data[i + 2];
-            uint32 pixel = 0;
             // pixel: 0xRRGGBB00
             pixel += (r << 24);
             pixel += (g << 16);
@@ -287,19 +306,7 @@ int tje_encode(
 // Standalone Windows app.
 // ============================================================
 
-#ifdef tje_log
-#undef tje_log
-#endif
-
 #ifdef TJE_STANDALONE
-
-#ifdef _WIN64
-// Windows includes
-#include <windows.h>
-#define tje_log OutputDebugStringA
-#elif defined(__linux__) || defined(__MACH__)
-#define tje_log puts
-#endif
 
 // Local includes
 #define STB_IMAGE_IMPLEMENTATION
@@ -327,7 +334,7 @@ int main()
         return 1;
     }
 
-    assert (num_components == 3);
+    tje_assert (num_components == 3);
     int result = tje_encode(
             data,
             width,

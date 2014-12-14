@@ -137,33 +137,33 @@ static uint8 zig_zag_indices[64] =
 
 
 // Number of 16 bit values for every code length. (K.3.3.1)
-static uint16 ht_luma_dc_len[16] =
+static uint8 ht_luma_dc_len[16] =
 {
     0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0
 };
 // values
-static uint16 ht_luma_dc[12] =
+static uint8 ht_luma_dc[12] =
 {
     0,1,2,3,4,5,6,7,8,9,10,11
 };
 
 // Number of 16 bit values for every code length. (K.3.3.1)
-static uint16 ht_chroma_dc_len[16] =
+static uint8 ht_chroma_dc_len[16] =
 {
     0,3,1,1,1,1,1,1,1,1,1,0,0,0,0,0
 };
 // values
-static uint16 ht_chroma_dc[12] =
+static uint8 ht_chroma_dc[12] =
 {
     0,1,2,3,4,5,6,7,8,9,10,11
 };
 
 // Same as above, but AC coefficients.
-static uint16 ht_luma_ac_len[16] =
+static uint8 ht_luma_ac_len[16] =
 {
     0,2,1,3,3,2,4,3,5,5,4,4,0,0,1,0x7d
 };
-static uint16 ht_luma_ac[] =
+static uint8 ht_luma_ac[] =
 {
 0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
 0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0,
@@ -178,11 +178,11 @@ static uint16 ht_luma_ac[] =
 0xF9, 0xFA
 };
 
-static uint16 ht_chroma_ac_len[16] =
+static uint8 ht_chroma_ac_len[16] =
 {
     0,2,1,2,4,4,3,4,7,5,4,4,0,1,2,0x77
 };
-static uint16 ht_chroma_ac[] =
+static uint8 ht_chroma_ac[] =
 {
 0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
 0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xA1, 0xB1, 0xC1, 0x09, 0x23, 0x33, 0x52, 0xF0,
@@ -258,7 +258,7 @@ static JPEGHeader gen_jpeg_header()
 
     // Our signature
     header.com = be_word(0xfffe);
-    header.com_len = be_word(sizeof(k_com_str) - 1);
+
     memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1);
 
     return header;
@@ -277,6 +277,41 @@ static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
     fwrite(&precision_and_id, sizeof(uint8), 1, fd);
     // Write matrix
     fwrite(matrix, 64*sizeof(uint8), 1, fd);
+}
+
+enum HuffmanTableClass
+{
+    DC = 0,
+    AC = 1
+};
+
+static void write_DHT(
+        FILE *fd,
+        uint8* matrix_len,
+        uint8* matrix_val,
+        HuffmanTableClass ht_class,
+        uint8 id)
+{
+    tje_assert(fd);
+
+    int num_values = 0;
+    for (int i = 0; i < 16; ++i)
+    {
+        num_values += matrix_len[i];
+    }
+    tje_assert(num_values <= 0xffff);
+
+    int16 DHT = be_word(0xffc4);
+    // 2(len) + 1(Tc|th) + 16 (num lengths) + ?? (num values)
+    uint16 len = be_word(2 + 1 + 16 + (uint16)num_values);
+    tje_assert(id < 4);
+    uint8 tc_th = ((((uint8)ht_class) << 4) | id);
+
+    fwrite(&DHT, sizeof(uint16), 1, fd);
+    fwrite(&len, sizeof(uint16), 1, fd);
+    fwrite(&tc_th, sizeof(uint8), 1, fd);
+    fwrite(matrix_len, sizeof(uint8), 16, fd);
+    fwrite(matrix_val, sizeof(uint8), num_values, fd);
 }
 
 static int encode(
@@ -361,6 +396,21 @@ static int encode(
     write_DQT(file_out, qt_luma, 0x00);
     write_DQT(file_out, qt_chroma, 0x01);
 
+    // TODO: write Start of Frame marker:
+    // <----- SOF  // ffc0
+
+    // Write huffman table specifications
+    HuffmanTableClass ac = AC;
+    HuffmanTableClass dc = DC;
+    write_DHT(file_out, ht_luma_dc_len  , ht_luma_dc  , dc, 0);
+    write_DHT(file_out, ht_luma_ac_len  , ht_luma_ac  , ac, 0);
+    write_DHT(file_out, ht_chroma_dc_len, ht_chroma_dc, dc, 1);
+    write_DHT(file_out, ht_chroma_ac_len, ht_chroma_ac, ac, 1);
+
+    // Write start of scan!
+    uint16 SOS = be_word(0xffda);
+    fwrite(&SOS, sizeof(int16), 1, file_out);
+
     // Finish the image.
     {
         uint16 EOI = be_word(0xffd9);
@@ -422,6 +472,8 @@ int main()
 
     // Try to load the image with stb_image
     {
+        // test ref image'
+        stbi_load("../ref.jpg", NULL, NULL, NULL, 0);
         unsigned char* my_data =
             stbi_load("../out.jpg", &width, &height, &num_components, 0);
         if (!my_data) {

@@ -20,7 +20,7 @@
 #include <string.h>  // memcpy
 #include <stdlib.h>
 
-#ifdef _WIN64
+#ifdef _WIN32
 #include <windows.h>
 #define tje_log(msg) OutputDebugStringA(msg)  // Re-defined in platform code.
 #endif
@@ -452,7 +452,7 @@ int tje_encode(
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
 
-#ifdef _WIN64
+#ifdef _WIN32
 int CALLBACK WinMain(
         HINSTANCE hInstance,
         HINSTANCE hPrevInstance,

@@ -314,6 +314,17 @@ static void write_DHT(
     fwrite(matrix_val, sizeof(uint8), num_values, fd);
 }
 
+// NOTE:
+//  Once this function correctly implements a jpeg encoder, we need to
+//  start morphing it into something that  can do this:
+//
+//  1) Receives quantization tables from caller.
+//  2) Can constrain itself to a limited number of MCUs
+//
+//  It would be nice to add this functionality and keep the jpeg encoder
+//  orthogonal so that it can be of more general use outside of my genetic
+//  algorithm adventure.
+
 static int encode(
         const unsigned char* src_data,
         const int width,

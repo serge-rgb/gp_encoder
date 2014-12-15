@@ -12,8 +12,9 @@ set compiler_flags_release=%compiler_flags% /O2
 
 IF NOT EXIST build mkdir build
 pushd build
-::cl /nologo /MP %warnings% %defines% %compiler_flags_debug% ..\src\gp_encoder.cc
+cl /nologo /MP %warnings% %defines% %compiler_flags_debug% ..\src\gp_encoder.cc
 ::cl /nologo /MP %warnings% %warnings_release% %defines% %compiler_flags_release% ..\src\gp_encoder.cc
+
 :: Windows XP build
-cl /nologo /MP %warnings% %warnings_release% %defines% %compiler_flags_release% ..\src\gp_encoder.cc /link /subsystem:windows,5.1
+::cl /nologo /MP %warnings% %warnings_release% %defines% %compiler_flags_release% ..\src\gp_encoder.cc /link /subsystem:windows,5.1
 popd

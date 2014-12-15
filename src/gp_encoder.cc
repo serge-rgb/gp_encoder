@@ -208,6 +208,11 @@ static uint16 be_word(uint16 le_word)
     return (((uint16)lo) << 8) | hi;
 }
 
+// ============================================================
+// The following structs help clarify the code that writes the main markers of
+// the JPEG file.
+// ============================================================
+
 static uint8 k_jfif_id[] = "JFIF";
 static uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
 #pragma pack(push)
@@ -234,35 +239,32 @@ typedef struct JPEGHeader_s
     uint16 com_len;
     char com_str[sizeof(k_com_str) - 1];
 } JPEGHeader;
+
+#pragma pack(1)
+// Helper struct for FrameHeader (below).
+typedef struct ComponentSpec_s
+{
+    uint8  component_id;
+    uint8  sampling_factors; // most significant 4 bits: horizontal. 4 LSB: vertical (A.1.1)
+    uint8  qt;              // Quantization table selector.
+} ComponentSpec;
+
+#pragma pack(1)
+typedef struct FrameHeader_s
+{
+    uint16 SOF;
+    uint16 len;                         // 8 + 3 * frame.num_components
+    uint8  precision;                   // Sample precision (bits per sample).
+    uint16 height;                      // aka. number of lines.
+    uint16 width;                       // aka. number of samples per line.
+    uint8  num_components;              // For this implementation, will be equal to 3.
+    ComponentSpec component_spec[3];
+} FrameHeader;
 #ifdef MSVC_VER
 #pragma pack(pop)
 #elif defined(__clang__)
 #pragma pack(pop)
 #endif
-
-static JPEGHeader gen_jpeg_header()
-{
-    JPEGHeader header;
-    header.SOI = be_word(0xffd8);  // Sequential DCT
-
-    // JFIF header.
-    header.APP0 = be_word(0xffe0);
-
-    header.jfif_len = be_word(0x0016);
-    memcpy(header.jfif_id, k_jfif_id, 5);
-    header.version = be_word(0x0102);
-    header.units = 0x01;
-    header.x_density = be_word(0x0060);  // 96 DPI
-    header.y_density = be_word(0x0060);  // 96 DPI
-    header.thumb_size = 0;
-
-    // Our signature
-    header.com = be_word(0xfffe);
-
-    memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1);
-
-    return header;
-}
 
 static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
 {
@@ -279,11 +281,11 @@ static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
     fwrite(matrix, 64*sizeof(uint8), 1, fd);
 }
 
-enum HuffmanTableClass
+typedef enum
 {
     DC = 0,
     AC = 1
-};
+} HuffmanTableClass;
 
 static void write_DHT(
         FILE *fd,
@@ -399,7 +401,25 @@ static int encode(
     }
 
     { // Write header
-        JPEGHeader header = gen_jpeg_header();
+        JPEGHeader header;
+        header.SOI = be_word(0xffd8);  // Sequential DCT
+
+        // JFIF header.
+        header.APP0 = be_word(0xffe0);
+
+        header.jfif_len = be_word(0x0016);
+        memcpy(header.jfif_id, k_jfif_id, 5);
+        header.version = be_word(0x0102);
+        header.units = 0x01;
+        header.x_density = be_word(0x0060);  // 96 DPI
+        header.y_density = be_word(0x0060);  // 96 DPI
+        header.thumb_size = 0;
+
+        // Our signature
+        header.com = be_word(0xfffe);
+
+        memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1);
+
         fwrite(&header, sizeof(JPEGHeader), 1, file_out);
     }
 
@@ -407,20 +427,45 @@ static int encode(
     write_DQT(file_out, qt_luma, 0x00);
     write_DQT(file_out, qt_chroma, 0x01);
 
-    // TODO: write Start of Frame marker:
-    // <----- SOF  // ffc0
+    {  // Write the frame marker.
+        FrameHeader header;
+        header.SOF = be_word(0xffc0);
+        header.len = be_word(8 + 3 * 3);
+        header.precision = 8;
+        tje_assert(width <= 0xffff);
+        tje_assert(height <= 0xffff);
+        header.height = be_word((uint16)width);
+        header.width = be_word((uint16)height);
+        header.num_components = 3;
+        uint8 tables[3] =
+        {
+            0,  // Luma component gets luma table (see write_DQT call above.)
+            1,  // Chroma component gets chroma table
+            1,  // Chroma component gets chroma table
+        };
+        for (int i = 0; i < 3; ++i) {
+            ComponentSpec spec;
+            spec.component_id = (uint8)(i + 1);  // No particular reason. Just 1, 2, 3.
+            spec.sampling_factors = (uint8)0x11;
+            spec.qt = tables[i];
 
-    // Write huffman table specifications
-    HuffmanTableClass ac = AC;
-    HuffmanTableClass dc = DC;
-    write_DHT(file_out, ht_luma_dc_len  , ht_luma_dc  , dc, 0);
-    write_DHT(file_out, ht_luma_ac_len  , ht_luma_ac  , ac, 0);
-    write_DHT(file_out, ht_chroma_dc_len, ht_chroma_dc, dc, 1);
-    write_DHT(file_out, ht_chroma_ac_len, ht_chroma_ac, ac, 1);
+            header.component_spec[i] = spec;
+        }
 
-    // Write start of scan!
+        // Write to file.
+        fwrite(&header, sizeof(FrameHeader), 1, file_out);
+    }
+
+    write_DHT(file_out, ht_luma_dc_len  , ht_luma_dc  , DC, 0);
+    write_DHT(file_out, ht_luma_ac_len  , ht_luma_ac  , AC, 0);
+    write_DHT(file_out, ht_chroma_dc_len, ht_chroma_dc, DC, 1);
+    write_DHT(file_out, ht_chroma_ac_len, ht_chroma_ac, AC, 1);
+
+    // Write start of scan
     uint16 SOS = be_word(0xffda);
     fwrite(&SOS, sizeof(int16), 1, file_out);
+
+    // Write compressed data.
 
     // Finish the image.
     {
@@ -484,7 +529,7 @@ int main()
     // Try to load the image with stb_image
     {
         // test ref image'
-        stbi_load("../ref.jpg", NULL, NULL, NULL, 0);
+        //stbi_load("../ref.jpg", NULL, NULL, NULL, 0);
         unsigned char* my_data =
             stbi_load("../out.jpg", &width, &height, &num_components, 0);
         if (!my_data) {

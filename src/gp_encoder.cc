@@ -74,17 +74,7 @@ typedef int32         bool32;
 // Code
 // ============================================================
 
-// JFIF image header:
-// SOI(ffd8)
-// APP0 [JFIF FRAME]
-// COM | len | "blah"
-// DQT <p.39>
-// SOF <p.35>
-// DHT <p.40>
-
-// ============================================================
 //    === Define various default tables.
-// ============================================================
 
 // K.1 - suggested luminance QT
 static uint8 qt_luma[] =
@@ -134,7 +124,6 @@ static uint8 zig_zag_indices[64] =
 // We can derive the complete Huffman tree from this at runtime, and save ourselves
 // extra complexity / code.
 //  (Procedure described in jpeg spec: C.2)
-
 
 // Number of 16 bit values for every code length. (K.3.3.1)
 static uint8 ht_luma_dc_len[16] =
@@ -260,6 +249,25 @@ typedef struct FrameHeader_s
     uint8  num_components;              // For this implementation, will be equal to 3.
     ComponentSpec component_spec[3];
 } FrameHeader;
+
+#pragma pack(1)
+typedef struct FrameComponentSpec_s
+{
+    uint8 component_id;                 // Just as with ComponentSpec
+    uint8 dc_ac;               // (dc|ac)
+} FrameComponentSpec;
+
+#pragma pack(1)
+typedef struct ScanHeader_s
+{
+    uint16 SOS;
+    uint16 len;
+    uint8 num_components;  // 3.
+    FrameComponentSpec component_spec[3];
+    uint8 first;  // 0
+    uint8 last;  // 63
+    uint8 ah_al;  // o
+} ScanHeader;
 #ifdef MSVC_VER
 #pragma pack(pop)
 #elif defined(__clang__)
@@ -434,8 +442,8 @@ static int encode(
         header.precision = 8;
         tje_assert(width <= 0xffff);
         tje_assert(height <= 0xffff);
-        header.height = be_word((uint16)width);
-        header.width = be_word((uint16)height);
+        header.height = be_word((uint16)height);
+        header.width = be_word((uint16)width);
         header.num_components = 3;
         uint8 tables[3] =
         {
@@ -443,7 +451,8 @@ static int encode(
             1,  // Chroma component gets chroma table
             1,  // Chroma component gets chroma table
         };
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < 3; ++i)
+        {
             ComponentSpec spec;
             spec.component_id = (uint8)(i + 1);  // No particular reason. Just 1, 2, 3.
             spec.sampling_factors = (uint8)0x11;
@@ -462,10 +471,55 @@ static int encode(
     write_DHT(file_out, ht_chroma_ac_len, ht_chroma_ac, AC, 1);
 
     // Write start of scan
-    uint16 SOS = be_word(0xffda);
-    fwrite(&SOS, sizeof(int16), 1, file_out);
+    {
+        ScanHeader header;
+        header.SOS = be_word(0xffda);
+        header.len = be_word((uint16)(6 + 2 * 3));
+        header.num_components = 3;  // 3.
 
+        uint8 tables[3] =
+        {
+            0x00,
+            0x11,
+            0x11,
+        };
+        for (int i = 0; i < 3; ++i)
+        {
+            FrameComponentSpec cs;
+            // Must be equal to component_id from frame header above.
+            cs.component_id = (uint8)(i + 1);
+            cs.dc_ac = (uint8)tables[i];
+
+            header.component_spec[i] = cs;
+        }
+
+        header.first = 0;  // 0
+        header.last  = 63;  // 63
+        header.ah_al = 0;  // o
+
+        fwrite(&header, sizeof(ScanHeader), 1, file_out);
+    }
+
+    uint16 zero = be_word(0xff00);
+    fwrite(&zero, sizeof(uint16), 2, file_out);
     // Write compressed data.
+    {
+        // Test:
+        // Write a marker for zeroes across every possible mcu
+        for (int y = 0; y < width / 8; ++y)
+        {
+            for (int x = 0; x < height / 8; ++x)
+            {
+                // Write DC coefficient
+                /* uint16 zero = be_word(0x0100);  // I have no idea what I am doing. */
+                /* fwrite(&zero, sizeof(uint16), 1, file_out); */
+                // Write AC coefficients
+                //  == Just finish off the block to get a black image.
+                uint16 EOB = be_word(0x0000);
+                fwrite(&EOB, sizeof(uint16), 1, file_out);
+            }
+        }
+    }
 
     // Finish the image.
     {

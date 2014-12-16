@@ -334,6 +334,8 @@ static void write_DHT(
 //  It would be nice to add this functionality and keep the jpeg encoder
 //  orthogonal so that it can be of more general use outside of my genetic
 //  algorithm adventure.
+//
+//  TODO: why does Paint think that our DPI is not 96 by 96??
 
 static int encode(
         const unsigned char* src_data,
@@ -410,11 +412,10 @@ static int encode(
 
     { // Write header
         JPEGHeader header;
-        header.SOI = be_word(0xffd8);  // Sequential DCT
 
         // JFIF header.
+        header.SOI = be_word(0xffd8);  // Sequential DCT
         header.APP0 = be_word(0xffe0);
-
         header.jfif_len = be_word(0x0016);
         memcpy(header.jfif_id, k_jfif_id, 5);
         header.version = be_word(0x0102);
@@ -423,10 +424,9 @@ static int encode(
         header.y_density = be_word(0x0060);  // 96 DPI
         header.thumb_size = 0;
 
-        // Our signature
+        // Comment
         header.com = be_word(0xfffe);
-
-        memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1);
+        memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1); // Skip the 0-bit
 
         fwrite(&header, sizeof(JPEGHeader), 1, file_out);
     }
@@ -474,8 +474,8 @@ static int encode(
     {
         ScanHeader header;
         header.SOS = be_word(0xffda);
-        header.len = be_word((uint16)(6 + 2 * 3));
-        header.num_components = 3;  // 3.
+        header.len = be_word((uint16)(6 + (2 * 3)));
+        header.num_components = 3;
 
         uint8 tables[3] =
         {
@@ -493,30 +493,31 @@ static int encode(
             header.component_spec[i] = cs;
         }
 
-        header.first = 0;  // 0
-        header.last  = 63;  // 63
-        header.ah_al = 0;  // o
+        header.first = 0;
+        header.last  = 63;
+        header.ah_al = 0;
 
         fwrite(&header, sizeof(ScanHeader), 1, file_out);
     }
 
-    uint16 zero = be_word(0xff00);
-    fwrite(&zero, sizeof(uint16), 2, file_out);
     // Write compressed data.
     {
-        // Test:
-        // Write a marker for zeroes across every possible mcu
+        srand(43);
         for (int y = 0; y < width / 8; ++y)
         {
             for (int x = 0; x < height / 8; ++x)
             {
                 // Write DC coefficient
-                /* uint16 zero = be_word(0x0100);  // I have no idea what I am doing. */
-                /* fwrite(&zero, sizeof(uint16), 1, file_out); */
+                uint16 zero = be_word(0x0102);
+                fwrite(&zero, sizeof(uint16), 1, file_out);
                 // Write AC coefficients
-                //  == Just finish off the block to get a black image.
-                uint16 EOB = be_word(0x0000);
-                fwrite(&EOB, sizeof(uint16), 1, file_out);
+                for (int i = 0; i < 63; ++i)
+                {
+                    uint16 r = (uint16)(rand() % 0xff);
+                    fwrite(&r, sizeof(uint16), 1, file_out);
+                }
+                /* uint16 EOB = be_word(0x0000); */
+                /* fwrite(&EOB, sizeof(uint16), 63, file_out); */
             }
         }
     }
@@ -550,6 +551,8 @@ int tje_encode(
 // Local includes
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../third_party/stb/stb_image_write.h"
 
 #ifdef _WIN32
 int CALLBACK WinMain(
@@ -565,7 +568,25 @@ int main()
     int height;
     int num_components;
 
-    unsigned char* data = stbi_load("../in.bmp", &width, &height, &num_components, 0);
+    // Generate test image.
+    {
+        int width = 1024;
+        int height = 728;
+        unsigned char* data = (unsigned char*)malloc(1024 * 728 * 3);
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x)
+            {
+                int i = 3 * ((y * width) + x);
+                data[i + 0] = rand() % 0xff;
+                data[i + 1] = rand() % 0xff;
+                data[i + 2] = rand() % 0xff;
+            }
+        stbi_write_bmp("../test.bmp", width, height, 3, (const void*) data);
+        free(data);
+    }
+
+    // Read the image we just wrote..
+    unsigned char* data = stbi_load("../test.bmp", &width, &height, &num_components, 0);
 
     if (!data)
     {
@@ -582,13 +603,13 @@ int main()
 
     // Try to load the image with stb_image
     {
-        // test ref image'
-        //stbi_load("../ref.jpg", NULL, NULL, NULL, 0);
         unsigned char* my_data =
             stbi_load("../out.jpg", &width, &height, &num_components, 0);
-        if (!my_data) {
+        if (!my_data)
+        {
             tje_log("STB could not load my JPEG\n");
         }
+        // TODO: Get error from original data.
     }
 
     return result;

@@ -338,9 +338,9 @@ static void write_DHT(
 //  TODO: why does Paint think that our DPI is not 96 by 96??
 
 // Returns all code sizes from the BITS specification (JPEG C.3)
-static uint8* huff_get_code_lengths(uint8* bits)
+static uint8* huff_get_code_lengths(uint8* bits, int64* out_count)
 {
-    size_t count = 0;
+    int64 count = 0;
     // Calculate count
 
     for (int i = 0; i < 16; ++i)
@@ -356,13 +356,96 @@ static uint8* huff_get_code_lengths(uint8* bits)
         for (int j = 0; j <= bits[i]; ++j)
         {
             tje_assert(k < count);
-            huffsize[k] = (uint8)i;
-            ++k;
+            huffsize[k++] = (uint8)i;
         }
-        //        huffsize[k] = 0;
+        huffsize[k] = 0;
         // TODO: lastk = k ??
     }
+    *out_count = count;
     return huffsize;
+}
+
+static uint16* huff_get_codes(uint8* huffsize, int64* out_count)
+{
+    int64 count = 0;
+
+    int k = 0;
+    uint8 sz = huffsize[0];
+    for (;;)
+    {
+        do
+        {
+            ++k;
+        }
+        while (huffsize[k] == sz);
+        if (huffsize[k] == 0)
+            break;
+        do
+        {
+            ++sz;
+        }
+        while(huffsize[k] != sz);
+
+    }
+
+    count = k;
+    *out_count = count;
+
+    uint16 code = 0;
+    k = 0;
+    sz = huffsize[0];
+    uint16* codes = (uint16*)malloc(sizeof(uint16) * (count + 1));
+    for(;;)
+    {
+        do
+        {
+            tje_assert(k < count)
+            codes[k++] = code++;
+            tje_assert(code < 0xffff);
+        }
+        while (huffsize[k] == sz);
+        if (huffsize[k] == 0)
+        {
+            return codes;
+        }
+        do
+        {
+            code = code << 1;
+            ++sz;
+        }
+        while(huffsize[k] != sz);
+    }
+}
+
+// In:
+//  huffcode, huffsize, huffval
+// Out:
+//  e_huffcode, e_huffsize
+static void huff_get_canonical(
+        uint8* huffval,
+        uint8* huffsize, int64 huffsize_c,
+        uint16* huffcode, int64 huffcode_c,
+        uint8** out_ehuffsize,
+        uint16** out_ehuffcode)
+{
+    uint8* ehuffsize  = (uint8*)malloc(sizeof(uint8) * huffsize_c);
+    uint16* ehuffcode = (uint16*)malloc(sizeof(uint16) * huffcode_c);
+
+    int k = 0;
+    do
+    {
+        // TODO: this is wrong.. do a non-spec implementation
+        uint8 val = huffval[k];
+        tje_assert(val < huffcode_c);
+        tje_assert(val < huffsize_c);
+        ehuffcode[val] = huffcode[k];
+        ehuffsize[val] = huffsize[k];
+        k++;
+    }
+    while (k < huffsize_c);
+
+    *out_ehuffsize = ehuffsize;
+    *out_ehuffcode = ehuffcode;
 }
 
 static int encode(
@@ -386,24 +469,28 @@ static int encode(
         }
     }
 
-    // Counts.
-    int luma_dc_c = 0;
-    int luma_ac_c = 0;
-    int chroma_dc_c = 0;
-    int chroma_ac_c = 0;
+    // Test counts.
+#ifdef TJE_DEBUG
     {
-        for (int i = 0; i < 16; ++i)
+        int luma_dc_c = 0;
+        int luma_ac_c = 0;
+        int chroma_dc_c = 0;
+        int chroma_ac_c = 0;
         {
-            luma_dc_c += ht_luma_dc_len[i];
-            luma_ac_c += ht_luma_ac_len[i];
-            chroma_dc_c += ht_chroma_dc_len[i];
-            chroma_ac_c += ht_chroma_ac_len[i];
+            for (int i = 0; i < 16; ++i)
+            {
+                luma_dc_c += ht_luma_dc_len[i];
+                luma_ac_c += ht_luma_ac_len[i];
+                chroma_dc_c += ht_chroma_dc_len[i];
+                chroma_ac_c += ht_chroma_ac_len[i];
+            }
+            tje_assert(tje_array_count(ht_chroma_ac) == chroma_ac_c);
+            tje_assert(tje_array_count(ht_chroma_dc) == chroma_dc_c);
+            tje_assert(tje_array_count(ht_luma_ac) == luma_ac_c);
+            tje_assert(tje_array_count(ht_luma_dc) == luma_dc_c);
         }
-        tje_assert(tje_array_count(ht_chroma_ac) == chroma_ac_c);
-        tje_assert(tje_array_count(ht_chroma_dc) == chroma_dc_c);
-        tje_assert(tje_array_count(ht_luma_ac) == luma_ac_c);
-        tje_assert(tje_array_count(ht_luma_dc) == luma_dc_c);
     }
+#endif
 
     // TODO: support arbitrary resolutions.
     if (((height % 8) != 0) || ((width % 8) != 0))
@@ -427,10 +514,40 @@ static int encode(
     //   - quantization
     // ==================================================================
 
-    uint8* huffsize_luma_dc   = huff_get_code_lengths(ht_luma_dc_len);
-    uint8* huffsize_chroma_dc = huff_get_code_lengths(ht_chroma_dc_len);
-    uint8* huffsize_luma_ac   = huff_get_code_lengths(ht_luma_ac_len);
-    uint8* huffsize_chroma_ac = huff_get_code_lengths(ht_chroma_ac_len);
+    int64 huffsize_count[4];
+    uint8* huffsize[4];
+    int64 huffcode_count[4];
+    uint16* huffcode[4];
+
+    // TODO: I am actually using this???
+    enum
+    {
+        LUMA_AC,
+        LUMA_DC,
+        CHROMA_AC,
+        CHROMA_DC,
+    };
+    uint8* spec_tables[4] =
+    {
+        ht_luma_dc_len,
+        ht_luma_ac_len,
+        ht_chroma_dc_len,
+        ht_chroma_ac_len,
+    };
+    for (int i = 0; i < 4; ++i)
+    {
+        huffsize[i] = huff_get_code_lengths(spec_tables[i], &huffsize_count[i]);
+        huffcode[i] = huff_get_codes(huffsize[i], &huffcode_count[i]);
+    }
+
+    uint8* ehuffsize[4];
+    uint16* ehuffcode[4];
+    huff_get_canonical(
+            ht_luma_dc,
+            huffsize[0], huffsize_count[0],
+            huffcode[0], huffcode_count[0],
+            &(ehuffsize[0]),
+            &(ehuffcode[0]));
 
     int bytes_per_pixel = 3;  // Only supporting RGB right now..
     for (int y = 0; y < height; ++y)
@@ -451,10 +568,11 @@ static int encode(
     }
 
     // Free compression allocations.
-    free(huffsize_luma_dc);
-    free(huffsize_chroma_dc);
-    free(huffsize_luma_ac);
-    free(huffsize_chroma_ac);
+    for (int i  = 0; i < 4; ++i)
+    {
+        free(huffsize[0]);
+        free(huffcode[0]);
+    }
     // ============================================================
     //  Actual write-to-file.
     // ============================================================

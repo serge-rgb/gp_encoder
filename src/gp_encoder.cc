@@ -337,6 +337,34 @@ static void write_DHT(
 //
 //  TODO: why does Paint think that our DPI is not 96 by 96??
 
+// Returns all code sizes from the BITS specification (JPEG C.3)
+static uint8* huff_get_code_lengths(uint8* bits)
+{
+    size_t count = 0;
+    // Calculate count
+
+    for (int i = 0; i < 16; ++i)
+        for (int j = 0; j <= bits[i]; ++j)
+            count++;
+
+    size_t huffsize_sz = sizeof(uint8) * count;
+    uint8* huffsize = (uint8*)malloc(sizeof(uint8) * count);
+
+    int k = 0;
+    for (int i = 0; i < 16; ++i)
+    {
+        for (int j = 0; j <= bits[i]; ++j)
+        {
+            tje_assert(k < count);
+            huffsize[k] = (uint8)i;
+            ++k;
+        }
+        //        huffsize[k] = 0;
+        // TODO: lastk = k ??
+    }
+    return huffsize;
+}
+
 static int encode(
         const unsigned char* src_data,
         const int width,
@@ -357,12 +385,13 @@ static int encode(
             return 1;
         }
     }
-#ifdef TJE_DEBUG   // Test our hard-coded huffman specification tables.
+
+    // Counts.
+    int luma_dc_c = 0;
+    int luma_ac_c = 0;
+    int chroma_dc_c = 0;
+    int chroma_ac_c = 0;
     {
-        int luma_dc_c = 0;
-        int luma_ac_c = 0;
-        int chroma_dc_c = 0;
-        int chroma_ac_c = 0;
         for (int i = 0; i < 16; ++i)
         {
             luma_dc_c += ht_luma_dc_len[i];
@@ -375,7 +404,6 @@ static int encode(
         tje_assert(tje_array_count(ht_luma_ac) == luma_ac_c);
         tje_assert(tje_array_count(ht_luma_dc) == luma_dc_c);
     }
-#endif
 
     // TODO: support arbitrary resolutions.
     if (((height % 8) != 0) || ((width % 8) != 0))
@@ -391,8 +419,20 @@ static int encode(
         return 1;
     }
 
-    int bytes_per_pixel = 3;  // Only supporting RGB right now..
+    // TODO: ============================================================
+    // - Get full huffman table from specification
+    // Read file in chunks, and "serialize":
+    //   - RGB->YUV
+    //   - DCT
+    //   - quantization
+    // ==================================================================
 
+    uint8* huffsize_luma_dc   = huff_get_code_lengths(ht_luma_dc_len);
+    uint8* huffsize_chroma_dc = huff_get_code_lengths(ht_chroma_dc_len);
+    uint8* huffsize_luma_ac   = huff_get_code_lengths(ht_luma_ac_len);
+    uint8* huffsize_chroma_ac = huff_get_code_lengths(ht_chroma_ac_len);
+
+    int bytes_per_pixel = 3;  // Only supporting RGB right now..
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
@@ -409,6 +449,15 @@ static int encode(
             // TODO: Actual compression code
         }
     }
+
+    // Free compression allocations.
+    free(huffsize_luma_dc);
+    free(huffsize_chroma_dc);
+    free(huffsize_luma_ac);
+    free(huffsize_chroma_ac);
+    // ============================================================
+    //  Actual write-to-file.
+    // ============================================================
 
     { // Write header
         JPEGHeader header;

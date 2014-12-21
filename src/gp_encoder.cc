@@ -184,6 +184,10 @@ static uint8 ht_chroma_ac[] =
 
 // ============================================================
 
+#define tje_free(mem)\
+    free(mem);\
+    mem = NULL;
+
 // Memory order as big endian. 0xhilo -> 0xlohi which looks as 0xhilo in memory.
 static uint16 be_word(uint16 le_word)
 {
@@ -199,12 +203,9 @@ static uint16 be_word(uint16 le_word)
 
 static uint8 k_jfif_id[] = "JFIF";
 static uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
+
 #pragma pack(push)
-#ifdef MSVC_VER
 #pragma pack(1)
-#elif defined(__clang__)
-#pragma pack(1)
-#endif
 typedef struct JPEGHeader_s
 {
     uint16 SOI;
@@ -217,7 +218,6 @@ typedef struct JPEGHeader_s
     uint16 x_density;
     uint16 y_density;
     uint16  thumb_size;
-
     // Our signature
     uint16 com;
     uint16 com_len;
@@ -229,8 +229,8 @@ typedef struct JPEGHeader_s
 typedef struct ComponentSpec_s
 {
     uint8  component_id;
-    uint8  sampling_factors; // most significant 4 bits: horizontal. 4 LSB: vertical (A.1.1)
-    uint8  qt;              // Quantization table selector.
+    uint8  sampling_factors;    // most significant 4 bits: horizontal. 4 LSB: vertical (A.1.1)
+    uint8  qt;                  // Quantization table selector.
 } ComponentSpec;
 
 #pragma pack(1)
@@ -249,7 +249,7 @@ typedef struct FrameHeader_s
 typedef struct FrameComponentSpec_s
 {
     uint8 component_id;                 // Just as with ComponentSpec
-    uint8 dc_ac;               // (dc|ac)
+    uint8 dc_ac;                        // (dc|ac)
 } FrameComponentSpec;
 
 #pragma pack(1)
@@ -263,11 +263,7 @@ typedef struct ScanHeader_s
     uint8 last;  // 63
     uint8 ah_al;  // o
 } ScanHeader;
-#ifdef MSVC_VER
 #pragma pack(pop)
-#elif defined(__clang__)
-#pragma pack(pop)
-#endif
 
 static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
 {
@@ -341,9 +337,10 @@ static uint8* huff_get_code_lengths(uint8* bits, int64* out_count)
     for (int i = 0; i < 16; ++i)
         for (int j = 0; j <= bits[i]; ++j)
             count++;
+    ++count;  // Trailing zero
 
     size_t huffsize_sz = sizeof(uint8) * count;
-    uint8* huffsize = (uint8*)malloc(sizeof(uint8) * count);
+    uint8* huffsize = (uint8*)malloc(huffsize_sz);
 
     int k = 0;
     for (int i = 0; i < 16; ++i)
@@ -353,10 +350,11 @@ static uint8* huff_get_code_lengths(uint8* bits, int64* out_count)
             tje_assert(k < count);
             huffsize[k++] = (uint8)i;
         }
+        tje_assert(k < count);
         huffsize[k] = 0;
         // TODO: lastk = k ??
     }
-    *out_count = count;
+    *out_count = count - 1;  // Don't include trailing zero.
     return huffsize;
 }
 
@@ -389,7 +387,7 @@ static uint16* huff_get_codes(uint8* huffsize, int64* out_count)
     uint16 code = 0;
     k = 0;
     sz = huffsize[0];
-    uint16* codes = (uint16*)malloc(sizeof(uint16) * (count + 1));
+    uint16* codes = (uint16*)malloc(sizeof(uint16) * (count));
     for(;;)
     {
         do
@@ -412,32 +410,30 @@ static uint16* huff_get_codes(uint8* huffsize, int64* out_count)
     }
 }
 
+// Returns huffman lengths and codes in simbol value order.
 // In:
 //  huffcode, huffsize, huffval
 // Out:
 //  e_huffcode, e_huffsize
-static void huff_get_canonical(
+static void huff_get_extended(
         uint8* huffval,
-        uint8* huffsize, int64 huffsize_c,
-        uint16* huffcode, int64 huffcode_c,
+        uint8* huffsize,
+        uint16* huffcode, int64 count,
         uint8** out_ehuffsize,
         uint16** out_ehuffcode)
 {
-    uint8* ehuffsize  = (uint8*)malloc(sizeof(uint8) * huffsize_c);
-    uint16* ehuffcode = (uint16*)malloc(sizeof(uint16) * huffcode_c);
+    uint8* ehuffsize  = (uint8*)malloc(sizeof(uint8) * 256);
+    uint16* ehuffcode = (uint16*)malloc(sizeof(uint16) * 256);
 
     int k = 0;
     do
     {
-        // TODO: this is wrong.. do a non-spec implementation
         uint8 val = huffval[k];
-        tje_assert(val < huffcode_c);
-        tje_assert(val < huffsize_c);
         ehuffcode[val] = huffcode[k];
         ehuffsize[val] = huffsize[k];
         k++;
     }
-    while (k < huffsize_c);
+    while (k < count);
 
     *out_ehuffsize = ehuffsize;
     *out_ehuffcode = ehuffcode;
@@ -509,18 +505,18 @@ static int encode(
     //   - quantization
     // ==================================================================
 
-    int64 huffsize_count[4];
-    uint8* huffsize[4];
-    int64 huffcode_count[4];
-    uint16* huffcode[4];
+    int64 huffsize_count[4] = {};
+    uint8* huffsize[4] = {};
+    int64 huffcode_count[4] = {};
+    uint16* huffcode[4] = {};
 
     // TODO: I am actually using this???
     enum
     {
-        LUMA_AC,
         LUMA_DC,
-        CHROMA_AC,
+        LUMA_AC,
         CHROMA_DC,
+        CHROMA_AC,
     };
     uint8* spec_tables[4] =
     {
@@ -531,16 +527,18 @@ static int encode(
     };
     for (int i = 0; i < 4; ++i)
     {
-        huffsize[i] = huff_get_code_lengths(spec_tables[i], &huffsize_count[i]);
-        huffcode[i] = huff_get_codes(huffsize[i], &huffcode_count[i]);
+        huffsize[i] = huff_get_code_lengths(spec_tables[i], &(huffsize_count[i]));
+        huffcode[i] = huff_get_codes(huffsize[i], &(huffcode_count[i]));
+        tje_assert(huffcode_count[i] == huffsize_count[i]);
     }
 
     uint8* ehuffsize[4];
     uint16* ehuffcode[4];
-    huff_get_canonical(
+    int64 count = huffcode_count[0];
+    huff_get_extended(
             ht_luma_dc,
-            huffsize[0], huffsize_count[0],
-            huffcode[0], huffcode_count[0],
+            huffsize[0],
+            huffcode[0], count,
             &(ehuffsize[0]),
             &(ehuffcode[0]));
 
@@ -563,18 +561,23 @@ static int encode(
     }
 
     // Free compression allocations.
-    for (int i  = 0; i < 4; ++i)
+    for (int i = 3; i >= 0; --i)
     {
-        free(huffsize[0]);
-        free(huffcode[0]);
+        tje_free(huffsize[i]);
+        tje_free(huffcode[i]);
+#if 0
+        tje_free(ehuffcode[i]);
+        tje_free(ehuffsize[i]);
+#endif
     }
+
+
     // ============================================================
     //  Actual write-to-file.
     // ============================================================
 
     { // Write header
         JPEGHeader header;
-
         // JFIF header.
         header.SOI = be_word(0xffd8);  // Sequential DCT
         header.APP0 = be_word(0xffe0);
@@ -585,11 +588,9 @@ static int encode(
         header.x_density = be_word(0x0060);  // 96 DPI
         header.y_density = be_word(0x0060);  // 96 DPI
         header.thumb_size = 0;
-
         // Comment
         header.com = be_word(0xfffe);
         memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1); // Skip the 0-bit
-
         fwrite(&header, sizeof(JPEGHeader), 1, file_out);
     }
 
@@ -622,7 +623,6 @@ static int encode(
 
             header.component_spec[i] = spec;
         }
-
         // Write to file.
         fwrite(&header, sizeof(FrameHeader), 1, file_out);
     }
@@ -654,11 +654,9 @@ static int encode(
 
             header.component_spec[i] = cs;
         }
-
         header.first = 0;
         header.last  = 63;
         header.ah_al = 0;
-
         fwrite(&header, sizeof(ScanHeader), 1, file_out);
     }
 
@@ -690,6 +688,7 @@ static int encode(
         fwrite(&EOI, sizeof(uint16), 1, file_out);
     }
     res |= fclose(file_out);
+
     return res;
 }
 }  // namespace tje

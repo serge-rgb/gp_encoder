@@ -335,7 +335,7 @@ static uint8* huff_get_code_lengths(uint8* bits, int64* out_count)
     // Calculate count
 
     for (int i = 0; i < 16; ++i)
-        for (int j = 0; j <= bits[i]; ++j)
+        for (int j = 0; j < bits[i]; ++j)
             count++;
     ++count;  // Trailing zero
 
@@ -345,10 +345,10 @@ static uint8* huff_get_code_lengths(uint8* bits, int64* out_count)
     int k = 0;
     for (int i = 0; i < 16; ++i)
     {
-        for (int j = 0; j <= bits[i]; ++j)
+        for (int j = 0; j < bits[i]; ++j)
         {
             tje_assert(k < count);
-            huffsize[k++] = (uint8)i;
+            huffsize[k++] = (uint8)(i + 1);
         }
         tje_assert(k < count);
         huffsize[k] = 0;
@@ -394,7 +394,6 @@ static uint16* huff_get_codes(uint8* huffsize, int64* out_count)
         {
             tje_assert(k < count)
             codes[k++] = code++;
-            tje_assert(code < 0xffff);
         }
         while (huffsize[k] == sz);
         if (huffsize[k] == 0)
@@ -424,6 +423,9 @@ static void huff_get_extended(
 {
     uint8* ehuffsize  = (uint8*)malloc(sizeof(uint8) * 256);
     uint16* ehuffcode = (uint16*)malloc(sizeof(uint16) * 256);
+
+    memset(ehuffsize, 0, sizeof(uint8) * 256);
+    memset(ehuffcode, 0, sizeof(uint16) * 256);
 
     int k = 0;
     do
@@ -460,28 +462,23 @@ static int encode(
         }
     }
 
-    // Test counts.
-#ifdef TJE_DEBUG
+    int luma_dc_c = 0;
+    int luma_ac_c = 0;
+    int chroma_dc_c = 0;
+    int chroma_ac_c = 0;
     {
-        int luma_dc_c = 0;
-        int luma_ac_c = 0;
-        int chroma_dc_c = 0;
-        int chroma_ac_c = 0;
+        for (int i = 0; i < 16; ++i)
         {
-            for (int i = 0; i < 16; ++i)
-            {
-                luma_dc_c += ht_luma_dc_len[i];
-                luma_ac_c += ht_luma_ac_len[i];
-                chroma_dc_c += ht_chroma_dc_len[i];
-                chroma_ac_c += ht_chroma_ac_len[i];
-            }
-            tje_assert(tje_array_count(ht_chroma_ac) == chroma_ac_c);
-            tje_assert(tje_array_count(ht_chroma_dc) == chroma_dc_c);
-            tje_assert(tje_array_count(ht_luma_ac) == luma_ac_c);
-            tje_assert(tje_array_count(ht_luma_dc) == luma_dc_c);
+            luma_dc_c += ht_luma_dc_len[i];
+            luma_ac_c += ht_luma_ac_len[i];
+            chroma_dc_c += ht_chroma_dc_len[i];
+            chroma_ac_c += ht_chroma_ac_len[i];
         }
+        tje_assert(tje_array_count(ht_chroma_ac) == chroma_ac_c);
+        tje_assert(tje_array_count(ht_chroma_dc) == chroma_dc_c);
+        tje_assert(tje_array_count(ht_luma_ac) == luma_ac_c);
+        tje_assert(tje_array_count(ht_luma_dc) == luma_dc_c);
     }
-#endif
 
     // TODO: support arbitrary resolutions.
     if (((height % 8) != 0) || ((width % 8) != 0))
@@ -498,7 +495,6 @@ static int encode(
     }
 
     // TODO: ============================================================
-    // - Get full huffman table from specification
     // Read file in chunks, and "serialize":
     //   - RGB->YUV
     //   - DCT
@@ -518,7 +514,7 @@ static int encode(
         CHROMA_DC,
         CHROMA_AC,
     };
-    uint8* spec_tables[4] =
+    uint8* spec_tables_bits[4] =
     {
         ht_luma_dc_len,
         ht_luma_ac_len,
@@ -527,20 +523,48 @@ static int encode(
     };
     for (int i = 0; i < 4; ++i)
     {
-        huffsize[i] = huff_get_code_lengths(spec_tables[i], &(huffsize_count[i]));
+        huffsize[i] = huff_get_code_lengths(spec_tables_bits[i], &(huffsize_count[i]));
         huffcode[i] = huff_get_codes(huffsize[i], &(huffcode_count[i]));
         tje_assert(huffcode_count[i] == huffsize_count[i]);
     }
+    tje_assert(huffsize_count[CHROMA_AC] == chroma_ac_c);
+    tje_assert(huffsize_count[CHROMA_AC] == chroma_ac_c);
+    tje_assert(huffsize_count[LUMA_AC] == luma_ac_c);
+    tje_assert(huffsize_count[LUMA_DC] == luma_dc_c);
 
     uint8* ehuffsize[4];
     uint16* ehuffcode[4];
-    int64 count = huffcode_count[0];
-    huff_get_extended(
-            ht_luma_dc,
-            huffsize[0],
-            huffcode[0], count,
-            &(ehuffsize[0]),
-            &(ehuffcode[0]));
+    uint8* spec_tables_huffval[4] =
+    {
+        ht_luma_dc,
+        ht_luma_ac,
+        ht_chroma_dc,
+        ht_chroma_ac,
+    };
+    for (int i = 0; i < 4; ++i)
+    {
+        int64 count = huffcode_count[i];
+        huff_get_extended(
+                spec_tables_huffval[i],
+                huffsize[i],
+                huffcode[i], count,
+                &(ehuffsize[i]),
+                &(ehuffcode[i]));
+    }
+
+    {  // Quick test for our huffman table
+        for (int i = 0; i < 256; ++i)
+        {
+            uint8 runlength = ehuffsize[CHROMA_AC][i];
+            uint16 code     = ehuffcode[CHROMA_AC][i];
+            if (!(runlength == 0 && code == 0))
+            {
+                char buffer[256];
+                sprintf(buffer, "i(%d): [%d, %d]\n", i, runlength, code);
+                tje_log(buffer);
+            }
+        }
+    }
 
     int bytes_per_pixel = 3;  // Only supporting RGB right now..
     for (int y = 0; y < height; ++y)
@@ -561,16 +585,13 @@ static int encode(
     }
 
     // Free compression allocations.
-    for (int i = 3; i >= 0; --i)
+    for (int i = 0; i < 4; ++i)
     {
         tje_free(huffsize[i]);
         tje_free(huffcode[i]);
-#if 0
         tje_free(ehuffcode[i]);
         tje_free(ehuffsize[i]);
-#endif
     }
-
 
     // ============================================================
     //  Actual write-to-file.

@@ -71,10 +71,18 @@ typedef uint64_t      uint64;
 typedef int32         bool32;
 
 // ============================================================
-// Code
+// Table definitions.
+//
+// The spec defines default reasonably good quantization matrices and huffman
+// specification tables.
+//
+//
+// Instead of hard-coding the final huffman table, we only hard-code the table
+// spec suggested by the specification, and then derive the full table from
+// there.  This is only for didactic purposes but it might be useful if there
+// ever is the case that we need to swap huffman tables from various sources.
 // ============================================================
 
-//    === Define various default tables.
 
 // K.1 - suggested luminance QT
 static uint8 qt_luma[] =
@@ -102,23 +110,7 @@ static uint8 qt_chroma[] =
    99,99,99,99,99,99,99,99,
 };
 
-// Zig-zag order:
-static uint8 zig_zag_indices[64] =
-{
-   0,  1,  5,  6, 14, 15, 27, 28,
-   2,  4,  7, 13, 16, 26, 29, 42,
-   3,  8, 12, 17, 25, 30, 41, 43,
-   9, 11, 18, 24, 31, 40, 44, 53,
-   10, 19, 23, 32, 39, 45, 52, 54,
-   20, 22, 33, 38, 46, 51, 55, 60,
-   21, 34, 37, 47, 50, 56, 59, 61,
-   35, 36, 48, 49, 57, 58, 62, 63
-};
-
-// Huffman table as suggested by the spec.
-// We can derive the complete Huffman tree from this at runtime, and save ourselves
-// extra complexity / code.
-//  (Procedure described in jpeg spec: C.2)
+// == Procedure to 'deflate' the huffman tree: JPEG spec, C.2
 
 // Number of 16 bit values for every code length. (K.3.3.1)
 static uint8 ht_luma_dc_len[16] =
@@ -183,6 +175,21 @@ static uint8 ht_chroma_ac[] =
 
 
 // ============================================================
+// Code
+// ============================================================
+
+// Zig-zag order:
+static uint8 zig_zag_indices[64] =
+{
+   0,  1,  5,  6, 14, 15, 27, 28,
+   2,  4,  7, 13, 16, 26, 29, 42,
+   3,  8, 12, 17, 25, 30, 41, 43,
+   9, 11, 18, 24, 31, 40, 44, 53,
+   10, 19, 23, 32, 39, 45, 52, 54,
+   20, 22, 33, 38, 46, 51, 55, 60,
+   21, 34, 37, 47, 50, 56, 59, 61,
+   35, 36, 48, 49, 57, 58, 62, 63
+};
 
 #define tje_free(mem)\
     free(mem);\
@@ -197,8 +204,10 @@ static uint16 be_word(uint16 le_word)
 }
 
 // ============================================================
-// The following structs help clarify the code that writes the main markers of
-// the JPEG file.
+// The following structs exist only for code clarity, debuggability, and
+// readability.  They are used when writing to disk, but it is useful to have
+// 1-packed-structs to document how the format works, and to inspect memory
+// while developing.
 // ============================================================
 
 static uint8 k_jfif_id[] = "JFIF";
@@ -315,19 +324,6 @@ static void write_DHT(
     fwrite(matrix_val, sizeof(uint8), num_values, fd);
 }
 
-// NOTE:
-//  Once this function correctly implements a jpeg encoder, we need to
-//  start morphing it into something that  can do this:
-//
-//  1) Receives quantization tables from caller.
-//  2) Can constrain itself to a limited number of MCUs
-//
-//  It would be nice to add this functionality and keep the jpeg encoder
-//  orthogonal so that it can be of more general use outside of my genetic
-//  algorithm adventure.
-//
-//  TODO: why does Paint think that our DPI is not 96 by 96??
-
 // Returns all code sizes from the BITS specification (JPEG C.3)
 static uint8* huff_get_code_lengths(uint8* bits, int64 size)
 {
@@ -408,6 +404,18 @@ static void huff_get_extended(
     *out_ehuffcode = ehuffcode;
 }
 
+// NOTE:
+//  Once this function correctly implements a jpeg encoder, we need to
+//  start morphing it into something that  can do this:
+//
+//  1) Receives quantization tables from caller.
+//  2) Can constrain itself to a limited number of MCUs
+//
+//  It would be nice to add this functionality and keep the jpeg encoder
+//  orthogonal so that it can be of more general use outside of my genetic
+//  algorithm adventure.
+//
+//  TODO: why does Paint think that our DPI is not 96 by 96??
 static int encode(
         const unsigned char* src_data,
         const int width,

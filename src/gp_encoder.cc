@@ -414,8 +414,6 @@ static void huff_get_extended(
 //  It would be nice to add this functionality and keep the jpeg encoder
 //  orthogonal so that it can be of more general use outside of my genetic
 //  algorithm adventure.
-//
-//  TODO: why does Paint think that our DPI is not 96 by 96??
 static int encode(
         const unsigned char* src_data,
         const int width,

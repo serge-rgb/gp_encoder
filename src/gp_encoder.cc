@@ -329,17 +329,10 @@ static void write_DHT(
 //  TODO: why does Paint think that our DPI is not 96 by 96??
 
 // Returns all code sizes from the BITS specification (JPEG C.3)
-static uint8* huff_get_code_lengths(uint8* bits, int64* out_count)
+static uint8* huff_get_code_lengths(uint8* bits, int64 size)
 {
-    int64 count = 0;
-    // Calculate count
-
-    for (int i = 0; i < 16; ++i)
-        for (int j = 0; j < bits[i]; ++j)
-            count++;
-    ++count;  // Trailing zero
-
-    size_t huffsize_sz = sizeof(uint8) * count;
+    // Add 1 for the trailing 0, used as a terminator in huff_get_codes()
+    size_t huffsize_sz = sizeof(uint8) * (size + 1);
     uint8* huffsize = (uint8*)malloc(huffsize_sz);
 
     int k = 0;
@@ -347,52 +340,26 @@ static uint8* huff_get_code_lengths(uint8* bits, int64* out_count)
     {
         for (int j = 0; j < bits[i]; ++j)
         {
-            tje_assert(k < count);
+            tje_assert(k < size);
             huffsize[k++] = (uint8)(i + 1);
         }
-        tje_assert(k < count);
+        tje_assert(k < size + 1);
         huffsize[k] = 0;
-        // TODO: lastk = k ??
     }
-    *out_count = count - 1;  // Don't include trailing zero.
     return huffsize;
 }
 
-static uint16* huff_get_codes(uint8* huffsize, int64* out_count)
+static uint16* huff_get_codes(uint8* huffsize, int64 size)
 {
-    int64 count = 0;
-
+    uint16 code = 0;
     int k = 0;
     uint8 sz = huffsize[0];
-    for (;;)
-    {
-        do
-        {
-            ++k;
-        }
-        while (huffsize[k] == sz);
-        if (huffsize[k] == 0)
-            break;
-        do
-        {
-            ++sz;
-        }
-        while(huffsize[k] != sz);
-
-    }
-
-    count = k;
-    *out_count = count;
-
-    uint16 code = 0;
-    k = 0;
-    sz = huffsize[0];
-    uint16* codes = (uint16*)malloc(sizeof(uint16) * (count));
+    uint16* codes = (uint16*)malloc(sizeof(uint16) * (size));
     for(;;)
     {
         do
         {
-            tje_assert(k < count)
+            tje_assert(k < size)
             codes[k++] = code++;
         }
         while (huffsize[k] == sz);
@@ -462,23 +429,33 @@ static int encode(
         }
     }
 
-    int luma_dc_c = 0;
-    int luma_ac_c = 0;
-    int chroma_dc_c = 0;
-    int chroma_ac_c = 0;
+    enum
     {
-        for (int i = 0; i < 16; ++i)
+        LUMA_DC,
+        LUMA_AC,
+        CHROMA_DC,
+        CHROMA_AC,
+    };
+
+    uint8* spec_tables_bits[4] =
+    {
+        ht_luma_dc_len,
+        ht_luma_ac_len,
+        ht_chroma_dc_len,
+        ht_chroma_ac_len,
+    };
+    uint64 spec_tables_len[4] = {};
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int k = 0; k < 16; ++k)
         {
-            luma_dc_c += ht_luma_dc_len[i];
-            luma_ac_c += ht_luma_ac_len[i];
-            chroma_dc_c += ht_chroma_dc_len[i];
-            chroma_ac_c += ht_chroma_ac_len[i];
+            spec_tables_len[i] += spec_tables_bits[i][k];
         }
-        tje_assert(tje_array_count(ht_chroma_ac) == chroma_ac_c);
-        tje_assert(tje_array_count(ht_chroma_dc) == chroma_dc_c);
-        tje_assert(tje_array_count(ht_luma_ac) == luma_ac_c);
-        tje_assert(tje_array_count(ht_luma_dc) == luma_dc_c);
     }
+    tje_assert(tje_array_count(ht_chroma_ac) == spec_tables_len[CHROMA_AC]);
+    tje_assert(tje_array_count(ht_chroma_dc) == spec_tables_len[CHROMA_DC]);
+    tje_assert(tje_array_count(ht_luma_ac) == spec_tables_len[LUMA_AC]);
+    tje_assert(tje_array_count(ht_luma_dc) == spec_tables_len[LUMA_DC]);
 
     // TODO: support arbitrary resolutions.
     if (((height % 8) != 0) || ((width % 8) != 0))
@@ -495,61 +472,46 @@ static int encode(
     }
 
     // TODO: ============================================================
-    // Read file in chunks, and "serialize":
-    //   - RGB->YUV
-    //   - DCT
-    //   - quantization
+    // -Read file in chunks, and "serialize":
+    // - RGB->YUV
+    // - DCT
+    // - quantization
     // ==================================================================
-
-    int64 huffsize_count[4] = {};
-    uint8* huffsize[4] = {};
-    int64 huffcode_count[4] = {};
-    uint16* huffcode[4] = {};
-
-    // TODO: I am actually using this???
-    enum
-    {
-        LUMA_DC,
-        LUMA_AC,
-        CHROMA_DC,
-        CHROMA_AC,
-    };
-    uint8* spec_tables_bits[4] =
-    {
-        ht_luma_dc_len,
-        ht_luma_ac_len,
-        ht_chroma_dc_len,
-        ht_chroma_ac_len,
-    };
-    for (int i = 0; i < 4; ++i)
-    {
-        huffsize[i] = huff_get_code_lengths(spec_tables_bits[i], &(huffsize_count[i]));
-        huffcode[i] = huff_get_codes(huffsize[i], &(huffcode_count[i]));
-        tje_assert(huffcode_count[i] == huffsize_count[i]);
-    }
-    tje_assert(huffsize_count[CHROMA_AC] == chroma_ac_c);
-    tje_assert(huffsize_count[CHROMA_AC] == chroma_ac_c);
-    tje_assert(huffsize_count[LUMA_AC] == luma_ac_c);
-    tje_assert(huffsize_count[LUMA_DC] == luma_dc_c);
 
     uint8* ehuffsize[4];
     uint16* ehuffcode[4];
-    uint8* spec_tables_huffval[4] =
+    // Fill out the extended tables..
     {
-        ht_luma_dc,
-        ht_luma_ac,
-        ht_chroma_dc,
-        ht_chroma_ac,
-    };
-    for (int i = 0; i < 4; ++i)
-    {
-        int64 count = huffcode_count[i];
-        huff_get_extended(
-                spec_tables_huffval[i],
-                huffsize[i],
-                huffcode[i], count,
-                &(ehuffsize[i]),
-                &(ehuffcode[i]));
+        uint8* huffsize[4] = {};
+        uint16* huffcode[4] = {};
+        for (int i = 0; i < 4; ++i)
+        {
+            huffsize[i] = huff_get_code_lengths(spec_tables_bits[i], spec_tables_len[i]);
+            huffcode[i] = huff_get_codes(huffsize[i], spec_tables_len[i]);
+        }
+        uint8* spec_tables_huffval[4] =
+        {
+            ht_luma_dc,
+            ht_luma_ac,
+            ht_chroma_dc,
+            ht_chroma_ac,
+        };
+        for (int i = 0; i < 4; ++i)
+        {
+            int64 count = spec_tables_len[i];
+            huff_get_extended(
+                    spec_tables_huffval[i],
+                    huffsize[i],
+                    huffcode[i], count,
+                    &(ehuffsize[i]),
+                    &(ehuffcode[i]));
+        }
+        // Free non-ordered huffman data.
+        for (int i = 0; i < 4; ++i)
+        {
+            tje_free(huffsize[i]);
+            tje_free(huffcode[i]);
+        }
     }
 
     {  // Quick test for our huffman table
@@ -584,11 +546,9 @@ static int encode(
         }
     }
 
-    // Free compression allocations.
+    // Free huffman tables.
     for (int i = 0; i < 4; ++i)
     {
-        tje_free(huffsize[i]);
-        tje_free(huffcode[i]);
         tje_free(ehuffcode[i]);
         tje_free(ehuffsize[i]);
     }

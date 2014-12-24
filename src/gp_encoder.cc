@@ -19,6 +19,7 @@
 #include <stdio.h>  // FILE
 #include <string.h>  // memcpy
 #include <stdlib.h>
+#include <math.h>  // floorf, ceilf
 
 #ifdef _WIN32
 #include <windows.h>
@@ -404,6 +405,104 @@ static void huff_get_extended(
     *out_ehuffcode = ehuffcode;
 }
 
+// Taken almost directly from ffmpeg, who takes it from Pennebaker & Mitchel's
+// JPEG book who takes it from Arai, Agui an Nakajima, but that paper is in
+// japanese.
+static void fdct(
+        float* d0,
+        float* d1,
+        float* d2,
+        float* d3,
+        float* d4,
+        float* d5,
+        float* d6,
+        float* d7
+        )
+{
+    float t0 = *d0 + *d7;
+    float t7 = *d0 - *d7;
+    float t1 = *d1 + *d6;
+    float t6 = *d1 - *d6;
+    float t2 = *d2 + *d5;
+    float t5 = *d2 - *d5;
+    float t3 = *d3 + *d4;
+    float t4 = *d3 - *d4;
+
+    // Even part
+
+    float t10 = t0 + t3;
+    float t13 = t0 - t3;
+    float t11 = t1 + t2;
+    float t12 = t1 - t2;
+
+    *d0 = t10 + t11;
+    *d4 = t10 - t11;
+
+    float z1 = (t12 + t13) * 0.707106781f;
+
+    *d2 = t13 + z1;
+    *d6 = t13 - z1;
+
+
+    // Odd part
+
+    t10 = t4 + t5;
+    t11 = t5 + t6;
+    t12 = t6 + t7;
+
+    float z5 = (t10 - t12) * 0.382683433f;
+    float z2 = t10 * 0.5411961f + z5;
+    float z4 = t12 * 1.306562965f + z5;
+    float z3 = t11 * 0.707106781f;
+
+    float z11 = t7 + z3;
+    float z13 = t7 - z3;
+
+    *d5 = z13 + z2;
+    *d3 = z13 - z2;
+    *d1 = z11 + z4;
+    *d7 = z11 - z4;
+}
+
+static void encode_mcu(float* mcu, uint8* qt)
+{
+    // Apply DCT to block
+    // Rows:
+    for (int i = 0; i < 64; i += 8)
+    {
+        fdct(
+                &mcu[i + 0],
+                &mcu[i + 1],
+                &mcu[i + 2],
+                &mcu[i + 3],
+                &mcu[i + 4],
+                &mcu[i + 5],
+                &mcu[i + 6],
+                &mcu[i + 7]);
+    }
+    // Columns
+    for (int i = 0; i < 8; ++i)
+    {
+        fdct(
+                &mcu[i + 0],
+                &mcu[i + 8],
+                &mcu[i + 16],
+                &mcu[i + 24],
+                &mcu[i + 32],
+                &mcu[i + 40],
+                &mcu[i + 48],
+                &mcu[i + 56]);
+    }
+    int8 dc[64];
+    for (int i = 0; i < 64; ++i)
+    {
+        float fval = mcu[i] / qt[i];
+        int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
+        dc[zig_zag_indices[i]] = val;
+    }
+    return;
+}
+
 // NOTE:
 //  Once this function correctly implements a jpeg encoder, we need to
 //  start morphing it into something that  can do this:
@@ -527,6 +626,7 @@ static int encode(
     // multiple blocks in a way that works with a standalone simple jpeg encoder and
     // with the full hairy GPU genetic algorithm
 
+
     float mcu_y[64];
     float mcu_b[64];
     float mcu_r[64];
@@ -552,14 +652,14 @@ static int encode(
                 mcu_y[i] = y;
                 mcu_b[i] = cb;
                 mcu_r[i] = cr;
+
+                // Apply DCT to three components
+
             }
-            //////////////////////////////////
-            // Early exit while we get it working
-            //////////////////////////////////
-            if (x == 0)
-            {
-                break;
-            }
+
+            encode_mcu(mcu_y, qt_luma);
+            encode_mcu(mcu_b, qt_chroma);
+            encode_mcu(mcu_r, qt_chroma);
         }
     }
 

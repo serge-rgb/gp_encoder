@@ -520,35 +520,46 @@ static int encode(
         }
     }
 
-    {  // Quick test for our huffman table
-        for (int i = 0; i < 256; ++i)
-        {
-            uint8 runlength = ehuffsize[CHROMA_AC][i];
-            uint16 code     = ehuffcode[CHROMA_AC][i];
-            if (!(runlength == 0 && code == 0))
-            {
-                char buffer[256];
-                sprintf(buffer, "i(%d): [%d, %d]\n", i, runlength, code);
-                tje_log(buffer);
-            }
-        }
-    }
+    static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
 
-    int bytes_per_pixel = 3;  // Only supporting RGB right now..
-    for (int y = 0; y < height; ++y)
+    // Right now. We are filling one single block. The purpose is to test
+    // a DCT implementation. Once that's out of the way, we can figure out how to get
+    // multiple blocks in a way that works with a standalone simple jpeg encoder and
+    // with the full hairy GPU genetic algorithm
+
+    float mcu_y[64];
+    float mcu_b[64];
+    float mcu_r[64];
+
+    for (int y = 0; y < height; y += 8)
     {
-        for (int x = 0; x < width; ++x)
+        for (int x = 0; x < width; x += 8)
         {
-            int i = bytes_per_pixel * (x + (y * width));
-            uint8 r = src_data[i + 0];
-            uint8 g = src_data[i + 1];
-            uint8 b = src_data[i + 2];
-            uint32 pixel = 0;
-            // pixel: 0xRRGGBB00
-            pixel += (r << 24);
-            pixel += (g << 16);
-            pixel += (b <<  8);
-            // TODO: Actual compression code
+            for (int i = 0; i < 64; ++i)
+            {
+                int block_x = x + (i % 8);
+                int block_y = y + (i / 8);
+                int src_index = block_y * width + block_x * bytes_per_pixel;
+
+                uint8 r = src_data[src_index + 0];
+                uint8 g = src_data[src_index + 1];
+                uint8 b = src_data[src_index + 2];
+
+                float y  =   0.299f * r +  0.587f * g +  0.114f * b;
+                float cb = -0.1687f * r - 0.3313f * g +    0.5f * b + 128;
+                float cr =     0.5f * r - 0.4187f * g + 0.0813f * b + 128;
+
+                mcu_y[i] = y;
+                mcu_b[i] = cb;
+                mcu_r[i] = cr;
+            }
+            //////////////////////////////////
+            // Early exit while we get it working
+            //////////////////////////////////
+            if (x == 0)
+            {
+                break;
+            }
         }
     }
 
@@ -649,7 +660,7 @@ static int encode(
 
     // Write compressed data.
     {
-        srand(43);
+        srand(42);
         for (int y = 0; y < width / 8; ++y)
         {
             for (int x = 0; x < height / 8; ++x)
@@ -725,9 +736,9 @@ int main()
             for (int x = 0; x < width; ++x)
             {
                 int i = 3 * ((y * width) + x);
-                data[i + 0] = rand() % 0xff;
-                data[i + 1] = rand() % 0xff;
-                data[i + 2] = rand() % 0xff;
+                data[i + 0] = 0x01;//rand() % 0xff;
+                data[i + 1] = 0x02;//rand() % 0xff;
+                data[i + 2] = 0x03;//rand() % 0xff;
             }
         stbi_write_bmp("../test.bmp", width, height, 3, (const void*) data);
         free(data);

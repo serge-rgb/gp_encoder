@@ -576,13 +576,6 @@ static int encode(
         return 1;
     }
 
-    // TODO: ============================================================
-    // -Read file in chunks, and "serialize":
-    // - RGB->YUV
-    // - DCT
-    // - quantization
-    // ==================================================================
-
     uint8* ehuffsize[4];
     uint16* ehuffcode[4];
     // Fill out the extended tables..
@@ -617,57 +610,6 @@ static int encode(
             tje_free(huffsize[i]);
             tje_free(huffcode[i]);
         }
-    }
-
-    static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
-
-    // Right now. We are filling one single block. The purpose is to test
-    // a DCT implementation. Once that's out of the way, we can figure out how to get
-    // multiple blocks in a way that works with a standalone simple jpeg encoder and
-    // with the full hairy GPU genetic algorithm
-
-
-    float mcu_y[64];
-    float mcu_b[64];
-    float mcu_r[64];
-
-    for (int y = 0; y < height; y += 8)
-    {
-        for (int x = 0; x < width; x += 8)
-        {
-            for (int i = 0; i < 64; ++i)
-            {
-                int block_x = x + (i % 8);
-                int block_y = y + (i / 8);
-                int src_index = block_y * width + block_x * bytes_per_pixel;
-
-                uint8 r = src_data[src_index + 0];
-                uint8 g = src_data[src_index + 1];
-                uint8 b = src_data[src_index + 2];
-
-                float y  =   0.299f * r +  0.587f * g +  0.114f * b;
-                float cb = -0.1687f * r - 0.3313f * g +    0.5f * b + 128;
-                float cr =     0.5f * r - 0.4187f * g + 0.0813f * b + 128;
-
-                mcu_y[i] = y;
-                mcu_b[i] = cb;
-                mcu_r[i] = cr;
-
-                // Apply DCT to three components
-
-            }
-
-            encode_mcu(mcu_y, qt_luma);
-            encode_mcu(mcu_b, qt_chroma);
-            encode_mcu(mcu_r, qt_chroma);
-        }
-    }
-
-    // Free huffman tables.
-    for (int i = 0; i < 4; ++i)
-    {
-        tje_free(ehuffcode[i]);
-        tje_free(ehuffsize[i]);
     }
 
     // ============================================================
@@ -759,7 +701,57 @@ static int encode(
     }
 
     // Write compressed data.
+    static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
+
+    // Right now. We are filling one single block. The purpose is to test
+    // a DCT implementation. Once that's out of the way, we can figure out how to get
+    // multiple blocks in a way that works with a standalone simple jpeg encoder and
+    // with the full hairy GPU genetic algorithm
+
+
+    float mcu_y[64];
+    float mcu_b[64];
+    float mcu_r[64];
+
+    for (int y = 0; y < height; y += 8)
     {
+        for (int x = 0; x < width; x += 8)
+        {
+            for (int i = 0; i < 64; ++i)
+            {
+                int block_x = x + (i % 8);
+                int block_y = y + (i / 8);
+                int src_index = block_y * width + block_x * bytes_per_pixel;
+
+                uint8 r = src_data[src_index + 0];
+                uint8 g = src_data[src_index + 1];
+                uint8 b = src_data[src_index + 2];
+
+                float y  =   0.299f * r +  0.587f * g +  0.114f * b;
+                float cb = -0.1687f * r - 0.3313f * g +    0.5f * b + 128;
+                float cr =     0.5f * r - 0.4187f * g + 0.0813f * b + 128;
+
+                mcu_y[i] = y;
+                mcu_b[i] = cb;
+                mcu_r[i] = cr;
+            }
+
+            // TODO: We can "stack" MCUs here for multi-threaded or GPU
+            // processing.
+            encode_mcu(mcu_y, qt_luma);
+            encode_mcu(mcu_b, qt_chroma);
+            encode_mcu(mcu_r, qt_chroma);
+        }
+    }
+
+    // Free huffman tables.
+    for (int i = 0; i < 4; ++i)
+    {
+        tje_free(ehuffcode[i]);
+        tje_free(ehuffsize[i]);
+    }
+
+    {  // TEMP CODE TO FILL SOMETHING.
         srand(42);
         for (int y = 0; y < width / 8; ++y)
         {

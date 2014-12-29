@@ -464,7 +464,33 @@ static void fdct(
     *d7 = z11 - z4;
 }
 
-static void encode_mcu(float* mcu, uint8* qt)
+// TODO: read this in the spec.
+// This is Jon Olick's code...
+static void calculate_variable_length_int(int value, uint16 out[2])
+{
+#if 1
+    int abs_val = (value < 0) ? -value : value;
+    value = (value < 0) ? value - 1 : value;
+#else
+    int abs_val = value;
+    if ( value < 0 )
+    {
+        abs_val = -abs_val;
+        --value;
+    }
+#endif
+    out[1] = 1;
+    while( abs_val >>= 1 )
+    {
+        ++out[1];
+    }
+    out[0] = value & ((1 << out[1]) - 1);
+    // wouldn't this be clearer?
+    // out[0] = value & 0xffffffff ??
+    // value should fit inside a short anyways..
+}
+
+static void encode_and_write_DU(float* mcu, uint8* qt)
 {
     // Apply DCT to block
     // Rows:
@@ -493,13 +519,26 @@ static void encode_mcu(float* mcu, uint8* qt)
                 &mcu[i + 48],
                 &mcu[i + 56]);
     }
-    int8 dc[64];
+    int8 du[64];
     for (int i = 0; i < 64; ++i)
     {
         float fval = mcu[i] / qt[i];
         int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
-        dc[zig_zag_indices[i]] = val;
+        du[zig_zag_indices[i]] = val;
     }
+#if 0 // Debug logging.
+	char buffer[256] = {};
+    for (int j = 0; j < 8; ++j)
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            sprintf(buffer, "%s%d ", buffer, du[j * 8 + i]);
+        }
+        sprintf(buffer, "%s\n",buffer);
+    }
+    sprintf(buffer, "%s\n",buffer);
+    tje_log(buffer);
+#endif
     return;
 }
 
@@ -709,10 +748,24 @@ static int encode(
     // with the full hairy GPU genetic algorithm
 
 
-    float mcu_y[64];
-    float mcu_b[64];
-    float mcu_r[64];
+    float du_y[64];
+    float du_b[64];
+    float du_r[64];
 
+    //  1) Set pred to 0
+    //  2) While (MCU) encode MCU:(F)
+    //      a) For each component, encode & write DU (F, G, H)
+    //      b)
+    //      c)
+    //      d)
+    //      e)
+    //      f)
+    //      g)
+    //      h)
+    //  3) pad with 1-bits to complete final byte (F.1.2.3)
+    //  4) "Flush" (D.1.8)
+    //
+    // Set diff to 0.
     for (int y = 0; y < height; y += 8)
     {
         for (int x = 0; x < width; x += 8)
@@ -731,16 +784,16 @@ static int encode(
                 float cb = -0.1687f * r - 0.3313f * g +    0.5f * b + 128;
                 float cr =     0.5f * r - 0.4187f * g + 0.0813f * b + 128;
 
-                mcu_y[i] = y;
-                mcu_b[i] = cb;
-                mcu_r[i] = cr;
+                du_y[i] = y;
+                du_b[i] = cb;
+                du_r[i] = cr;
             }
 
             // TODO: We can "stack" MCUs here for multi-threaded or GPU
             // processing.
-            encode_mcu(mcu_y, qt_luma);
-            encode_mcu(mcu_b, qt_chroma);
-            encode_mcu(mcu_r, qt_chroma);
+            encode_and_write_DU(du_y, qt_luma);
+            encode_and_write_DU(du_b, qt_chroma);
+            encode_and_write_DU(du_r, qt_chroma);
         }
     }
 
@@ -752,22 +805,14 @@ static int encode(
     }
 
     {  // TEMP CODE TO FILL SOMETHING.
-        srand(42);
         for (int y = 0; y < width / 8; ++y)
         {
             for (int x = 0; x < height / 8; ++x)
             {
-                // Write DC coefficient
-                uint16 zero = be_word(0x0102);
-                fwrite(&zero, sizeof(uint16), 1, file_out);
-                // Write AC coefficients
-                for (int i = 0; i < 63; ++i)
-                {
-                    uint16 r = (uint16)(rand() % 0xff);
-                    fwrite(&r, sizeof(uint16), 1, file_out);
-                }
-                /* uint16 EOB = be_word(0x0000); */
-                /* fwrite(&EOB, sizeof(uint16), 63, file_out); */
+                // Write AC coefficient
+                // Write DC coefficients
+                uint16 EOB = be_word(0x0000);
+                fwrite(&EOB, sizeof(uint16), 63, file_out);
             }
         }
     }
@@ -778,6 +823,24 @@ static int encode(
         fwrite(&EOI, sizeof(uint16), 1, file_out);
     }
     res |= fclose(file_out);
+
+    {
+        char buffer[256];
+        // Test VLI
+        uint16 bits[2];
+        int v = 3;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%v) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+        v = -4;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%v) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+        v = 15;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%v) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+    }
 
     return res;
 }
@@ -828,9 +891,15 @@ int main()
             for (int x = 0; x < width; ++x)
             {
                 int i = 3 * ((y * width) + x);
-                data[i + 0] = 0x01;//rand() % 0xff;
-                data[i + 1] = 0x02;//rand() % 0xff;
-                data[i + 2] = 0x03;//rand() % 0xff;
+#if 1
+                data[i + 0] = 0x01;
+                data[i + 1] = 0x02;
+                data[i + 2] = 0x03;
+#else
+                data[i + 0] = rand() % 0xff;
+                data[i + 1] = rand() % 0xff;
+                data[i + 2] = rand() % 0xff;
+#endif
             }
         stbi_write_bmp("../test.bmp", width, height, 3, (const void*) data);
         free(data);

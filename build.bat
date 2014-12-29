@@ -6,8 +6,8 @@ set warnings_release=%warnings% /wd4189
 
 set defines=/D_CRT_SECURE_NO_WARNINGS /DTJE_STANDALONE /DTJE_DEBUG
 set compiler_flags=/FC /Zi
-set compiler_flags_debug=%compiler_flags% /Od /Oi
-set compiler_flags_release=%compiler_flags% /O2
+set compiler_flags_debug=%compiler_flags% %warnings% /Od /Oi
+set compiler_flags_release=%compiler_flags% %warnings_release% /O2
 :: set linker_flags= /opt:ref
 
 IF NOT EXIST build mkdir build

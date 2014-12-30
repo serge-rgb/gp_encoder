@@ -33,6 +33,7 @@
 
 #define tje_array_count(array) (sizeof(array) / sizeof(array[0]))
 
+// TODO: add option to specify quantization tables in public interface
 
 // ============================================================
 // Public interface:
@@ -464,8 +465,6 @@ static void fdct(
     *d7 = z11 - z4;
 }
 
-// TODO: read this in the spec.
-// This is Jon Olick's code...
 static void calculate_variable_length_int(int value, uint16 out[2])
 {
 #if 1
@@ -474,7 +473,7 @@ static void calculate_variable_length_int(int value, uint16 out[2])
 #else
     int abs_val = value;
     if ( value < 0 )
-    {
+{
         abs_val = -abs_val;
         --value;
     }
@@ -490,7 +489,42 @@ static void calculate_variable_length_int(int value, uint16 out[2])
     // value should fit inside a short anyways..
 }
 
-static void encode_and_write_DU(float* mcu, uint8* qt)
+// Write bits to file.
+static void write_bits(FILE* fd, uint32 *bitbuffer, uint32 *location, uint16 num_bits, uint16 bits)
+{
+    //             v- location
+    //  [                     ]   <-- bit buffer
+    // 32                     0
+    //
+    // This call pushes to the bitbuffer and saves the location.  When
+    // `location` is equal or greater than a threshold we can use to write,
+    // say, a byte, then we write to the file, and flush the written bits.
+
+    // Push the stack.
+    *location += num_bits;
+    *bitbuffer <<= num_bits;
+    *bitbuffer |= bits;
+    while (*location >= 8)
+    {
+        // Grab the least significant byte.
+        uint8 c = (uint8)(*bitbuffer);
+        // Reverse the byte!
+        // https://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64BitsDiv
+        c = (uint8)((c * 0x0202020202ULL & 0x010884422010ULL) % 1023);
+        // Write it to file.
+        putc(c, fd);
+        // Pop the stack.
+        *location -= 8;
+        *bitbuffer >>= 8;
+    }
+}
+
+static void encode_and_write_DU(
+        FILE* fd,
+        float* mcu, uint8* qt,
+        uint8* huff_ac_len, uint16* huff_ac_code,
+        uint8* huff_dc_len, uint16* huff_dc_code,
+        int* pred, uint32* bitbuffer, uint32* location)
 {
     // Apply DCT to block
     // Rows:
@@ -519,13 +553,19 @@ static void encode_and_write_DU(float* mcu, uint8* qt)
                 &mcu[i + 48],
                 &mcu[i + 56]);
     }
-    int8 du[64];
+
+    int8 du[64];  // Data unit in zig-zag order
+
     for (int i = 0; i < 64; ++i)
     {
         float fval = mcu[i] / qt[i];
         int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
         du[zig_zag_indices[i]] = val;
     }
+
+    // TODO. Not quite fully tested for correctness. If something explodes,
+    // theck this first
+
 #if 0 // Debug logging.
 	char buffer[256] = {};
     for (int j = 0; j < 8; ++j)
@@ -539,6 +579,66 @@ static void encode_and_write_DU(float* mcu, uint8* qt)
     sprintf(buffer, "%s\n",buffer);
     tje_log(buffer);
 #endif
+
+    // Encode DC coefficient.
+    int diff = du[0] - *pred;
+    *pred = du[0];
+    uint16 bits[2];
+    calculate_variable_length_int(diff, bits);
+    // write huffman code of SIZE(bits[1])
+    int16 sym1 = huff_dc_code[bits[1]];
+    int16 sym2 = bits[0] + ((1 << bits[1]) - 1);
+    write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], sym1);
+    write_bits(fd, bitbuffer, location, bits[1], sym2);
+
+    // ==== Encode AC coefficients ====
+
+    int last_non_zero_i = 63;
+    // Find the last non-zero element.
+    for (int i = 63; i >= 0; --i)
+    {
+        if (du[i] != 0)
+        {
+            last_non_zero_i = i;
+            break;
+        }
+    }
+
+    int zero_count = 0;
+    for (int i = 1; i <= last_non_zero_i; ++i)
+    {
+        // If zero, increase count. If >=15, encode (FF,00)
+        if (du[i] == 0)
+        {
+            ++zero_count;
+            if (zero_count == 16)
+            {
+                // encode 0xff 0x00
+                zero_count = 0;
+            }
+        }
+        else
+        {
+            tje_assert(zero_count <= 0xf);
+            tje_assert(bits[1] <= 10);
+
+            uint16 sym1 = ((uint16)zero_count << 4) | (uint16)bits[1];
+            uint16 sym2 = bits[0] + ((1 << bits[1]) - 1);
+            sym1 = huff_ac_code[sym1];
+            // Write symbol 1
+            write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
+            // Write symbol 2
+            write_bits(fd, bitbuffer, location, bits[1], sym2);
+            // Write HUFF(zero_count, bits[1]), (bits[0])
+        }
+    }
+
+    if (last_non_zero_i != 63)
+    {
+        // write EOB HUFF(00,00)
+        write_bits(fd, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
+    }
+
     return;
 }
 
@@ -752,20 +852,19 @@ static int encode(
     float du_b[64];
     float du_r[64];
 
+    // TODO
+    //  * Test block from jpeg paper.
+
     //  1) Set pred to 0
     //  2) While (MCU) encode MCU:(F)
     //      a) For each component, encode & write DU (F, G, H)
-    //      b)
-    //      c)
-    //      d)
-    //      e)
-    //      f)
-    //      g)
-    //      h)
     //  3) pad with 1-bits to complete final byte (F.1.2.3)
     //  4) "Flush" (D.1.8)
     //
     // Set diff to 0.
+    int pred = 0;
+    uint32 bitbuffer = 0;
+    uint32 location = 0;
     for (int y = 0; y < height; y += 8)
     {
         for (int x = 0; x < width; x += 8)
@@ -791,9 +890,21 @@ static int encode(
 
             // TODO: We can "stack" MCUs here for multi-threaded or GPU
             // processing.
-            encode_and_write_DU(du_y, qt_luma);
-            encode_and_write_DU(du_b, qt_chroma);
-            encode_and_write_DU(du_r, qt_chroma);
+            encode_and_write_DU(file_out,
+                    du_y, qt_luma,
+                    ehuffsize[LUMA_DC], ehuffcode[LUMA_DC],
+                    ehuffsize[LUMA_AC], ehuffcode[LUMA_AC],
+                    &pred, &bitbuffer, &location);
+            encode_and_write_DU(file_out,
+                    du_b, qt_chroma,
+                    ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
+                    ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
+                    &pred, &bitbuffer, &location);
+            encode_and_write_DU(file_out,
+                    du_r, qt_chroma,
+                    ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
+                    ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
+                    &pred, &bitbuffer, &location);
         }
     }
 
@@ -830,15 +941,23 @@ static int encode(
         uint16 bits[2];
         int v = 3;
         calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%v) is (%d, %d)\n", v, bits[1], bits[0]);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+        v = -2;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
         tje_log(buffer);
         v = -4;
         calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%v) is (%d, %d)\n", v, bits[1], bits[0]);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
         tje_log(buffer);
         v = 15;
         calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%v) is (%d, %d)\n", v, bits[1], bits[0]);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+        v = -31;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
         tje_log(buffer);
     }
 
@@ -857,7 +976,7 @@ int tje_encode(
 }
 
 // ============================================================
-// Standalone Windows app.
+// Standalone Windows/Unix app.
 // ============================================================
 
 #ifdef TJE_STANDALONE

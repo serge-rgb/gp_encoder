@@ -21,15 +21,29 @@
 #include <stdlib.h>
 #include <math.h>  // floorf, ceilf
 
-#ifdef _WIN32
-#include <windows.h>
-#define tje_log(msg) OutputDebugStringA(msg)  // Re-defined in platform code.
-#endif
+
 #ifdef TJE_DEBUG
+
+#ifdef _WIN32
+
+#include <windows.h>
+#define tje_log(msg) OutputDebugStringA(msg)
+
+#elif defined(__linux__) || defined(__MACH__)
+#include <stdio.h>
+#define tje_log(msg) puts(msg)
+
+
+#endif // WIN32
+
 #define tje_assert(expr) if (!(expr)) {*((int*)0) = 0; }
-#else
+
+#else  // ELSE TJE_DEBUG
+
+#define tje_log(msg) puts("Debug disabled\n");
 #define tje_assert(expr)
-#endif
+
+#endif  // TJE_DEBUG
 
 #define tje_array_count(array) (sizeof(array) / sizeof(array[0]))
 
@@ -473,7 +487,7 @@ static void calculate_variable_length_int(int value, uint16 out[2])
 #else
     int abs_val = value;
     if ( value < 0 )
-{
+    {
         abs_val = -abs_val;
         --value;
     }
@@ -487,35 +501,35 @@ static void calculate_variable_length_int(int value, uint16 out[2])
     // wouldn't this be clearer?
     // out[0] = value & 0xffffffff ??
     // value should fit inside a short anyways..
+
+    // Two's complement
+    out[0] = out[0] & ((1 << out[1]) - 1);
 }
 
 // Write bits to file.
 static void write_bits(FILE* fd, uint32 *bitbuffer, uint32 *location, uint16 num_bits, uint16 bits)
 {
-    //             v- location
+    //   v-- location
     //  [                     ]   <-- bit buffer
     // 32                     0
     //
-    // This call pushes to the bitbuffer and saves the location.  When
-    // `location` is equal or greater than a threshold we can use to write,
-    // say, a byte, then we write to the file, and flush the written bits.
+    // This call pushes to the bitbuffer and saves the location. Data is pushed
+    // from most significant to less significant. When `location` is equal or
+    // greater than a threshold we can use to write, say, a byte, then we write
+    // to the file, and flush the written bits.
 
     // Push the stack.
     *location += num_bits;
-    *bitbuffer <<= num_bits;
-    *bitbuffer |= bits;
+    *bitbuffer |= (bits << (31 - (*location - 1)));
     while (*location >= 8)
     {
-        // Grab the least significant byte.
-        uint8 c = (uint8)(*bitbuffer);
-        // Reverse the byte!
-        // https://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64BitsDiv
-        c = (uint8)((c * 0x0202020202ULL & 0x010884422010ULL) % 1023);
+        // Grab the most significant byte.
+        uint8 c = (uint8)((*bitbuffer) >> 24);
         // Write it to file.
         putc(c, fd);
         // Pop the stack.
+        *bitbuffer <<= 8;
         *location -= 8;
-        *bitbuffer >>= 8;
     }
 }
 
@@ -604,6 +618,12 @@ static void encode_and_write_DU(
         }
     }
 
+    if (last_non_zero_i == 63)
+    {
+        // EOB
+        write_bits(fd, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
+    }
+
     int zero_count = 0;
     for (int i = 1; i <= last_non_zero_i; ++i)
     {
@@ -614,6 +634,8 @@ static void encode_and_write_DU(
             if (zero_count == 16)
             {
                 // encode 0xff 0x00
+                write_bits(fd, bitbuffer, location, huff_ac_len[0xff], huff_ac_code[0xff]);
+                write_bits(fd, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
                 zero_count = 0;
             }
         }
@@ -622,9 +644,14 @@ static void encode_and_write_DU(
             tje_assert(zero_count <= 0xf);
             tje_assert(bits[1] <= 10);
 
-            uint16 sym1 = ((uint16)zero_count << 4) | (uint16)bits[1];
-            uint16 sym2 = bits[0] + ((1 << bits[1]) - 1);
-            sym1 = huff_ac_code[sym1];
+            calculate_variable_length_int(du[i], bits);
+
+            uint16 sym1 = (zero_count << 4) + bits[1];
+            uint16 sym2 = bits[0];
+
+            tje_assert(huff_ac_len[sym1] != 0);
+            tje_assert(huff_ac_code[sym1] != 0);
+
             // Write symbol 1
             write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
             // Write symbol 2
@@ -839,6 +866,56 @@ static int encode(
         fwrite(&header, sizeof(ScanHeader), 1, file_out);
     }
 
+#ifdef TJE_DEBUG
+    {  // Test VLI
+        char buffer[256];
+        uint16 bits[2];
+        int v = 3;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+        v = -2;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+        v = -4;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+        v = 15;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+        v = -31;
+        calculate_variable_length_int(v, bits);
+        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
+        tje_log(buffer);
+    }
+
+    {  // Block encoding test
+        float du[64] =
+        {
+            139, 144, 150, 159, 159, 161, 162, 162,
+            144, 149, 153, 155, 155, 155, 155, 151,
+            155, 161, 160, 161, 162, 162, 153, 160,
+            162, 161, 161, 161, 161, 156, 163, 160,
+            162, 161, 163, 161, 159, 158, 160, 162,
+            160, 162, 163, 156, 156, 159, 155, 157,
+            157, 158, 156, 156, 159, 155, 157, 157,
+            158, 156, 156, 159, 155, 157, 157, 158,
+        };
+
+        int pred = 0;
+        uint32 bitbuffer = 0;
+        uint32 location = 0;
+        encode_and_write_DU(file_out,
+                du, qt_chroma,
+                ehuffsize[LUMA_DC], ehuffcode[LUMA_DC],
+                ehuffsize[LUMA_AC], ehuffcode[LUMA_AC],
+                &pred, &bitbuffer, &location);
+    }
+#endif
+
     // Write compressed data.
     static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
 
@@ -934,32 +1011,6 @@ static int encode(
         fwrite(&EOI, sizeof(uint16), 1, file_out);
     }
     res |= fclose(file_out);
-
-    {
-        char buffer[256];
-        // Test VLI
-        uint16 bits[2];
-        int v = 3;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-        v = -2;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-        v = -4;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-        v = 15;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-        v = -31;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-    }
 
     return res;
 }

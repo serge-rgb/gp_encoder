@@ -540,8 +540,8 @@ static void write_bits(FILE* fd, uint32 *bitbuffer, uint32 *location, uint16 num
 static void encode_and_write_DU(
         FILE* fd,
         float* mcu, uint8* qt,
-        uint8* huff_ac_len, uint16* huff_ac_code,
         uint8* huff_dc_len, uint16* huff_dc_code,
+        uint8* huff_ac_len, uint16* huff_ac_code,
         int* pred, uint32* bitbuffer, uint32* location)
 {
     // Apply DCT to block
@@ -598,16 +598,24 @@ static void encode_and_write_DU(
     tje_log(buffer);
 #endif
 
+    uint16 bits[2];
+
     // Encode DC coefficient.
     int diff = du[0] - *pred;
     *pred = du[0];
-    uint16 bits[2];
-    calculate_variable_length_int(diff, bits);
-    // write huffman code of SIZE(bits[1])
-    int16 sym1 = huff_dc_code[bits[1]];
-    int16 sym2 = bits[0];
-    write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], sym1);
-    write_bits(fd, bitbuffer, location, bits[1], sym2);
+    if (diff != 0)
+    {
+        calculate_variable_length_int(diff, bits);
+        // write huffman code of SIZE(bits[1])
+        int16 sym1 = huff_dc_code[bits[1]];
+        int16 sym2 = bits[0];
+        write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], sym1);
+        write_bits(fd, bitbuffer, location, bits[1], sym2);
+    }
+    else
+    {
+        write_bits(fd, bitbuffer, location, huff_dc_len[0], huff_dc_code[0]);
+    }
 
     // ==== Encode AC coefficients ====
 
@@ -655,15 +663,7 @@ static void encode_and_write_DU(
             uint16 sym2 = bits[0];
 
             // TODO: +++ Problem here:
-            //tje_assert(huff_ac_len[sym1] != 0);
-            // DEBUG
-            {
-                int len = huff_ac_len[sym1];
-                if (len == 0)
-                {
-                    tje_log("what's going on here?");
-                }
-            }
+            tje_assert(huff_ac_len[sym1] != 0);
 
             // Write symbol 1
             write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
@@ -1004,19 +1004,6 @@ static int encode(
     {
         tje_free(ehuffcode[i]);
         tje_free(ehuffsize[i]);
-    }
-
-    {  // TEMP CODE TO FILL SOMETHING.
-        for (int y = 0; y < width / 8; ++y)
-        {
-            for (int x = 0; x < height / 8; ++x)
-            {
-                // Write AC coefficient
-                // Write DC coefficients
-                uint16 EOB = be_word(0x0000);
-                fwrite(&EOB, sizeof(uint16), 63, file_out);
-            }
-        }
     }
 
     // Finish the image.

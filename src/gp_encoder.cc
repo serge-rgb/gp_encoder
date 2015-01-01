@@ -527,6 +527,10 @@ static void write_bits(FILE* fd, uint32 *bitbuffer, uint32 *location, uint16 num
         uint8 c = (uint8)((*bitbuffer) >> 24);
         // Write it to file.
         putc(c, fd);
+        if (c == 0xff)
+        {
+            putc(0, fd);
+        }
         // Pop the stack.
         *bitbuffer <<= 8;
         *location -= 8;
@@ -601,7 +605,7 @@ static void encode_and_write_DU(
     calculate_variable_length_int(diff, bits);
     // write huffman code of SIZE(bits[1])
     int16 sym1 = huff_dc_code[bits[1]];
-    int16 sym2 = bits[0] + ((1 << bits[1]) - 1);
+    int16 sym2 = bits[0];
     write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], sym1);
     write_bits(fd, bitbuffer, location, bits[1], sym2);
 
@@ -622,15 +626,17 @@ static void encode_and_write_DU(
     {
         // EOB
         write_bits(fd, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
+        return;
     }
 
-    int zero_count = 0;
     for (int i = 1; i <= last_non_zero_i; ++i)
     {
         // If zero, increase count. If >=15, encode (FF,00)
-        if (du[i] == 0)
+        int zero_count = 0;
+        while (du[i] == 0)
         {
             ++zero_count;
+            ++i;
             if (zero_count == 16)
             {
                 // encode 0xff 0x00
@@ -639,24 +645,30 @@ static void encode_and_write_DU(
                 zero_count = 0;
             }
         }
-        else
         {
+            calculate_variable_length_int(du[i], bits);
+
             tje_assert(zero_count <= 0xf);
             tje_assert(bits[1] <= 10);
 
-            calculate_variable_length_int(du[i], bits);
-
-            uint16 sym1 = (zero_count << 4) + bits[1];
+            uint16 sym1 = (zero_count << 4) | bits[1];
             uint16 sym2 = bits[0];
 
-            tje_assert(huff_ac_len[sym1] != 0);
-            tje_assert(huff_ac_code[sym1] != 0);
+            // TODO: +++ Problem here:
+            //tje_assert(huff_ac_len[sym1] != 0);
+            // DEBUG
+            {
+                int len = huff_ac_len[sym1];
+                if (len == 0)
+                {
+                    tje_log("what's going on here?");
+                }
+            }
 
             // Write symbol 1
             write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
             // Write symbol 2
             write_bits(fd, bitbuffer, location, bits[1], sym2);
-            // Write HUFF(zero_count, bits[1]), (bits[0])
         }
     }
 
@@ -892,6 +904,7 @@ static int encode(
         tje_log(buffer);
     }
 
+#if 0
     {  // Block encoding test
         float du[64] =
         {
@@ -914,6 +927,7 @@ static int encode(
                 ehuffsize[LUMA_AC], ehuffcode[LUMA_AC],
                 &pred, &bitbuffer, &location);
     }
+#endif
 #endif
 
     // Write compressed data.
@@ -1081,6 +1095,8 @@ int main()
     if (!data)
     {
         tje_log("Could not load bmp file.\n");
+        const char* err = stbi_failure_reason();
+        tje_log(err);
         return 1;
     }
 

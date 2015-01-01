@@ -648,8 +648,7 @@ static void encode_and_write_DU(
             if (zero_count == 16)
             {
                 // encode 0xff 0x00
-                write_bits(fd, bitbuffer, location, huff_ac_len[0xff], huff_ac_code[0xff]);
-                write_bits(fd, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
+                write_bits(fd, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
                 zero_count = 0;
             }
         }
@@ -662,7 +661,6 @@ static void encode_and_write_DU(
             uint16 sym1 = (zero_count << 4) | bits[1];
             uint16 sym2 = bits[0];
 
-            // TODO: +++ Problem here:
             tje_assert(huff_ac_len[sym1] != 0);
 
             // Write symbol 1
@@ -933,12 +931,6 @@ static int encode(
     // Write compressed data.
     static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
 
-    // Right now. We are filling one single block. The purpose is to test
-    // a DCT implementation. Once that's out of the way, we can figure out how to get
-    // multiple blocks in a way that works with a standalone simple jpeg encoder and
-    // with the full hairy GPU genetic algorithm
-
-
     float du_y[64];
     float du_b[64];
     float du_r[64];
@@ -953,7 +945,9 @@ static int encode(
     //  4) "Flush" (D.1.8)
     //
     // Set diff to 0.
-    int pred = 0;
+    int pred_y = 0;
+    int pred_b = 0;
+    int pred_r = 0;
     uint32 bitbuffer = 0;
     uint32 location = 0;
     for (int y = 0; y < height; y += 8)
@@ -985,17 +979,17 @@ static int encode(
                     du_y, qt_luma,
                     ehuffsize[LUMA_DC], ehuffcode[LUMA_DC],
                     ehuffsize[LUMA_AC], ehuffcode[LUMA_AC],
-                    &pred, &bitbuffer, &location);
+                    &pred_y, &bitbuffer, &location);
             encode_and_write_DU(file_out,
                     du_b, qt_chroma,
                     ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
                     ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
-                    &pred, &bitbuffer, &location);
+                    &pred_b, &bitbuffer, &location);
             encode_and_write_DU(file_out,
                     du_r, qt_chroma,
                     ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
                     ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
-                    &pred, &bitbuffer, &location);
+                    &pred_r, &bitbuffer, &location);
         }
     }
 
@@ -1008,6 +1002,14 @@ static int encode(
 
     // Finish the image.
     {
+        // flush
+        // TODO: Do it right
+        //while(location != 0)
+        {
+            tje_assert(location < 8)
+            tje_log("Flushing...");
+            //write_bits(file_out, &location, &bitbuffer, location, 0);
+        }
         uint16 EOI = be_word(0xffd9);
         fwrite(&EOI, sizeof(uint16), 1, file_out);
     }
@@ -1097,7 +1099,7 @@ int main()
     // Try to load the image with stb_image
     {
         unsigned char* my_data =
-            stbi_load("../out.jpg", &width, &height, &num_components, 0);
+            stbi_load("../out.jpg", &width, &height, &num_components, 0xff);
         if (!my_data)
         {
             tje_log("STB could not load my JPEG\n");

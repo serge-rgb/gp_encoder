@@ -113,9 +113,10 @@ static uint8 qt_luma[] =
    72,92,95,98,112,100,103, 99,
 };
 
-// K.1 - suggested chrominance QT
-static uint8 qt_chroma[] =
+static uint8 qt_chroma_from_spec[] =
 {
+    // K.1 - suggested chrominance QT
+
    17,18,24,47,99,99,99,99,
    18,21,26,66,99,99,99,99,
    24,26,56,99,99,99,99,99,
@@ -125,6 +126,37 @@ static uint8 qt_chroma[] =
    99,99,99,99,99,99,99,99,
    99,99,99,99,99,99,99,99,
 };
+
+static uint8 qt_chroma_from_paper[] =
+{
+    // Example QT from JPEG paper
+   16, 12, 14, 14, 18, 24, 49, 72,
+   11, 10, 16, 24, 40, 51, 61, 12,
+   13, 17, 22, 35, 64, 92, 14, 16,
+   22, 37, 55, 78, 95, 19, 24, 29,
+   56, 64, 87, 98, 26, 40, 51, 68,
+   81, 103, 112, 58, 57, 87, 109, 104,
+   121, 100, 60, 69, 80, 103, 113, 120,
+   103, 55, 56, 62, 77, 92, 101, 99,
+};
+
+static uint8 qt_all_ones [] =
+{
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,
+};
+
+static uint8* qt_chroma = qt_chroma_from_spec;
+//static uint8* qt_chroma = qt_chroma_from_paper;
+//static uint8* qt_chroma = qt_all_ones;
 
 // == Procedure to 'deflate' the huffman tree: JPEG spec, C.2
 
@@ -481,29 +513,18 @@ static void fdct(
 
 static void calculate_variable_length_int(int value, uint16 out[2])
 {
-#if 1
-    int abs_val = (value < 0) ? -value : value;
-    value = (value < 0) ? value - 1 : value;
-#else
     int abs_val = value;
     if ( value < 0 )
     {
         abs_val = -abs_val;
         --value;
     }
-#endif
     out[1] = 1;
     while( abs_val >>= 1 )
     {
         ++out[1];
     }
     out[0] = value & ((1 << out[1]) - 1);
-    // wouldn't this be clearer?
-    // out[0] = value & 0xffffffff ??
-    // value should fit inside a short anyways..
-
-    // Two's complement
-    out[0] = out[0] & ((1 << out[1]) - 1);
 }
 
 // Write bits to file.
@@ -539,7 +560,7 @@ static void write_bits(FILE* fd, uint32* bitbuffer, uint32* location, uint16 num
 
 static void encode_and_write_DU(
         FILE* fd,
-        float* mcu, uint8* qt,
+        float* mcu, float* qt,
         uint8* huff_dc_len, uint16* huff_dc_code,
         uint8* huff_ac_len, uint16* huff_ac_code,
         int* pred, uint32* bitbuffer, uint32* location)
@@ -576,7 +597,7 @@ static void encode_and_write_DU(
 
     for (int i = 0; i < 64; ++i)
     {
-        float fval = mcu[i] / qt[i];
+        float fval = mcu[i] * qt[i];
         // TODO: implement a rounding function to avoid dependence on math.h
         int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
         du[zig_zag_indices[i]] = val;
@@ -874,6 +895,69 @@ static int encode(
     // Write compressed data.
     static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
 
+	static const float aasf[] =
+    {
+        1.0f * 2.828427125f, 1.387039845f * 2.828427125f, 1.306562965f * 2.828427125f,
+        1.175875602f * 2.828427125f, 1.0f * 2.828427125f, 0.785694958f * 2.828427125f,
+        0.541196100f * 2.828427125f, 0.275899379f * 2.828427125f
+    };
+
+    float fdtbl_luma[64];
+    float fdtbl_chroma[64];
+
+    {
+        int k = 0;
+        for (int j = 0; j < 8; ++j)
+        {
+            for (int i = 0; i < 8; ++i)
+            {
+                fdtbl_luma[k]   = 1.0f / (qt_luma  [zig_zag_indices[k]] * aasf[i] * aasf[j]);
+                fdtbl_chroma[k] = 1.0f / (qt_chroma[zig_zag_indices[k]] * aasf[i] * aasf[j]);
+                k++;
+            }
+        }
+    }
+
+#if 0
+    {  // Block encoding test
+        float du[64] =
+        {
+            139, 144, 150, 159, 159, 161, 162, 162,
+            144, 149, 153, 155, 155, 155, 155, 151,
+            155, 161, 160, 161, 162, 162, 153, 160,
+            162, 161, 161, 161, 161, 156, 163, 160,
+            162, 161, 163, 161, 159, 158, 160, 162,
+            160, 162, 163, 156, 156, 159, 155, 157,
+            157, 158, 156, 156, 159, 155, 157, 157,
+            158, 156, 156, 159, 155, 157, 157, 158,
+        };
+
+        // Debug logging.
+        char buffer[256] = {};
+        sprintf(buffer, "Original table: ===\n");
+        for (int j = 0; j < 8; ++j)
+        {
+            for (int i = 0; i < 8; ++i)
+            {
+                sprintf(buffer, "%s%d ", buffer, (int)du[j * 8 + i]);
+            }
+            sprintf(buffer, "%s\n",buffer);
+        }
+        sprintf(buffer, "%s\n",buffer);
+        tje_log(buffer);
+
+        int pred = 0;
+        uint32 bitbuffer = 0;
+        uint32 location = 0;
+        encode_and_write_DU(file_out,
+                du, fdtbl_chroma,
+                ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
+                ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
+                &pred, &bitbuffer, &location);
+    }
+    exit(0);
+#endif
+
     float du_y[64];
     float du_b[64];
     float du_r[64];
@@ -902,9 +986,10 @@ static int encode(
                     uint8 g = src_data[index + 1];
                     uint8 b = src_data[index + 2];
 
-                    float y  =   0.299f * r +  0.587f * g +  0.114f * b;
-                    float cb = -0.1687f * r - 0.3313f * g +    0.5f * b + 128;
-                    float cr =     0.5f * r - 0.4187f * g + 0.0813f * b + 128;
+					float y  = 0.29900f * r + 0.58700f * g + 0.11400f * b - 128;
+					float cb = -0.1687f * r - 0.3312f  * g + 0.50000f * b;
+					float cr = 0.50000f * r - 0.41869f * g - 0.08131f * b;
+
 
                     int block_index = (off_y * 8 + off_x);
                     du_y[block_index] = y;
@@ -915,17 +1000,17 @@ static int encode(
             // Process block ====
 
             encode_and_write_DU(file_out,
-                    du_y, qt_luma,
+                    du_y, fdtbl_luma,
                     ehuffsize[LUMA_DC], ehuffcode[LUMA_DC],
                     ehuffsize[LUMA_AC], ehuffcode[LUMA_AC],
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(file_out,
-                    du_b, qt_chroma,
+                    du_b, fdtbl_chroma,
                     ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
                     ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(file_out,
-                    du_r, qt_chroma,
+                    du_r, fdtbl_chroma,
                     ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
                     ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
                     &pred_r, &bitbuffer, &location);
@@ -1005,9 +1090,9 @@ int main()
                 data[i + 1] = 0x02;
                 data[i + 2] = 0x03;
 #else
-                data[i + 0] = 0;
+                data[i + 0] = 64;
                 data[i + 1] = 128;
-                data[i + 2] = 128;
+                data[i + 2] = 255;
 #endif
             }
         stbi_write_bmp("../test.bmp", width, height, 3, (const void*) data);
@@ -1015,8 +1100,9 @@ int main()
     }
 
     // Read the image we just wrote..
-    unsigned char* data = stbi_load("../test.bmp", &width, &height, &num_components, 0);
-    //unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("../test.bmp", &width, &height, &num_components, 0);
+    unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
+    tje_assert(num_components = 3);
 
     if (!data)
     {
@@ -1041,11 +1127,10 @@ int main()
         {
             tje_log("STB could not load my JPEG\n");
         }
-        // TODO: Get error from original data.
+        stbi_image_free(data);
     }
 
     return result;
-    // stbi_image_free(data);
 }
 
 #endif  // TJE_STANDALONE

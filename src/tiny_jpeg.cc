@@ -1,13 +1,13 @@
 /**
- * gp_encoder.cc
+ * tiny_jpeg.cc
  *
  * Tiny JPEG Encoder
+ *  - Sergio Gonzalez
  *
- * Sergio Gonzalez
+ * This is intended to be a readable and simple JPEG encoder.
+ * To be specific, only the baseline DCT method is implemented.
  *
- * Implements JPEG.
- *
- * Supports:
+ * Tested on:
  *  Windows, MSVC
  *  OSX
  *
@@ -17,9 +17,8 @@
 
 // C std lib
 #include <inttypes.h>
-#include <stdio.h>  // FILE
-#include <string.h>  // memcpy
-#include <stdlib.h>
+#include <stdio.h>  // FILE, puts
+#include <stdlib.h> // malloc, free
 #include <math.h>  // floorf, ceilf
 
 #ifdef TJE_DEBUG
@@ -48,6 +47,7 @@
 #define tje_array_count(array) (sizeof(array) / sizeof(array[0]))
 
 // TODO: add option to specify quantization tables in public interface
+// TODO: add option to limit image blocks to compress.
 
 // ============================================================
 // Public interface:
@@ -67,11 +67,6 @@ int tje_encode(
 // ============================================================
 namespace tje
 {
-// ============================================================
-// Language defines
-// ============================================================
-
-
 // ============================================================
 // Define types
 // ============================================================
@@ -251,6 +246,28 @@ static uint16 be_word(uint16 le_word)
     return (((uint16)lo) << 8) | hi;
 }
 
+// avoid including standard header files. ====
+
+static void tje_memcpy(void* dest, void* src, size_t num_bytes)
+{
+    uint8* dest_ptr = (uint8*)dest;
+    uint8* src_ptr  = (uint8*)src;
+    while(num_bytes--)
+    {
+        *dest_ptr++ = *src_ptr++;
+    }
+}
+
+static void tje_memset(void* dest, uint8 val, size_t num_bytes)
+{
+    uint8* start = (uint8*)dest;
+    while(num_bytes--)
+    {
+        *start++ = val;
+    }
+}
+// ====
+
 // ============================================================
 // The following structs exist only for code clarity, debuggability, and
 // readability.  They are used when writing to disk, but it is useful to have
@@ -371,6 +388,9 @@ static void write_DHT(
     fwrite(matrix_len, sizeof(uint8), 16, fd);
     fwrite(matrix_val, sizeof(uint8), num_values, fd);
 }
+// ============================================================
+//  Huffman deflation code.
+// ============================================================
 
 // Returns all code sizes from the BITS specification (JPEG C.3)
 static uint8* huff_get_code_lengths(uint8* bits, int64 size)
@@ -420,11 +440,6 @@ static uint16* huff_get_codes(uint8* huffsize, int64 size)
     }
 }
 
-// Returns huffman lengths and codes in simbol value order.
-// In:
-//  huffcode, huffsize, huffval
-// Out:
-//  e_huffcode, e_huffsize
 static void huff_get_extended(
         uint8* huffval,
         uint8* huffsize,
@@ -435,8 +450,8 @@ static void huff_get_extended(
     uint8* ehuffsize  = (uint8*)malloc(sizeof(uint8) * 256);
     uint16* ehuffcode = (uint16*)malloc(sizeof(uint16) * 256);
 
-    memset(ehuffsize, 0, sizeof(uint8) * 256);
-    memset(ehuffcode, 0, sizeof(uint16) * 256);
+    tje_memset(ehuffsize, 0, sizeof(uint8) * 256);
+    tje_memset(ehuffcode, 0, sizeof(uint16) * 256);
 
     int k = 0;
     do
@@ -451,10 +466,16 @@ static void huff_get_extended(
     *out_ehuffsize = ehuffsize;
     *out_ehuffcode = ehuffcode;
 }
+// ============================================================
 
-// Taken almost directly from ffmpeg, who takes it from Pennebaker & Mitchel's
-// JPEG book who takes it from Arai, Agui an Nakajima, but that paper is in
-// japanese.
+// ============================================================
+// +++ MAGIC +++
+//  FDCT
+//      Note -- The DCT code is taken from Jon Olick's JPEG implementation. He
+//      appears to be take it from libjpeg. Consider DCT code as magic unless
+//      one gets a copy of the Pennebaker & Mitchel's JPEG book, or can read
+//      Japanese and has a copy of the paper by Arai, Agui and Nakajima.
+// ============================================================
 static void fdct(
         float* d0,
         float* d1,
@@ -510,6 +531,9 @@ static void fdct(
     *d1 = z11 + z4;
     *d7 = z11 - z4;
 }
+// ============================================================
+// ++++
+// ============================================================
 
 static void calculate_variable_length_int(int value, uint16 out[2])
 {
@@ -535,9 +559,8 @@ static void write_bits(FILE* fd, uint32* bitbuffer, uint32* location, uint16 num
     // 32                     0
     //
     // This call pushes to the bitbuffer and saves the location. Data is pushed
-    // from most significant to less significant. When `location` is equal or
-    // greater than a threshold we can use to write, say, a byte, then we write
-    // to the file, and flush the written bits.
+    // from most significant to less significant.
+    // When we can write a full byte, we write a byte and shift.
 
     // Push the stack.
     *location += num_bits;
@@ -548,7 +571,7 @@ static void write_bits(FILE* fd, uint32* bitbuffer, uint32* location, uint16 num
         uint8 c = (uint8)((*bitbuffer) >> 24);
         // Write it to file.
         putc(c, fd);
-        if (c == 0xff)
+        if (c == 0xff)  // Special case: tell JPEG this is not a marker.
         {
             putc(0, fd);
         }
@@ -565,6 +588,8 @@ static void encode_and_write_DU(
         uint8* huff_ac_len, uint16* huff_ac_code,
         int* pred, uint32* bitbuffer, uint32* location)
 {
+    // +++ MAGIC +++
+    //
     // Apply DCT to block
     // Rows:
     for (int i = 0; i < 64; i += 8)
@@ -592,6 +617,7 @@ static void encode_and_write_DU(
                 &mcu[i + 48],
                 &mcu[i + 56]);
     }
+    // ++++
 
     int8 du[64];  // Data unit in zig-zag order
 
@@ -602,20 +628,6 @@ static void encode_and_write_DU(
         int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
         du[zig_zag_indices[i]] = val;
     }
-
-#if 0 // Debug logging.
-	char buffer[256] = {};
-    for (int j = 0; j < 8; ++j)
-    {
-        for (int i = 0; i < 8; ++i)
-        {
-            sprintf(buffer, "%s%d ", buffer, du[j * 8 + i]);
-        }
-        sprintf(buffer, "%s\n",buffer);
-    }
-    sprintf(buffer, "%s\n",buffer);
-    tje_log(buffer);
-#endif
 
     uint16 bits[2];
 
@@ -694,16 +706,6 @@ static void encode_and_write_DU(
     return;
 }
 
-// NOTE:
-//  Once this function correctly implements a jpeg encoder, we need to
-//  start morphing it into something that  can do this:
-//
-//  1) Receives quantization tables from caller.
-//  2) Can constrain itself to a limited number of MCUs
-//
-//  It would be nice to add this functionality and keep the jpeg encoder
-//  orthogonal so that it can be of more general use outside of my genetic
-//  algorithm adventure.
 static int encode(
         const unsigned char* src_data,
         const int width,
@@ -807,14 +809,13 @@ static int encode(
     //  Actual write-to-file.
     // ============================================================
 
-    // TODO: Implement a memcpy to reduce includes
     { // Write header
         JPEGHeader header;
         // JFIF header.
         header.SOI = be_word(0xffd8);  // Sequential DCT
         header.APP0 = be_word(0xffe0);
         header.jfif_len = be_word(0x0016);
-        memcpy(header.jfif_id, k_jfif_id, 5);
+        tje_memcpy(header.jfif_id, k_jfif_id, 5);
         header.version = be_word(0x0102);
         header.units = 0x01;
         header.x_density = be_word(0x0060);  // 96 DPI
@@ -822,7 +823,7 @@ static int encode(
         header.thumb_size = 0;
         // Comment
         header.com = be_word(0xfffe);
-        memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1); // Skip the 0-bit
+        tje_memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1); // Skip the 0-bit
         fwrite(&header, sizeof(JPEGHeader), 1, file_out);
     }
 
@@ -895,68 +896,34 @@ static int encode(
     // Write compressed data.
     static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
 
-	static const float aasf[] =
-    {
-        1.0f * 2.828427125f, 1.387039845f * 2.828427125f, 1.306562965f * 2.828427125f,
-        1.175875602f * 2.828427125f, 1.0f * 2.828427125f, 0.785694958f * 2.828427125f,
-        0.541196100f * 2.828427125f, 0.275899379f * 2.828427125f
-    };
-
+    // Convert qt_luma and qt_chroma to what the magic algorithm expects.
     float fdtbl_luma[64];
     float fdtbl_chroma[64];
 
-    {
-        int k = 0;
-        for (int j = 0; j < 8; ++j)
+    // +++ MAGIC +++
+	{
+        static const float aasf[] =
         {
-            for (int i = 0; i < 8; ++i)
-            {
-                fdtbl_luma[k]   = 1.0f / (qt_luma  [zig_zag_indices[k]] * aasf[i] * aasf[j]);
-                fdtbl_chroma[k] = 1.0f / (qt_chroma[zig_zag_indices[k]] * aasf[i] * aasf[j]);
-                k++;
-            }
-        }
-    }
-
-#if 0
-    {  // Block encoding test
-        float du[64] =
-        {
-            139, 144, 150, 159, 159, 161, 162, 162,
-            144, 149, 153, 155, 155, 155, 155, 151,
-            155, 161, 160, 161, 162, 162, 153, 160,
-            162, 161, 161, 161, 161, 156, 163, 160,
-            162, 161, 163, 161, 159, 158, 160, 162,
-            160, 162, 163, 156, 156, 159, 155, 157,
-            157, 158, 156, 156, 159, 155, 157, 157,
-            158, 156, 156, 159, 155, 157, 157, 158,
+            1.0f * 2.828427125f, 1.387039845f * 2.828427125f, 1.306562965f * 2.828427125f,
+            1.175875602f * 2.828427125f, 1.0f * 2.828427125f, 0.785694958f * 2.828427125f,
+            0.541196100f * 2.828427125f, 0.275899379f * 2.828427125f
         };
 
-        // Debug logging.
-        char buffer[256] = {};
-        sprintf(buffer, "Original table: ===\n");
-        for (int j = 0; j < 8; ++j)
         {
-            for (int i = 0; i < 8; ++i)
+            int k = 0;
+            for (int j = 0; j < 8; ++j)
             {
-                sprintf(buffer, "%s%d ", buffer, (int)du[j * 8 + i]);
+                for (int i = 0; i < 8; ++i)
+                {
+                    fdtbl_luma[k]   = 1.0f / (qt_luma  [zig_zag_indices[k]] * aasf[i] * aasf[j]);
+                    fdtbl_chroma[k] = 1.0f / (qt_chroma[zig_zag_indices[k]] * aasf[i] * aasf[j]);
+                    k++;
+                }
             }
-            sprintf(buffer, "%s\n",buffer);
         }
-        sprintf(buffer, "%s\n",buffer);
-        tje_log(buffer);
 
-        int pred = 0;
-        uint32 bitbuffer = 0;
-        uint32 location = 0;
-        encode_and_write_DU(file_out,
-                du, fdtbl_chroma,
-                ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
-                ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
-                &pred, &bitbuffer, &location);
-    }
-    exit(0);
-#endif
+	}
+    // ++++
 
     float du_y[64];
     float du_b[64];
@@ -967,6 +934,7 @@ static int encode(
     int pred_b = 0;
     int pred_r = 0;
 
+    // Bit stack
     uint32 bitbuffer = 0;
     uint32 location = 0;
 
@@ -997,7 +965,9 @@ static int encode(
                     du_r[block_index] = cr;
                 }
             }
-            // Process block ====
+            // ====
+
+            // Process block:
 
             encode_and_write_DU(file_out,
                     du_y, fdtbl_luma,

@@ -5,7 +5,7 @@
  *  - Sergio Gonzalez
  *
  * This is intended to be a readable and simple JPEG encoder.
- * To be specific, only the baseline DCT method is implemented.
+ *   (only the baseline DCT method is implemented.)
  *
  * Tested on:
  *  Windows, MSVC
@@ -901,7 +901,7 @@ static int encode(
     float fdtbl_chroma[64];
 
     // +++ MAGIC +++
-	{
+    {
         static const float aasf[] =
         {
             1.0f * 2.828427125f, 1.387039845f * 2.828427125f, 1.306562965f * 2.828427125f,
@@ -922,7 +922,7 @@ static int encode(
             }
         }
 
-	}
+    }
     // ++++
 
     float du_y[64];
@@ -954,9 +954,9 @@ static int encode(
                     uint8 g = src_data[index + 1];
                     uint8 b = src_data[index + 2];
 
-					float y  = 0.29900f * r + 0.58700f * g + 0.11400f * b - 128;
-					float cb = -0.1687f * r - 0.3312f  * g + 0.50000f * b;
-					float cr = 0.50000f * r - 0.41869f * g - 0.08131f * b;
+                    float y  = 0.29900f * r + 0.58700f * g + 0.11400f * b - 128;
+                    float cb = -0.1687f * r - 0.3312f  * g + 0.50000f * b;
+                    float cr = 0.50000f * r - 0.41869f * g - 0.08131f * b;
 
 
                     int block_index = (off_y * 8 + off_x);

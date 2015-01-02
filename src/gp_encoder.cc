@@ -3,12 +3,13 @@
  *
  * Tiny JPEG Encoder
  *
- * 2014 Sergio Gonzalez
+ * Sergio Gonzalez
  *
- * [WIP] Implements JPEG.
+ * Implements JPEG.
  *
  * Supports:
  *  Windows, MSVC
+ *  OSX
  *
  * Public domain.
  *
@@ -20,7 +21,6 @@
 #include <string.h>  // memcpy
 #include <stdlib.h>
 #include <math.h>  // floorf, ceilf
-
 
 #ifdef TJE_DEBUG
 
@@ -157,17 +157,17 @@ static uint8 ht_luma_ac_len[16] =
 };
 static uint8 ht_luma_ac[] =
 {
-0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
-0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0,
-0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x25, 0x26, 0x27, 0x28,
-0x29, 0x2A, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49,
-0x4A, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
-0x6A, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,
-0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
-0xA8, 0xA9, 0xAA, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3, 0xC4, 0xC5,
-0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9, 0xDA, 0xE1, 0xE2,
-0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8,
-0xF9, 0xFA
+    0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
+    0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0,
+    0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x25, 0x26, 0x27, 0x28,
+    0x29, 0x2A, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49,
+    0x4A, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
+    0x6A, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,
+    0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
+    0xA8, 0xA9, 0xAA, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3, 0xC4, 0xC5,
+    0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9, 0xDA, 0xE1, 0xE2,
+    0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8,
+    0xF9, 0xFA
 };
 
 static uint8 ht_chroma_ac_len[16] =
@@ -176,17 +176,17 @@ static uint8 ht_chroma_ac_len[16] =
 };
 static uint8 ht_chroma_ac[] =
 {
-0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
-0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xA1, 0xB1, 0xC1, 0x09, 0x23, 0x33, 0x52, 0xF0,
-0x15, 0x62, 0x72, 0xD1, 0x0A, 0x16, 0x24, 0x34, 0xE1, 0x25, 0xF1, 0x17, 0x18, 0x19, 0x1A, 0x26,
-0x27, 0x28, 0x29, 0x2A, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
-0x49, 0x4A, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68,
-0x69, 0x6A, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
-0x88, 0x89, 0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0xA2, 0xA3, 0xA4, 0xA5,
-0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3,
-0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9, 0xDA,
-0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8,
-0xF9, 0xFA
+    0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
+    0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xA1, 0xB1, 0xC1, 0x09, 0x23, 0x33, 0x52, 0xF0,
+    0x15, 0x62, 0x72, 0xD1, 0x0A, 0x16, 0x24, 0x34, 0xE1, 0x25, 0xF1, 0x17, 0x18, 0x19, 0x1A, 0x26,
+    0x27, 0x28, 0x29, 0x2A, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
+    0x49, 0x4A, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68,
+    0x69, 0x6A, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
+    0x88, 0x89, 0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0xA2, 0xA3, 0xA4, 0xA5,
+    0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3,
+    0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9, 0xDA,
+    0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8,
+    0xF9, 0xFA
 };
 
 
@@ -507,7 +507,7 @@ static void calculate_variable_length_int(int value, uint16 out[2])
 }
 
 // Write bits to file.
-static void write_bits(FILE* fd, uint32 *bitbuffer, uint32 *location, uint16 num_bits, uint16 bits)
+static void write_bits(FILE* fd, uint32* bitbuffer, uint32* location, uint16 num_bits, uint16 bits)
 {
     //   v-- location
     //  [                     ]   <-- bit buffer
@@ -520,7 +520,7 @@ static void write_bits(FILE* fd, uint32 *bitbuffer, uint32 *location, uint16 num
 
     // Push the stack.
     *location += num_bits;
-    *bitbuffer |= (bits << (31 - (*location - 1)));
+    *bitbuffer |= (bits << (32 - *location));
     while (*location >= 8)
     {
         // Grab the most significant byte.
@@ -577,12 +577,10 @@ static void encode_and_write_DU(
     for (int i = 0; i < 64; ++i)
     {
         float fval = mcu[i] / qt[i];
+        // TODO: implement a rounding function to avoid dependence on math.h
         int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
         du[zig_zag_indices[i]] = val;
     }
-
-    // TODO. Not quite fully tested for correctness. If something explodes,
-    // theck this first
 
 #if 0 // Debug logging.
 	char buffer[256] = {};
@@ -606,11 +604,8 @@ static void encode_and_write_DU(
     if (diff != 0)
     {
         calculate_variable_length_int(diff, bits);
-        // write huffman code of SIZE(bits[1])
-        int16 sym1 = huff_dc_code[bits[1]];
-        int16 sym2 = bits[0];
-        write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], sym1);
-        write_bits(fd, bitbuffer, location, bits[1], sym2);
+        write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], huff_dc_code[bits[1]]);   // (SIZE)
+        write_bits(fd, bitbuffer, location, bits[1], bits[0]);                              // (AMPLITUDE)
     }
     else
     {
@@ -647,7 +642,7 @@ static void encode_and_write_DU(
             ++i;
             if (zero_count == 16)
             {
-                // encode 0xff 0x00
+                // encode (ff,00) == 0xf0
                 write_bits(fd, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
                 zero_count = 0;
             }
@@ -659,14 +654,13 @@ static void encode_and_write_DU(
             tje_assert(bits[1] <= 10);
 
             uint16 sym1 = (zero_count << 4) | bits[1];
-            uint16 sym2 = bits[0];
 
             tje_assert(huff_ac_len[sym1] != 0);
 
             // Write symbol 1
-            write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
+            write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);     // (RUNLENGTH, SIZE)
             // Write symbol 2
-            write_bits(fd, bitbuffer, location, bits[1], sym2);
+            write_bits(fd, bitbuffer, location, bits[1], bits[0]);                          // (AMPLITUDE)
         }
     }
 
@@ -792,6 +786,7 @@ static int encode(
     //  Actual write-to-file.
     // ============================================================
 
+    // TODO: Implement a memcpy to reduce includes
     { // Write header
         JPEGHeader header;
         // JFIF header.
@@ -876,58 +871,6 @@ static int encode(
         fwrite(&header, sizeof(ScanHeader), 1, file_out);
     }
 
-#ifdef TJE_DEBUG
-    {  // Test VLI
-        char buffer[256];
-        uint16 bits[2];
-        int v = 3;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-        v = -2;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-        v = -4;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-        v = 15;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-        v = -31;
-        calculate_variable_length_int(v, bits);
-        sprintf(buffer, "V(%d) is (%d, %d)\n", v, bits[1], bits[0]);
-        tje_log(buffer);
-    }
-
-#if 0
-    {  // Block encoding test
-        float du[64] =
-        {
-            139, 144, 150, 159, 159, 161, 162, 162,
-            144, 149, 153, 155, 155, 155, 155, 151,
-            155, 161, 160, 161, 162, 162, 153, 160,
-            162, 161, 161, 161, 161, 156, 163, 160,
-            162, 161, 163, 161, 159, 158, 160, 162,
-            160, 162, 163, 156, 156, 159, 155, 157,
-            157, 158, 156, 156, 159, 155, 157, 157,
-            158, 156, 156, 159, 155, 157, 157, 158,
-        };
-
-        int pred = 0;
-        uint32 bitbuffer = 0;
-        uint32 location = 0;
-        encode_and_write_DU(file_out,
-                du, qt_chroma,
-                ehuffsize[LUMA_DC], ehuffcode[LUMA_DC],
-                ehuffsize[LUMA_AC], ehuffcode[LUMA_AC],
-                &pred, &bitbuffer, &location);
-    }
-#endif
-#endif
-
     // Write compressed data.
     static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
 
@@ -935,46 +878,42 @@ static int encode(
     float du_b[64];
     float du_r[64];
 
-    // TODO
-    //  * Test block from jpeg paper.
-
-    //  1) Set pred to 0
-    //  2) While (MCU) encode MCU:(F)
-    //      a) For each component, encode & write DU (F, G, H)
-    //  3) pad with 1-bits to complete final byte (F.1.2.3)
-    //  4) "Flush" (D.1.8)
-    //
     // Set diff to 0.
     int pred_y = 0;
     int pred_b = 0;
     int pred_r = 0;
+
     uint32 bitbuffer = 0;
     uint32 location = 0;
+
     for (int y = 0; y < height; y += 8)
     {
         for (int x = 0; x < width; x += 8)
         {
-            for (int i = 0; i < 64; ++i)
+            // Block loop: ====
+            for (int off_y = 0; off_y < 8; ++off_y)
             {
-                int block_x = x + (i % 8);
-                int block_y = y + (i / 8);
-                int src_index = block_y * width + block_x * bytes_per_pixel;
+                for (int off_x = 0; off_x < 8; ++off_x)
+                {
+                    int index = (((y + off_y) * width) + (x + off_x)) * bytes_per_pixel;
+                    tje_assert(index < width * height * bytes_per_pixel);
 
-                uint8 r = src_data[src_index + 0];
-                uint8 g = src_data[src_index + 1];
-                uint8 b = src_data[src_index + 2];
+                    uint8 r = src_data[index + 0];
+                    uint8 g = src_data[index + 1];
+                    uint8 b = src_data[index + 2];
 
-                float y  =   0.299f * r +  0.587f * g +  0.114f * b;
-                float cb = -0.1687f * r - 0.3313f * g +    0.5f * b + 128;
-                float cr =     0.5f * r - 0.4187f * g + 0.0813f * b + 128;
+                    float y  =   0.299f * r +  0.587f * g +  0.114f * b;
+                    float cb = -0.1687f * r - 0.3313f * g +    0.5f * b + 128;
+                    float cr =     0.5f * r - 0.4187f * g + 0.0813f * b + 128;
 
-                du_y[i] = y;
-                du_b[i] = cb;
-                du_r[i] = cr;
+                    int block_index = (off_y * 8 + off_x);
+                    du_y[block_index] = y;
+                    du_b[block_index] = cb;
+                    du_r[block_index] = cr;
+                }
             }
+            // Process block ====
 
-            // TODO: We can "stack" MCUs here for multi-threaded or GPU
-            // processing.
             encode_and_write_DU(file_out,
                     du_y, qt_luma,
                     ehuffsize[LUMA_DC], ehuffcode[LUMA_DC],
@@ -1003,12 +942,9 @@ static int encode(
     // Finish the image.
     {
         // flush
-        // TODO: Do it right
-        //while(location != 0)
         {
-            tje_assert(location < 8)
-            tje_log("Flushing...");
-            //write_bits(file_out, &location, &bitbuffer, location, 0);
+            tje_assert(location < 8);
+            write_bits(file_out, &bitbuffer, &location, 8 - location, 0xff);
         }
         uint16 EOI = be_word(0xffd9);
         fwrite(&EOI, sizeof(uint16), 1, file_out);
@@ -1064,14 +1000,14 @@ int main()
             for (int x = 0; x < width; ++x)
             {
                 int i = 3 * ((y * width) + x);
-#if 1
+#if 0
                 data[i + 0] = 0x01;
                 data[i + 1] = 0x02;
                 data[i + 2] = 0x03;
 #else
-                data[i + 0] = rand() % 0xff;
-                data[i + 1] = rand() % 0xff;
-                data[i + 2] = rand() % 0xff;
+                data[i + 0] = 0;
+                data[i + 1] = 128;
+                data[i + 2] = 128;
 #endif
             }
         stbi_write_bmp("../test.bmp", width, height, 3, (const void*) data);
@@ -1080,6 +1016,7 @@ int main()
 
     // Read the image we just wrote..
     unsigned char* data = stbi_load("../test.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
 
     if (!data)
     {
@@ -1099,7 +1036,7 @@ int main()
     // Try to load the image with stb_image
     {
         unsigned char* my_data =
-            stbi_load("../out.jpg", &width, &height, &num_components, 0xff);
+            stbi_load("../out.jpg", &width, &height, &num_components, 0);
         if (!my_data)
         {
             tje_log("STB could not load my JPEG\n");

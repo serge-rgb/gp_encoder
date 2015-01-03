@@ -32,14 +32,13 @@
 #include <stdio.h>
 #define tje_log(msg) puts(msg)
 
-
 #endif // WIN32
 
 #define tje_assert(expr) if (!(expr)) {*((int*)0) = 0; }
 
 #else  // ELSE TJE_DEBUG
 
-#define tje_log(msg) puts("Debug disabled\n");
+#define tje_log(msg)
 #define tje_assert(expr)
 
 #endif  // TJE_DEBUG
@@ -269,8 +268,8 @@ static void tje_memset(void* dest, uint8 val, size_t num_bytes)
 // ====
 
 // ============================================================
-// The following structs exist only for code clarity, debuggability, and
-// readability.  They are used when writing to disk, but it is useful to have
+// The following structs exist only for code clarity, debugability, and
+// readability. They are used when writing to disk, but it is useful to have
 // 1-packed-structs to document how the format works, and to inspect memory
 // while developing.
 // ============================================================
@@ -472,9 +471,11 @@ static void huff_get_extended(
 // +++ MAGIC +++
 //  FDCT
 //      Note -- The DCT code is taken from Jon Olick's JPEG implementation. He
-//      appears to be take it from libjpeg. Consider DCT code as magic unless
-//      one gets a copy of the Pennebaker & Mitchel's JPEG book, or can read
-//      Japanese and has a copy of the paper by Arai, Agui and Nakajima.
+//      appears to be take it from libjpeg. This code gets passed around so
+//      much I am surprised it doesn't carry an unpronounceable disease.
+//      Consider DCT code as magic unless one gets a copy of the Pennebaker &
+//      Mitchel's JPEG book, or can read Japanese and has a copy of the paper
+//      by Arai, Agui and Nakajima.
 // ============================================================
 static void fdct(
         float* d0,
@@ -686,7 +687,7 @@ static void encode_and_write_DU(
             tje_assert(zero_count <= 0xf);
             tje_assert(bits[1] <= 10);
 
-            uint16 sym1 = (zero_count << 4) | bits[1];
+            uint16 sym1 = ((uint16)zero_count << 4) | bits[1];
 
             tje_assert(huff_ac_len[sym1] != 0);
 
@@ -999,7 +1000,7 @@ static int encode(
         // flush
         {
             tje_assert(location < 8);
-            write_bits(file_out, &bitbuffer, &location, 8 - location, 0xff);
+            write_bits(file_out, &bitbuffer, &location, (uint16)(8 - location), 0xff);
         }
         uint16 EOI = be_word(0xffd9);
         fwrite(&EOI, sizeof(uint16), 1, file_out);
@@ -1071,8 +1072,7 @@ int main()
 
     // Read the image we just wrote..
     //unsigned char* data = stbi_load("../test.bmp", &width, &height, &num_components, 0);
-    unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
-    tje_assert(num_components = 3);
+    unsigned char* data = stbi_load("../in.bmp", &width, &height, &num_components, 0);
 
     if (!data)
     {
@@ -1083,6 +1083,7 @@ int main()
     }
 
     tje_assert (num_components == 3);
+
     int result = tje_encode(
             data,
             width,

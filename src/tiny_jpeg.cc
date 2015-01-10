@@ -763,7 +763,7 @@ static int encode(
         return 1;
     }
 
-    FILE* file_out = fopen("../out.jpg", "wb");
+    FILE* file_out = fopen(dest_path, "wb");
     if (!file_out)
     {
         tje_log("Could not open file for writing.");

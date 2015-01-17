@@ -1,11 +1,13 @@
 /**
  * evolve.cc
  *
- * Sergio Gonzalez
+ * 2015 Sergio Gonzalez
  *
  */
 
+#ifdef _WIN32
 #include <windows.h>
+#endif
 #include <tiny_jpeg.cc>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -13,16 +15,20 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../third_party/stb/stb_image_write.h"
 
+#ifdef _WIN32
 int CALLBACK WinMain(
         HINSTANCE hInstance,
         HINSTANCE hPrevInstance,
         LPSTR lpCmdLine,
         int nCmdShow)
+#elif defined(__linux__) || defined(__MACH__)
+int main()
+#endif
 {
     int width;
     int height;
     int num_components;
-    unsigned char* data = stbi_load("../in.bmp", &width, &height, &num_components, 0);
+    unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
 
     if (!data)
     {
@@ -38,6 +44,6 @@ int CALLBACK WinMain(
             data,
             width,
             height,
-            "../out.jpg");
+            "out.jpg");
     return result;
 }

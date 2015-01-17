@@ -34,11 +34,12 @@
 
 #endif // WIN32
 
-#define tje_assert(expr) if (!(expr)) {*((int*)0) = 0; }
+#define tje_assert(expr) if (!(expr)) tje::assert_(#expr, __FILE__, __LINE__);
 
 #else  // ELSE TJE_DEBUG
 
 #define tje_log(msg)
+
 #define tje_assert(expr)
 
 #endif  // TJE_DEBUG
@@ -51,15 +52,8 @@
 // ============================================================
 // Public interface:
 // ============================================================
-// In:
-//  width, height. Dimensions of image.
-//  src_data: Image data in RGB format.
-//  dest_path: Name of file to open and write to.
-int tje_encode(
-        const unsigned char* src_data,
-        const int width,
-        const int height,
-        const char* dest_path);
+
+// TODO
 
 // ============================================================
 // private namespace
@@ -155,33 +149,33 @@ static uint8* qt_chroma = qt_chroma_from_spec;
 // == Procedure to 'deflate' the huffman tree: JPEG spec, C.2
 
 // Number of 16 bit values for every code length. (K.3.3.1)
-static uint8 ht_luma_dc_len[16] =
+static uint8 default_ht_luma_dc_len[16] =
 {
     0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0
 };
 // values
-static uint8 ht_luma_dc[12] =
+static uint8 default_ht_luma_dc[12] =
 {
     0,1,2,3,4,5,6,7,8,9,10,11
 };
 
 // Number of 16 bit values for every code length. (K.3.3.1)
-static uint8 ht_chroma_dc_len[16] =
+static uint8 default_ht_chroma_dc_len[16] =
 {
     0,3,1,1,1,1,1,1,1,1,1,0,0,0,0,0
 };
 // values
-static uint8 ht_chroma_dc[12] =
+static uint8 default_ht_chroma_dc[12] =
 {
     0,1,2,3,4,5,6,7,8,9,10,11
 };
 
 // Same as above, but AC coefficients.
-static uint8 ht_luma_ac_len[16] =
+static uint8 default_ht_luma_ac_len[16] =
 {
     0,2,1,3,3,2,4,3,5,5,4,4,0,0,1,0x7d
 };
-static uint8 ht_luma_ac[] =
+static uint8 default_ht_luma_ac[] =
 {
     0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
     0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0,
@@ -196,11 +190,11 @@ static uint8 ht_luma_ac[] =
     0xF9, 0xFA
 };
 
-static uint8 ht_chroma_ac_len[16] =
+static uint8 default_ht_chroma_ac_len[16] =
 {
     0,2,1,2,4,4,3,4,7,5,4,4,0,1,2,0x77
 };
-static uint8 ht_chroma_ac[] =
+static uint8 default_ht_chroma_ac[] =
 {
     0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
     0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xA1, 0xB1, 0xC1, 0x09, 0x23, 0x33, 0x52, 0xF0,
@@ -337,6 +331,16 @@ typedef struct ScanHeader_s
     uint8 ah_al;  // o
 } ScanHeader;
 #pragma pack(pop)
+
+static void assert_(const char* expr, const char* file, int line)
+{
+    size_t sz = 256;
+    char buffer[sz];
+    snprintf(buffer, sz, "Assertion Failed: \"%s\" -- %s : %d\n", expr, file, line);
+    tje_log(buffer);
+    exit(-1);
+}
+
 
 static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
 {
@@ -707,13 +711,33 @@ static void encode_and_write_DU(
     return;
 }
 
-static int encode(
-        const unsigned char* src_data,
-        const int width,
-        const int height,
-        const char* dest_path)
+struct TJEState
 {
-    int res = 0;
+    uint8*  ehuffsize[4];
+    uint16* ehuffcode[4];
+
+    uint8* ht_luma_dc_len;
+    uint8* ht_luma_dc;
+    uint8* ht_luma_ac_len;
+    uint8* ht_luma_ac;
+    uint8* ht_chroma_dc_len;
+    uint8* ht_chroma_dc;
+    uint8* ht_chroma_ac_len;
+    uint8* ht_chroma_ac;
+};
+
+enum
+{
+    LUMA_DC,
+    LUMA_AC,
+    CHROMA_DC,
+    CHROMA_AC,
+};
+
+static void init (
+        TJEState* state
+        )
+{
     // Make an endianness check. We only support little endian.
     {
         //    0xaabb
@@ -723,25 +747,16 @@ static int encode(
         char* pointer = (char*)&foo;
         if (*pointer != (char)(0xbb))
         {
-            tje_log("This machine is big endian. Not supported.");
-            return 1;
+            tje_assert(!"This machine is big endian. Not supported.");
         }
     }
 
-    enum
-    {
-        LUMA_DC,
-        LUMA_AC,
-        CHROMA_DC,
-        CHROMA_AC,
-    };
-
     uint8* spec_tables_bits[4] =
     {
-        ht_luma_dc_len,
-        ht_luma_ac_len,
-        ht_chroma_dc_len,
-        ht_chroma_ac_len,
+        state->ht_luma_dc_len,
+        state->ht_luma_ac_len,
+        state->ht_chroma_dc_len,
+        state->ht_chroma_ac_len,
     };
     uint64 spec_tables_len[4] = {};
     for (int i = 0; i < 4; ++i)
@@ -751,10 +766,51 @@ static int encode(
             spec_tables_len[i] += spec_tables_bits[i][k];
         }
     }
-    tje_assert(tje_array_count(ht_chroma_ac) == spec_tables_len[CHROMA_AC]);
-    tje_assert(tje_array_count(ht_chroma_dc) == spec_tables_len[CHROMA_DC]);
-    tje_assert(tje_array_count(ht_luma_ac) == spec_tables_len[LUMA_AC]);
-    tje_assert(tje_array_count(ht_luma_dc) == spec_tables_len[LUMA_DC]);
+
+    // Fill out the extended tables..
+    {
+        uint8* huffsize[4] = {};
+        uint16* huffcode[4] = {};
+        for (int i = 0; i < 4; ++i)
+        {
+            huffsize[i] = huff_get_code_lengths(spec_tables_bits[i], spec_tables_len[i]);
+            huffcode[i] = huff_get_codes(huffsize[i], spec_tables_len[i]);
+        }
+        uint8* spec_tables_huffval[4] =
+        {
+            state->ht_luma_dc,
+            state->ht_luma_ac,
+            state->ht_chroma_dc,
+            state->ht_chroma_ac,
+        };
+        for (int i = 0; i < 4; ++i)
+        {
+            int64 count = spec_tables_len[i];
+            huff_get_extended(
+                    spec_tables_huffval[i],
+                    huffsize[i],
+                    huffcode[i], count,
+                    &(state->ehuffsize[i]),
+                    &(state->ehuffcode[i]));
+        }
+        // Free non-ordered huffman data.
+        for (int i = 0; i < 4; ++i)
+        {
+            tje_free(huffsize[i]);
+            tje_free(huffcode[i]);
+        }
+    }
+
+}
+
+static int encode(
+        TJEState* state,
+        const unsigned char* src_data,
+        const int width,
+        const int height,
+        const char* dest_path)
+{
+    int res = 0;
 
     // TODO: support arbitrary resolutions.
     if (((height % 8) != 0) || ((width % 8) != 0))
@@ -768,42 +824,6 @@ static int encode(
     {
         tje_log("Could not open file for writing.");
         return 1;
-    }
-
-    uint8* ehuffsize[4];
-    uint16* ehuffcode[4];
-    // Fill out the extended tables..
-    {
-        uint8* huffsize[4] = {};
-        uint16* huffcode[4] = {};
-        for (int i = 0; i < 4; ++i)
-        {
-            huffsize[i] = huff_get_code_lengths(spec_tables_bits[i], spec_tables_len[i]);
-            huffcode[i] = huff_get_codes(huffsize[i], spec_tables_len[i]);
-        }
-        uint8* spec_tables_huffval[4] =
-        {
-            ht_luma_dc,
-            ht_luma_ac,
-            ht_chroma_dc,
-            ht_chroma_ac,
-        };
-        for (int i = 0; i < 4; ++i)
-        {
-            int64 count = spec_tables_len[i];
-            huff_get_extended(
-                    spec_tables_huffval[i],
-                    huffsize[i],
-                    huffcode[i], count,
-                    &(ehuffsize[i]),
-                    &(ehuffcode[i]));
-        }
-        // Free non-ordered huffman data.
-        for (int i = 0; i < 4; ++i)
-        {
-            tje_free(huffsize[i]);
-            tje_free(huffcode[i]);
-        }
     }
 
     // ============================================================
@@ -861,10 +881,10 @@ static int encode(
         fwrite(&header, sizeof(FrameHeader), 1, file_out);
     }
 
-    write_DHT(file_out, ht_luma_dc_len  , ht_luma_dc  , DC, 0);
-    write_DHT(file_out, ht_luma_ac_len  , ht_luma_ac  , AC, 0);
-    write_DHT(file_out, ht_chroma_dc_len, ht_chroma_dc, DC, 1);
-    write_DHT(file_out, ht_chroma_ac_len, ht_chroma_ac, AC, 1);
+    write_DHT(file_out, state->ht_luma_dc_len  , state->ht_luma_dc  , DC, 0);
+    write_DHT(file_out, state->ht_luma_ac_len  , state->ht_luma_ac  , AC, 0);
+    write_DHT(file_out, state->ht_chroma_dc_len, state->ht_chroma_dc, DC, 1);
+    write_DHT(file_out, state->ht_chroma_ac_len, state->ht_chroma_ac, AC, 1);
 
     // Write start of scan
     {
@@ -972,18 +992,18 @@ static int encode(
 
             encode_and_write_DU(file_out,
                     du_y, fdtbl_luma,
-                    ehuffsize[LUMA_DC], ehuffcode[LUMA_DC],
-                    ehuffsize[LUMA_AC], ehuffcode[LUMA_AC],
+                    state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
+                    state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(file_out,
                     du_b, fdtbl_chroma,
-                    ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
-                    ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
+                    state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
+                    state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(file_out,
                     du_r, fdtbl_chroma,
-                    ehuffsize[CHROMA_DC], ehuffcode[CHROMA_DC],
-                    ehuffsize[CHROMA_AC], ehuffcode[CHROMA_AC],
+                    state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
+                    state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     &pred_r, &bitbuffer, &location);
         }
     }
@@ -991,8 +1011,8 @@ static int encode(
     // Free huffman tables.
     for (int i = 0; i < 4; ++i)
     {
-        tje_free(ehuffcode[i]);
-        tje_free(ehuffsize[i]);
+        tje_free(state->ehuffcode[i]);
+        tje_free(state->ehuffsize[i]);
     }
 
     // Finish the image.
@@ -1018,7 +1038,21 @@ int tje_encode(
         const int height,
         const char* dest_path)
 {
-    return tje::encode(src_data, width, height, dest_path);
+    tje::TJEState state;
+
+    state.ht_luma_dc_len   = tje::default_ht_luma_dc_len;
+    state.ht_luma_dc       = tje::default_ht_luma_dc;
+    state.ht_luma_ac_len   = tje::default_ht_luma_ac_len;
+    state.ht_luma_ac       = tje::default_ht_luma_ac;
+    state.ht_chroma_dc_len = tje::default_ht_chroma_dc_len;
+    state.ht_chroma_dc     = tje::default_ht_chroma_dc;
+    state.ht_chroma_ac_len = tje::default_ht_chroma_ac_len;
+    state.ht_chroma_ac     = tje::default_ht_chroma_ac;
+
+    init(&state);
+
+
+    return tje::encode(&state, src_data, width, height, dest_path);
 }
 
 // ============================================================

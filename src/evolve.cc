@@ -6,9 +6,38 @@
  */
 
 #ifdef _WIN32
-#include <windows.h>
-#endif
 
+#include <windows.h>
+#define platform_allocate win32_allocate
+
+void* win32_allocate(size_t sz)
+{
+    void* result = VirtualAlloc(
+#ifdef TJE_DEBUG
+        (LPVOID)(1024LL * 1024 * 1024 * 1024), //  lpAddress,
+#else
+        NULL, //  lpAddress,
+#endif
+        sz,//  dwSize,
+        MEM_COMMIT | MEM_RESERVE, //  flAllocationType,
+        PAGE_READWRITE//  flProtect
+        );
+    return result;
+}
+
+#endif // _WIN32
+
+#include "memory.h"
+
+static Arena g_jpeg_arena;
+
+void* arena_malloc_(size_t size)
+{
+    return arena_push_(&g_jpeg_arena, size);
+}
+
+#define tje_malloc arena_malloc_
+#define tje_free(ptr)  // No freeing
 #define TJE_IMPLEMENTATION
 #include <tiny_jpeg.cc>
 
@@ -27,6 +56,16 @@ int CALLBACK WinMain(
 int main()
 #endif
 {
+
+    void* big_chunk_of_memory = win32_allocate(1024 * 1024 * 1024);  // One gigabyte
+
+    g_jpeg_arena = arena_create(big_chunk_of_memory, 20 * 1024 * 1024); // Reserve 20 megs for jpeg code.
+
+    Arena test_arena = arena_create(
+            (void*)((uint8_t*)big_chunk_of_memory + g_jpeg_arena.size), 1024 * 1024); // One meg arena.
+
+    int* array_of_zeroes = arena_push_array(&test_arena, 1000, int);
+
     int width;
     int height;
     int num_components;

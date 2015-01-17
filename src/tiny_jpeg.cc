@@ -18,6 +18,8 @@
 // ============================================================
 // Public interface:
 // ============================================================
+//
+//  In case of name-clashing of types, define TJE_DONT_CREATE_TYPES.
 
 // Usage:
 //  Takes src_data as 32 bit, 0xRRGGBBxx data.
@@ -41,24 +43,39 @@ int tje_encode_to_file(
 // C std lib
 #include <inttypes.h>
 #include <stdio.h>  // FILE, puts
-#include <stdlib.h> // malloc, free
 #include <math.h>  // floorf, ceilf
+
+#ifdef _WIN32
+
+#include <windows.h>
+#define snprintf sprintf_s  // Not quite the same but it works for us
+
+#endif
+
+
+#ifndef tje_malloc
+#include <stdlib.h> // malloc, free
+#define tje_malloc malloc
+#ifdef tje_free
+#error "tje_free is defined but tje_malloc is not"
+#endif
+#define tje_free(mem)\
+    free(mem);\
+    mem = NULL;
+#endif
 
 #ifdef TJE_DEBUG
 
 #ifdef _WIN32
 
-#include <windows.h>
 #define tje_log(msg) OutputDebugStringA(msg)
-
-#define snprintf sprintf_s
 
 #elif defined(__linux__) || defined(__MACH__)
 #include <stdio.h>
 #define tje_log(msg) puts(msg)
 
 
-#endif // WIN32
+#endif // WIN32 debug
 
 #define tje_assert(expr) if (!(expr)) tje_assert_(#expr, __FILE__, __LINE__);
 
@@ -72,6 +89,7 @@ int tje_encode_to_file(
 // ============================================================
 // Define types
 // ============================================================
+#ifndef TJE_DONT_CREATE_TYPES
 typedef char          int8;
 typedef unsigned char uint8;
 typedef int16_t       int16;
@@ -81,6 +99,7 @@ typedef uint32_t      uint32;
 typedef int64_t       int64;
 typedef uint64_t      uint64;
 typedef int32         bool32;
+#endif
 
 typedef struct
 {
@@ -245,10 +264,6 @@ static uint8 zig_zag_indices[64] =
    35, 36, 48, 49, 57, 58, 62, 63
 };
 
-#define tje_free(mem)\
-    free(mem);\
-    mem = NULL;
-
 // Memory order as big endian. 0xhilo -> 0xlohi which looks as 0xhilo in memory.
 static uint16 be_word(uint16 le_word)
 {
@@ -350,6 +365,7 @@ typedef struct ScanHeader_s
 } ScanHeader;
 #pragma pack(pop)
 
+#ifdef TJE_DEBUG
 static void tje_assert_(const char* expr, const char* file, int line)
 {
     const size_t sz = 256;
@@ -358,7 +374,7 @@ static void tje_assert_(const char* expr, const char* file, int line)
     tje_log(buffer);
     exit(-1);
 }
-
+#endif
 
 static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
 {
@@ -418,7 +434,7 @@ static uint8* huff_get_code_lengths(uint8* bits, int64 size)
 {
     // Add 1 for the trailing 0, used as a terminator in huff_get_codes()
     size_t huffsize_sz = sizeof(uint8) * (size + 1);
-    uint8* huffsize = (uint8*)malloc(huffsize_sz);
+    uint8* huffsize = (uint8*)tje_malloc(huffsize_sz);
 
     int k = 0;
     for (int i = 0; i < 16; ++i)
@@ -439,7 +455,7 @@ static uint16* huff_get_codes(uint8* huffsize, int64 size)
     uint16 code = 0;
     int k = 0;
     uint8 sz = huffsize[0];
-    uint16* codes = (uint16*)malloc(sizeof(uint16) * (size));
+    uint16* codes = (uint16*)tje_malloc(sizeof(uint16) * (size));
     for(;;)
     {
         do
@@ -468,8 +484,8 @@ static void huff_get_extended(
         uint8** out_ehuffsize,
         uint16** out_ehuffcode)
 {
-    uint8* ehuffsize  = (uint8*)malloc(sizeof(uint8) * 256);
-    uint16* ehuffcode = (uint16*)malloc(sizeof(uint16) * 256);
+    uint8* ehuffsize  = (uint8*)tje_malloc(sizeof(uint8) * 256);
+    uint16* ehuffcode = (uint16*)tje_malloc(sizeof(uint16) * 256);
 
     tje_memset(ehuffsize, 0, sizeof(uint8) * 256);
     tje_memset(ehuffcode, 0, sizeof(uint16) * 256);

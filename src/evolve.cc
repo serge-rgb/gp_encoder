@@ -8,6 +8,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
+#define TJE_IMPLEMENTATION
 #include <tiny_jpeg.cc>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -40,7 +42,7 @@ int main()
 
     tje_assert (num_components == 3);
 
-    int result = tje_encode(
+    int result = tje_encode_to_file(
             data,
             width,
             height,

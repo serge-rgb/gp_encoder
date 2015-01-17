@@ -15,6 +15,29 @@
  *
  */
 
+// ============================================================
+// Public interface:
+// ============================================================
+
+// Usage:
+//  Takes src_data as 32 bit, 0xRRGGBBxx data.
+//  Writes encoded image to dest_path.
+int tje_encode_to_file(
+        const unsigned char* src_data,
+        const int width,
+        const int height,
+        const char* dest_path);
+// TODO:
+//  encode to buffer
+//  specify quantization tables
+
+// ============================================================
+// Internal
+// ============================================================
+#ifdef TJE_IMPLEMENTATION
+// ============================================================
+// ============================================================
+
 // C std lib
 #include <inttypes.h>
 #include <stdio.h>  // FILE, puts
@@ -28,13 +51,16 @@
 #include <windows.h>
 #define tje_log(msg) OutputDebugStringA(msg)
 
+#define snprintf sprintf_s
+
 #elif defined(__linux__) || defined(__MACH__)
 #include <stdio.h>
 #define tje_log(msg) puts(msg)
 
+
 #endif // WIN32
 
-#define tje_assert(expr) if (!(expr)) tje::assert_(#expr, __FILE__, __LINE__);
+#define tje_assert(expr) if (!(expr)) tje_assert_(#expr, __FILE__, __LINE__);
 
 #else  // ELSE TJE_DEBUG
 
@@ -43,27 +69,9 @@
 #define tje_assert(expr)
 
 #endif  // TJE_DEBUG
-
-#define tje_array_count(array) (sizeof(array) / sizeof(array[0]))
-
-// TODO: add option to specify quantization tables in public interface
-// TODO: add option to limit image blocks to compress.
-
-// ============================================================
-// Public interface:
-// ============================================================
-
-// TODO
-
-// ============================================================
-// private namespace
-// ============================================================
-namespace tje
-{
 // ============================================================
 // Define types
 // ============================================================
-
 typedef char          int8;
 typedef unsigned char uint8;
 typedef int16_t       int16;
@@ -73,6 +81,18 @@ typedef uint32_t      uint32;
 typedef int64_t       int64;
 typedef uint64_t      uint64;
 typedef int32         bool32;
+
+typedef struct
+{
+    uint8*  ehuffsize[4];
+    uint16* ehuffcode[4];
+
+    uint8* ht_bits[4];
+    uint8* ht_vals[4];
+
+    uint8* qt_luma;
+    uint8* qt_chroma;
+} TJEState;
 
 // ============================================================
 // Table definitions.
@@ -89,7 +109,7 @@ typedef int32         bool32;
 
 
 // K.1 - suggested luminance QT
-static uint8 qt_luma[] =
+static uint8 default_qt_luma[] =
 {
    16,11,10,16, 24, 40, 51, 61,
    12,12,14,19, 26, 58, 60, 55,
@@ -101,7 +121,7 @@ static uint8 qt_luma[] =
    72,92,95,98,112,100,103, 99,
 };
 
-static uint8 qt_chroma_from_spec[] =
+static uint8 default_qt_chroma_from_spec[] =
 {
     // K.1 - suggested chrominance QT
 
@@ -115,20 +135,20 @@ static uint8 qt_chroma_from_spec[] =
    99,99,99,99,99,99,99,99,
 };
 
-static uint8 qt_chroma_from_paper[] =
+static uint8 default_qt_chroma_from_paper[] =
 {
     // Example QT from JPEG paper
-   16, 12, 14, 14, 18, 24, 49, 72,
-   11, 10, 16, 24, 40, 51, 61, 12,
-   13, 17, 22, 35, 64, 92, 14, 16,
-   22, 37, 55, 78, 95, 19, 24, 29,
-   56, 64, 87, 98, 26, 40, 51, 68,
+   16,  12, 14, 14, 18, 24, 49, 72,
+   11,  10, 16, 24, 40, 51, 61, 12,
+   13,  17, 22, 35, 64, 92, 14, 16,
+   22,  37, 55, 78, 95, 19, 24, 29,
+   56,  64, 87, 98, 26, 40, 51, 68,
    81, 103, 112, 58, 57, 87, 109, 104,
-   121, 100, 60, 69, 80, 103, 113, 120,
+   121,100, 60, 69, 80, 103, 113, 120,
    103, 55, 56, 62, 77, 92, 101, 99,
 };
 
-static uint8 qt_all_ones [] =
+static uint8 default_qt_all_ones[] =
 {
     1,1,1,1,1,1,1,1,
     1,1,1,1,1,1,1,1,
@@ -142,9 +162,7 @@ static uint8 qt_all_ones [] =
     1,1,1,1,1,1,1,1,
 };
 
-static uint8* qt_chroma = qt_chroma_from_spec;
-//static uint8* qt_chroma = qt_chroma_from_paper;
-//static uint8* qt_chroma = qt_all_ones;
+static uint8* default_qt_chroma = default_qt_chroma_from_spec;
 
 // == Procedure to 'deflate' the huffman tree: JPEG spec, C.2
 
@@ -268,8 +286,8 @@ static void tje_memset(void* dest, uint8 val, size_t num_bytes)
 // while developing.
 // ============================================================
 
-static uint8 k_jfif_id[] = "JFIF";
-static uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
+static const uint8 k_jfif_id[] = "JFIF";
+static const uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
 
 #pragma pack(push)
 #pragma pack(1)
@@ -332,9 +350,9 @@ typedef struct ScanHeader_s
 } ScanHeader;
 #pragma pack(pop)
 
-static void assert_(const char* expr, const char* file, int line)
+static void tje_assert_(const char* expr, const char* file, int line)
 {
-    size_t sz = 256;
+    const size_t sz = 256;
     char buffer[sz];
     snprintf(buffer, sz, "Assertion Failed: \"%s\" -- %s : %d\n", expr, file, line);
     tje_log(buffer);
@@ -515,7 +533,6 @@ static void fdct(
 
     *d2 = t13 + z1;
     *d6 = t13 - z1;
-
 
     // Odd part
 
@@ -711,21 +728,6 @@ static void encode_and_write_DU(
     return;
 }
 
-struct TJEState
-{
-    uint8*  ehuffsize[4];
-    uint16* ehuffcode[4];
-
-    uint8* ht_luma_dc_len;
-    uint8* ht_luma_dc;
-    uint8* ht_luma_ac_len;
-    uint8* ht_luma_ac;
-    uint8* ht_chroma_dc_len;
-    uint8* ht_chroma_dc;
-    uint8* ht_chroma_ac_len;
-    uint8* ht_chroma_ac;
-};
-
 enum
 {
     LUMA_DC,
@@ -734,36 +736,15 @@ enum
     CHROMA_AC,
 };
 
-static void init (
-        TJEState* state
-        )
+// Set up huffman tables in state.
+static void tje_init (TJEState* state)
 {
-    // Make an endianness check. We only support little endian.
-    {
-        //    0xaabb
-        // -> 0xbbaa (memory)
-        //         ^--- pointer
-        uint16 foo = 0xaabb;
-        char* pointer = (char*)&foo;
-        if (*pointer != (char)(0xbb))
-        {
-            tje_assert(!"This machine is big endian. Not supported.");
-        }
-    }
-
-    uint8* spec_tables_bits[4] =
-    {
-        state->ht_luma_dc_len,
-        state->ht_luma_ac_len,
-        state->ht_chroma_dc_len,
-        state->ht_chroma_ac_len,
-    };
     uint64 spec_tables_len[4] = {};
     for (int i = 0; i < 4; ++i)
     {
         for (int k = 0; k < 16; ++k)
         {
-            spec_tables_len[i] += spec_tables_bits[i][k];
+            spec_tables_len[i] += state->ht_bits[i][k];
         }
     }
 
@@ -773,21 +754,14 @@ static void init (
         uint16* huffcode[4] = {};
         for (int i = 0; i < 4; ++i)
         {
-            huffsize[i] = huff_get_code_lengths(spec_tables_bits[i], spec_tables_len[i]);
+            huffsize[i] = huff_get_code_lengths(state->ht_bits[i], spec_tables_len[i]);
             huffcode[i] = huff_get_codes(huffsize[i], spec_tables_len[i]);
         }
-        uint8* spec_tables_huffval[4] =
-        {
-            state->ht_luma_dc,
-            state->ht_luma_ac,
-            state->ht_chroma_dc,
-            state->ht_chroma_ac,
-        };
         for (int i = 0; i < 4; ++i)
         {
             int64 count = spec_tables_len[i];
             huff_get_extended(
-                    spec_tables_huffval[i],
+                    state->ht_vals[i],
                     huffsize[i],
                     huffcode[i], count,
                     &(state->ehuffsize[i]),
@@ -803,7 +777,7 @@ static void init (
 
 }
 
-static int encode(
+static int tje_encode_main(
         TJEState* state,
         const unsigned char* src_data,
         const int width,
@@ -836,7 +810,7 @@ static int encode(
         header.SOI = be_word(0xffd8);  // Sequential DCT
         header.APP0 = be_word(0xffe0);
         header.jfif_len = be_word(0x0016);
-        tje_memcpy(header.jfif_id, k_jfif_id, 5);
+        tje_memcpy(header.jfif_id, (void*)k_jfif_id, 5);
         header.version = be_word(0x0102);
         header.units = 0x01;
         header.x_density = be_word(0x0060);  // 96 DPI
@@ -844,13 +818,13 @@ static int encode(
         header.thumb_size = 0;
         // Comment
         header.com = be_word(0xfffe);
-        tje_memcpy(header.com_str, k_com_str, sizeof(k_com_str) - 1); // Skip the 0-bit
+        tje_memcpy(header.com_str, (void*)k_com_str, sizeof(k_com_str) - 1); // Skip the 0-bit
         fwrite(&header, sizeof(JPEGHeader), 1, file_out);
     }
 
     // Write quantization tables.
-    write_DQT(file_out, qt_luma, 0x00);
-    write_DQT(file_out, qt_chroma, 0x01);
+    write_DQT(file_out, state->qt_luma, 0x00);
+    write_DQT(file_out, state->qt_chroma, 0x01);
 
     {  // Write the frame marker.
         FrameHeader header;
@@ -881,10 +855,10 @@ static int encode(
         fwrite(&header, sizeof(FrameHeader), 1, file_out);
     }
 
-    write_DHT(file_out, state->ht_luma_dc_len  , state->ht_luma_dc  , DC, 0);
-    write_DHT(file_out, state->ht_luma_ac_len  , state->ht_luma_ac  , AC, 0);
-    write_DHT(file_out, state->ht_chroma_dc_len, state->ht_chroma_dc, DC, 1);
-    write_DHT(file_out, state->ht_chroma_ac_len, state->ht_chroma_ac, AC, 1);
+    write_DHT(file_out, state->ht_bits[LUMA_DC], state->ht_vals[LUMA_DC], DC, 0);
+    write_DHT(file_out, state->ht_bits[LUMA_AC], state->ht_vals[LUMA_AC], AC, 0);
+    write_DHT(file_out, state->ht_bits[CHROMA_DC], state->ht_vals[CHROMA_DC], DC, 1);
+    write_DHT(file_out, state->ht_bits[CHROMA_AC], state->ht_vals[CHROMA_AC], AC, 1);
 
     // Write start of scan
     {
@@ -936,8 +910,8 @@ static int encode(
             {
                 for (int i = 0; i < 8; ++i)
                 {
-                    fdtbl_luma[k]   = 1.0f / (qt_luma  [zig_zag_indices[k]] * aasf[i] * aasf[j]);
-                    fdtbl_chroma[k] = 1.0f / (qt_chroma[zig_zag_indices[k]] * aasf[i] * aasf[j]);
+                    fdtbl_luma[k]   = 1.0f / (state->qt_luma  [zig_zag_indices[k]] * aasf[i] * aasf[j]);
+                    fdtbl_chroma[k] = 1.0f / (state->qt_chroma[zig_zag_indices[k]] * aasf[i] * aasf[j]);
                     k++;
                 }
             }
@@ -1008,13 +982,6 @@ static int encode(
         }
     }
 
-    // Free huffman tables.
-    for (int i = 0; i < 4; ++i)
-    {
-        tje_free(state->ehuffcode[i]);
-        tje_free(state->ehuffsize[i]);
-    }
-
     // Finish the image.
     {
         // flush
@@ -1029,113 +996,49 @@ static int encode(
 
     return res;
 }
-}  // namespace tje
+
+void tje_deinit(TJEState* state)
+{
+    // Free huffman tables.
+    for (int i = 0; i < 4; ++i)
+    {
+        tje_free(state->ehuffcode[i]);
+        tje_free(state->ehuffsize[i]);
+    }
+
+}
 
 // Define public interface.
-int tje_encode(
+int tje_encode_to_file(
         const unsigned char* src_data,
         const int width,
         const int height,
         const char* dest_path)
 {
-    tje::TJEState state;
+    TJEState state = {};
 
-    state.ht_luma_dc_len   = tje::default_ht_luma_dc_len;
-    state.ht_luma_dc       = tje::default_ht_luma_dc;
-    state.ht_luma_ac_len   = tje::default_ht_luma_ac_len;
-    state.ht_luma_ac       = tje::default_ht_luma_ac;
-    state.ht_chroma_dc_len = tje::default_ht_chroma_dc_len;
-    state.ht_chroma_dc     = tje::default_ht_chroma_dc;
-    state.ht_chroma_ac_len = tje::default_ht_chroma_ac_len;
-    state.ht_chroma_ac     = tje::default_ht_chroma_ac;
+    state.ht_bits[LUMA_DC]      = default_ht_luma_dc_len;
+    state.ht_bits[LUMA_AC]      = default_ht_luma_ac_len;
+    state.ht_bits[CHROMA_DC]    = default_ht_chroma_dc_len;
+    state.ht_bits[CHROMA_AC]    = default_ht_chroma_ac_len;
 
-    init(&state);
+    state.qt_luma   = default_qt_luma;
+    state.qt_chroma = default_qt_chroma;
 
+    state.ht_vals[LUMA_DC]      = default_ht_luma_dc;
+    state.ht_vals[LUMA_AC]     = default_ht_luma_ac;
+    state.ht_vals[CHROMA_DC]    = default_ht_chroma_dc;
+    state.ht_vals[CHROMA_AC]    = default_ht_chroma_ac;
 
-    return tje::encode(&state, src_data, width, height, dest_path);
-}
+    tje_init(&state);
 
-// ============================================================
-// Standalone Windows/Unix app.
-// ============================================================
+    int result = tje_encode_main(&state, src_data, width, height, dest_path);
+    tje_assert(result == 0);
 
-#ifdef TJE_STANDALONE
-
-// Local includes
-#define STB_IMAGE_IMPLEMENTATION
-#include "../third_party/stb/stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../third_party/stb/stb_image_write.h"
-
-#ifdef _WIN32
-int CALLBACK WinMain(
-        HINSTANCE hInstance,
-        HINSTANCE hPrevInstance,
-        LPSTR lpCmdLine,
-        int nCmdShow)
-#elif defined(__linux__) || defined(__MACH__)
-int main()
-#endif
-{
-    int width;
-    int height;
-    int num_components;
-
-    // Generate test image.
-    {
-        int width = 1024;
-        int height = 728;
-        unsigned char* data = (unsigned char*)malloc(1024 * 728 * 3);
-        for (int y = 0; y < height; ++y)
-            for (int x = 0; x < width; ++x)
-            {
-                int i = 3 * ((y * width) + x);
-#if 0
-                data[i + 0] = 0x01;
-                data[i + 1] = 0x02;
-                data[i + 2] = 0x03;
-#else
-                data[i + 0] = 64;
-                data[i + 1] = 128;
-                data[i + 2] = 255;
-#endif
-            }
-        stbi_write_bmp("../test.bmp", width, height, 3, (const void*) data);
-        free(data);
-    }
-
-    // Read the image we just wrote..
-    //unsigned char* data = stbi_load("../test.bmp", &width, &height, &num_components, 0);
-    unsigned char* data = stbi_load("../in.bmp", &width, &height, &num_components, 0);
-
-    if (!data)
-    {
-        tje_log("Could not load bmp file.\n");
-        const char* err = stbi_failure_reason();
-        tje_log(err);
-        return 1;
-    }
-
-    tje_assert (num_components == 3);
-
-    int result = tje_encode(
-            data,
-            width,
-            height,
-            "../out.bmp");
-
-    // Try to load the image with stb_image
-    {
-        unsigned char* my_data =
-            stbi_load("../out.jpg", &width, &height, &num_components, 0);
-        if (!my_data)
-        {
-            tje_log("STB could not load my JPEG\n");
-        }
-        stbi_image_free(data);
-    }
+    tje_deinit(&state);
 
     return result;
 }
-
-#endif  // TJE_STANDALONE
+// ============================================================
+#endif // TJE_IMPLEMENTATION
+// ============================================================

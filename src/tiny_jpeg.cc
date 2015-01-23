@@ -324,7 +324,6 @@ typedef struct JPEGHeader_s
     char com_str[sizeof(k_com_str) - 1];
 } JPEGHeader;
 
-#pragma pack(1)
 // Helper struct for FrameHeader (below).
 typedef struct ComponentSpec_s
 {
@@ -333,7 +332,6 @@ typedef struct ComponentSpec_s
     uint8  qt;                  // Quantization table selector.
 } ComponentSpec;
 
-#pragma pack(1)
 typedef struct FrameHeader_s
 {
     uint16 SOF;
@@ -345,14 +343,12 @@ typedef struct FrameHeader_s
     ComponentSpec component_spec[3];
 } FrameHeader;
 
-#pragma pack(1)
 typedef struct FrameComponentSpec_s
 {
     uint8 component_id;                 // Just as with ComponentSpec
     uint8 dc_ac;                        // (dc|ac)
 } FrameComponentSpec;
 
-#pragma pack(1)
 typedef struct ScanHeader_s
 {
     uint16 SOS;
@@ -363,7 +359,6 @@ typedef struct ScanHeader_s
     uint8 last;  // 63
     uint8 ah_al;  // o
 } ScanHeader;
-#pragma pack(pop)
 
 #ifdef TJE_DEBUG
 static void tje_assert_(const char* expr, const char* file, int line)

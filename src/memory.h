@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef platform_allocate
-#error "platform_allocate macro needs to be defined."
-#endif
-
 #ifndef assert
 #include <assert.h>
 #endif

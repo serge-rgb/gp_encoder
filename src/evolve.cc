@@ -12,6 +12,11 @@
 
 void* win32_allocate(size_t sz)
 {
+    static only_once = false;
+    if (only_once)
+    {
+        OutputDebugStringA("Error: win32_allocate is not supposed to be called many times.");
+    }
     void* result = VirtualAlloc(
 #ifdef TJE_DEBUG
         (LPVOID)(1024LL * 1024 * 1024 * 1024), //  lpAddress,
@@ -25,7 +30,33 @@ void* win32_allocate(size_t sz)
     return result;
 }
 
-#endif // _WIN32
+#elif defined(__MACH__)
+
+#define platform_allocate osx_allocate
+#include <sys/mman.h>
+void* osx_allocate(size_t size)
+{
+    void* data = mmap(
+#ifdef TJE_DEBUG
+            (void*)(1024LL * 1024 * 1024 * 1024), //  lpAddress,
+#else
+            NULL, //  lpAddress,
+#endif
+            size,
+            PROT_READ | PROT_WRITE,
+            MAP_ANON,
+            -1, //fd
+            0 //offset
+            );
+    return data;
+}
+
+#endif // _WIN32 , __MACH__
+
+#ifndef platform_allocate
+#error "platform_allocate macro needs to be defined."
+#endif
+
 
 #include "memory.h"
 
@@ -57,7 +88,7 @@ int main()
 #endif
 {
 
-    void* big_chunk_of_memory = win32_allocate(1024 * 1024 * 1024);  // One gigabyte
+    void* big_chunk_of_memory = platform_allocate(1024 * 1024 * 1024);  // One gigabyte
 
     g_jpeg_arena = arena_create(big_chunk_of_memory, 20 * 1024 * 1024); // Reserve 20 megs for jpeg code.
 

@@ -12,10 +12,11 @@
 
 void* win32_allocate(size_t sz)
 {
-    static only_once = false;
+    static bool only_once = false;
     if (only_once)
     {
         OutputDebugStringA("Error: win32_allocate is not supposed to be called many times.");
+        only_once = true;
     }
     void* result = VirtualAlloc(
 #ifdef TJE_DEBUG

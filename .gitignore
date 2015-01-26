@@ -12,5 +12,11 @@ build/*
 tags
 *.taghl
 
+# latex crap
+*.log
+*.pdf
+*.gz
+*.aux
+
 # osx crap
 .DS_Store

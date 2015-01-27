@@ -17,6 +17,11 @@ tags
 *.pdf
 *.gz
 *.aux
+*.lof
+*.lol
+*.out
+*.toc
+*.lot
 
 # osx crap
 .DS_Store

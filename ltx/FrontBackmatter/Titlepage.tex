@@ -1,0 +1,65 @@
+% *******************************************************
+% Titlepage
+% *******************************************************
+
+\begin{titlepage}
+  % if you want the titlepage to be centered, uncomment and fine-tune the line below (KOMA classes environment)
+  \vspace*{1.5cm}
+  % \begin{addmargin}[-1cm]{-3cm}
+  %%   Barra izquierda - Escudos
+  %   \hskip-1.5cm
+  \hskip-0.5cm
+  \begin{minipage}[c][10cm][s]{3cm} 
+    \begin{center}
+      \includegraphics[width=2.6cm]{unamf}\\[10pt]
+      \hskip2pt\vrule width2pt height13cm\hskip1mm
+      \vrule width1pt height13cm\\[10pt]
+      \includegraphics[width=2.6cm]{cienciasf}
+    \end{center}
+  \end{minipage}\quad
+  %% Barra derecha - TÃÂÃÂÃÂÃÂ­tulos
+  \begin{minipage}[c][9.5cm][s]{10cm}
+    \begin{center}
+      % Barra superior
+      {\large \scshape Universidad Nacional Autónoma de México}
+      \vspace{.3cm}
+      \hrule height2pt
+      \vspace{.1cm}
+      \hrule height1pt
+      \vspace{.3cm}
+      {\scshape Facultad de Ciencias}
+
+      % Titulo del trabajo
+      \vspace{3cm}
+
+      {\Large \eltitulo}
+
+      \vspace{3cm}
+
+      % Tipo de trabajo
+      \makebox[8cm][s]{\Huge T E S I S}\\[8pt]
+      QUE PARA OBTENER EL T\'ITULO DE:\\[3pt]
+      \mbox{}\lacarrera\\[13pt]
+      PRESENTA:\\[3pt]
+      \elnombre
+
+      \vspace{2cm}
+
+      {\small DIRECTOR DE TESIS:\\ \eldirector}
+
+      \vspace{2cm}
+
+      \lafecha
+      
+    \end{center}
+  \end{minipage}
+  % \end{addmargin}
+\pagebreak
+\end{titlepage}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% ispell-local-dictionary: "espanol"
+%%% TeX-engine: xetex
+%%% TeX-master: "../Tesis_RGC"
+%%% End: 

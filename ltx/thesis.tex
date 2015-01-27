@@ -1,0 +1,82 @@
+% !TEX TS-program = xelatex
+% !TEX encoding = UTF-8
+
+% This is a simple template for a XeLaTeX document using the "article" class,
+% with the fontspec package to easily select fonts.
+
+\documentclass[ twoside=true,openright,titlepage,numbers=noenddot,headinclude,%1headlines,% letterpaper a4paper
+footinclude=true,cleardoublepage=empty,abstractoff, % <--- obsolete, remove (todo)
+BCOR=5mm,paper=a4,fontsize=11pt,%11pt,a4paper,%
+ngerman,american,%
+]{scrreprt}
+
+\input{classicthesis-config}
+
+\newcommand{\titulo}[1]{\def\eltitulo{#1}}
+\newcommand{\carrera}[1]{\def\lacarrera{#1}}
+\newcommand{\nombre}[1]{\def\elnombre{#1}}  %* Del alumno
+\newcommand{\director}[1]{\def\eldirector{#1}}  %* De tesis
+\newcommand{\fecha}[1]{\def\lafecha{#1}}
+
+\titulo{\textbf{La tesis de serge}\\
+  {\small Una tesis que nadie va a leer para conseguir un papelito que nadie toma en serio para que me den una visa de trabajo}}
+\nombre{\textsc{González López, Sergio}}
+\carrera{LICENCIADO EN CIENCIAS DE LA COMPUTACIÓN}
+\director{\textsc{Dra. Katya Rodríguez Vázquez}}
+\fecha{México, D.F. \the\year}
+
+
+\begin{document}
+\frenchspacing
+\raggedbottom
+\selectlanguage{spanish}
+% \renewcommand*{\bibname}{new name}
+% \setbibpreamble{}
+\pagenumbering{roman}
+\pagestyle{plain}
+
+% ***********
+% Frontmatter
+% ***********
+\include{FrontBackmatter/Titlepage}
+%\include{FrontBackmatter/DirtyTitlepage}
+\include{FrontBackmatter/Titleback}
+\cleardoublepage\include{FrontBackmatter/Dedication}
+\cleardoublepage\include{FrontBackmatter/Abstract}
+\cleardoublepage\include{FrontBackmatter/Acknowledgments}
+\pagestyle{scrheadings}
+\cleardoublepage\include{FrontBackmatter/Contents}
+
+% **********
+% Mainmatter
+% **********
+
+\pagenumbering{arabic}
+
+% \setcounter{page}{90}
+% use \cleardoublepage here to avoid problems with pdfbookmark
+
+\cleardoublepage
+
+\pretolerance=10000
+\tolerance=2000
+\emergencystretch=10pt
+
+\include{chapters/intro}
+
+% **********
+% Backmatter
+% **********
+\appendix
+\cleardoublepage
+\part{Apéndices} %TODO: part??
+\include{Chapters/Apendice}
+\cleardoublepage\include{FrontBackmatter/Bibliography}
+\nocite{*}
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-engine: xetex
+%%% TeX-master: t
+%%% End:

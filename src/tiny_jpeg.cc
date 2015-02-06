@@ -177,11 +177,9 @@ static uint8 default_qt_all_ones[] =
     1,1,1,1,1,1,1,1,
     1,1,1,1,1,1,1,1,
     1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
 };
 
-static uint8* default_qt_chroma = default_qt_chroma_from_spec;
+static uint8* default_qt_chroma = default_qt_chroma_from_paper;
 
 // == Procedure to 'deflate' the huffman tree: JPEG spec, C.2
 
@@ -680,7 +678,7 @@ static void encode_and_write_DU(
 
     // ==== Encode AC coefficients ====
 
-    int last_non_zero_i = 63;
+    int last_non_zero_i = 0;
     // Find the last non-zero element.
     for (int i = 63; i >= 0; --i)
     {
@@ -689,13 +687,6 @@ static void encode_and_write_DU(
             last_non_zero_i = i;
             break;
         }
-    }
-
-    if (last_non_zero_i == 63)
-    {
-        // EOB
-        write_bits(fd, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
-        return;
     }
 
     for (int i = 1; i <= last_non_zero_i; ++i)
@@ -723,10 +714,10 @@ static void encode_and_write_DU(
 
             tje_assert(huff_ac_len[sym1] != 0);
 
-            // Write symbol 1
-            write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);     // (RUNLENGTH, SIZE)
-            // Write symbol 2
-            write_bits(fd, bitbuffer, location, bits[1], bits[0]);                          // (AMPLITUDE)
+            // Write symbol 1  --- (RUNLENGTH, SIZE)
+            write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
+            // Write symbol 2  --- (AMPLITUDE)
+            write_bits(fd, bitbuffer, location, bits[1], bits[0]);
         }
     }
 
@@ -1028,18 +1019,18 @@ int tje_encode_to_file(
 {
     TJEState state = {};
 
-    state.ht_bits[LUMA_DC]      = default_ht_luma_dc_len;
-    state.ht_bits[LUMA_AC]      = default_ht_luma_ac_len;
-    state.ht_bits[CHROMA_DC]    = default_ht_chroma_dc_len;
-    state.ht_bits[CHROMA_AC]    = default_ht_chroma_ac_len;
+    state.ht_bits[LUMA_DC]   = default_ht_luma_dc_len;
+    state.ht_bits[LUMA_AC]   = default_ht_luma_ac_len;
+    state.ht_bits[CHROMA_DC] = default_ht_chroma_dc_len;
+    state.ht_bits[CHROMA_AC] = default_ht_chroma_ac_len;
 
     state.qt_luma   = default_qt_luma;
     state.qt_chroma = default_qt_chroma;
 
-    state.ht_vals[LUMA_DC]      = default_ht_luma_dc;
-    state.ht_vals[LUMA_AC]     = default_ht_luma_ac;
-    state.ht_vals[CHROMA_DC]    = default_ht_chroma_dc;
-    state.ht_vals[CHROMA_AC]    = default_ht_chroma_ac;
+    state.ht_vals[LUMA_DC]   = default_ht_luma_dc;
+    state.ht_vals[LUMA_AC]   = default_ht_luma_ac;
+    state.ht_vals[CHROMA_DC] = default_ht_chroma_dc;
+    state.ht_vals[CHROMA_AC] = default_ht_chroma_ac;
 
     tje_init(&state);
 

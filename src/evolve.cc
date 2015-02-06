@@ -5,59 +5,6 @@
  *
  */
 
-#ifdef _WIN32
-
-#include <windows.h>
-#define platform_allocate win32_allocate
-
-void* win32_allocate(size_t sz)
-{
-    static bool only_once = false;
-    if (only_once)
-    {
-        OutputDebugStringA("Error: win32_allocate is not supposed to be called many times.");
-        only_once = true;
-    }
-    void* result = VirtualAlloc(
-#ifdef TJE_DEBUG
-        (LPVOID)(1024LL * 1024 * 1024 * 1024), //  lpAddress,
-#else
-        NULL, //  lpAddress,
-#endif
-        sz,//  dwSize,
-        MEM_COMMIT | MEM_RESERVE, //  flAllocationType,
-        PAGE_READWRITE//  flProtect
-        );
-    return result;
-}
-
-#elif defined(__MACH__)
-
-#define platform_allocate osx_allocate
-#include <sys/mman.h>
-void* osx_allocate(size_t size)
-{
-    void* data = mmap(
-#ifdef TJE_DEBUG
-            (void*)(1024LL * 1024 * 1024 * 1024), //  lpAddress,
-#else
-            NULL, //  lpAddress,
-#endif
-            size,
-            PROT_READ | PROT_WRITE,
-            MAP_ANON,
-            -1, //fd
-            0 //offset
-            );
-    return data;
-}
-
-#endif // _WIN32 , __MACH__
-
-#ifndef platform_allocate
-#error "platform_allocate macro needs to be defined."
-#endif
-
 
 #include "memory.h"
 
@@ -71,30 +18,21 @@ void* arena_malloc_(size_t size)
 #define tje_malloc arena_malloc_
 #define tje_free(ptr)  // No freeing
 #define TJE_IMPLEMENTATION
-#include <tiny_jpeg.cc>
+#include <tiny_jpeg.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../third_party/stb/stb_image_write.h"
 
-#ifdef _WIN32
-int CALLBACK WinMain(
-        HINSTANCE hInstance,
-        HINSTANCE hPrevInstance,
-        LPSTR lpCmdLine,
-        int nCmdShow)
-#elif defined(__linux__) || defined(__MACH__)
-int main()
-#endif
+int evolve_main(void* big_chunk_of_memory)
 {
+    // Reserve 20 megs for jpeg code.
+    g_jpeg_arena = arena_create(big_chunk_of_memory, 20 * 1024 * 1024);
 
-    void* big_chunk_of_memory = platform_allocate(1024 * 1024 * 1024);  // One gigabyte
-
-    g_jpeg_arena = arena_create(big_chunk_of_memory, 20 * 1024 * 1024); // Reserve 20 megs for jpeg code.
-
+    // One meg arena.
     Arena test_arena = arena_create(
-            (void*)((uint8_t*)big_chunk_of_memory + g_jpeg_arena.size), 1024 * 1024); // One meg arena.
+            (void*)((uint8_t*)big_chunk_of_memory + g_jpeg_arena.size), 1024 * 1024);
 
     int* array_of_zeroes = arena_push_array(&test_arena, 1000, int);
 

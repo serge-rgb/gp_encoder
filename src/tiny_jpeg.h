@@ -128,7 +128,7 @@ typedef struct
 
 
 // K.1 - suggested luminance QT
-static uint8 default_qt_luma[] =
+static uint8 default_qt_luma_from_spec[] =
 {
    16,11,10,16, 24, 40, 51, 61,
    12,12,14,19, 26, 58, 60, 55,
@@ -179,7 +179,9 @@ static uint8 default_qt_all_ones[] =
     1,1,1,1,1,1,1,1,
 };
 
-static uint8* default_qt_chroma = default_qt_chroma_from_paper;
+static uint8* default_qt_luma   = default_qt_luma_from_spec;
+static uint8* default_qt_chroma = default_qt_chroma_from_spec;
+//static uint8* default_qt_chroma = default_qt_all_ones;
 
 // == Procedure to 'deflate' the huffman tree: JPEG spec, C.2
 
@@ -301,6 +303,7 @@ static void tje_memset(void* dest, uint8 val, size_t num_bytes)
 
 static const uint8 k_jfif_id[] = "JFIF";
 static const uint8 k_com_str[] = "Created by Tiny JPEG Encoder";
+static const float kPi = 3.1415265f;
 
 #pragma pack(push)
 #pragma pack(1)
@@ -498,74 +501,6 @@ static void huff_get_extended(
 }
 // ============================================================
 
-// ============================================================
-// +++ MAGIC +++
-//  FDCT
-//      Note -- The DCT code is taken from Jon Olick's JPEG implementation. He
-//      appears to be take it from libjpeg. This code gets passed around so
-//      much I am surprised it doesn't carry an unpronounceable disease.
-//      Consider DCT code as magic unless one gets a copy of the Pennebaker &
-//      Mitchel's JPEG book, or can read Japanese and has a copy of the paper
-//      by Arai, Agui and Nakajima.
-// ============================================================
-static void fdct(
-        float* d0,
-        float* d1,
-        float* d2,
-        float* d3,
-        float* d4,
-        float* d5,
-        float* d6,
-        float* d7
-        )
-{
-    float t0 = *d0 + *d7;
-    float t7 = *d0 - *d7;
-    float t1 = *d1 + *d6;
-    float t6 = *d1 - *d6;
-    float t2 = *d2 + *d5;
-    float t5 = *d2 - *d5;
-    float t3 = *d3 + *d4;
-    float t4 = *d3 - *d4;
-
-    // Even part
-
-    float t10 = t0 + t3;
-    float t13 = t0 - t3;
-    float t11 = t1 + t2;
-    float t12 = t1 - t2;
-
-    *d0 = t10 + t11;
-    *d4 = t10 - t11;
-
-    float z1 = (t12 + t13) * 0.707106781f;
-
-    *d2 = t13 + z1;
-    *d6 = t13 - z1;
-
-    // Odd part
-
-    t10 = t4 + t5;
-    t11 = t5 + t6;
-    t12 = t6 + t7;
-
-    float z5 = (t10 - t12) * 0.382683433f;
-    float z2 = t10 * 0.5411961f + z5;
-    float z4 = t12 * 1.306562965f + z5;
-    float z3 = t11 * 0.707106781f;
-
-    float z11 = t7 + z3;
-    float z13 = t7 - z3;
-
-    *d5 = z13 + z2;
-    *d3 = z13 - z2;
-    *d1 = z11 + z4;
-    *d7 = z11 - z4;
-}
-// ============================================================
-// ++++
-// ============================================================
-
 static void calculate_variable_length_int(int value, uint16 out[2])
 {
     int abs_val = value;
@@ -612,49 +547,47 @@ static void write_bits(FILE* fd, uint32* bitbuffer, uint32* location, uint16 num
     }
 }
 
+inline float apply_dct(int u, int v, float* mcu)
+{
+    float res = 0.0f;
+    float c = ((u == 0) && (v == 0)) ? 0.70710678118654f : 1;
+    for (int y = 0; y < 8; ++y)
+    {
+        for (int x = 0; x < 8; ++x)
+        {
+            res +=
+                (mcu[y * 8 + x] - 128) *
+                cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f) *
+                cosf(((2.0f * y + 1.0f) * v * kPi) / 16.0f);
+        }
+    }
+    res *= 0.25f * c * c;
+    return res;
+}
+
 static void encode_and_write_DU(
         FILE* fd,
-        float* mcu, float* qt,
+        float* mcu, uint8* qt,
         uint8* huff_dc_len, uint16* huff_dc_code,
         uint8* huff_ac_len, uint16* huff_ac_code,
         int* pred, uint32* bitbuffer, uint32* location)
 {
-    // +++ MAGIC +++
-    //
-    // Apply DCT to block
-    // Rows:
-    for (int i = 0; i < 64; i += 8)
-    {
-        fdct(
-                &mcu[i + 0],
-                &mcu[i + 1],
-                &mcu[i + 2],
-                &mcu[i + 3],
-                &mcu[i + 4],
-                &mcu[i + 5],
-                &mcu[i + 6],
-                &mcu[i + 7]);
-    }
-    // Columns
-    for (int i = 0; i < 8; ++i)
-    {
-        fdct(
-                &mcu[i + 0],
-                &mcu[i + 8],
-                &mcu[i + 16],
-                &mcu[i + 24],
-                &mcu[i + 32],
-                &mcu[i + 40],
-                &mcu[i + 48],
-                &mcu[i + 56]);
-    }
-    // ++++
-
+    float dct_mcu[64];
     int8 du[64];  // Data unit in zig-zag order
+
+    // Quantization
+    for (int v = 0; v < 8; ++v)
+    {
+        for (int u = 0; u < 8; ++u)
+        {
+            dct_mcu[v * 8 + u] = apply_dct(u, v, mcu);
+        }
+    }
+
 
     for (int i = 0; i < 64; ++i)
     {
-        float fval = mcu[i] * qt[i];
+        float fval = dct_mcu[i] / qt[i];
         // TODO: implement a rounding function to avoid dependence on math.h
         int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
         du[zig_zag_indices[i]] = val;
@@ -895,35 +828,6 @@ static int tje_encode_main(
     // Write compressed data.
     static const int bytes_per_pixel = 3;  // Only supporting RGB right now..
 
-    // Convert qt_luma and qt_chroma to what the magic algorithm expects.
-    float fdtbl_luma[64];
-    float fdtbl_chroma[64];
-
-    // +++ MAGIC +++
-    {
-        static const float aasf[] =
-        {
-            1.0f * 2.828427125f, 1.387039845f * 2.828427125f, 1.306562965f * 2.828427125f,
-            1.175875602f * 2.828427125f, 1.0f * 2.828427125f, 0.785694958f * 2.828427125f,
-            0.541196100f * 2.828427125f, 0.275899379f * 2.828427125f
-        };
-
-        {
-            int k = 0;
-            for (int j = 0; j < 8; ++j)
-            {
-                for (int i = 0; i < 8; ++i)
-                {
-                    fdtbl_luma[k]   = 1.0f / (state->qt_luma  [zig_zag_indices[k]] * aasf[i] * aasf[j]);
-                    fdtbl_chroma[k] = 1.0f / (state->qt_chroma[zig_zag_indices[k]] * aasf[i] * aasf[j]);
-                    k++;
-                }
-            }
-        }
-
-    }
-    // ++++
-
     float du_y[64];
     float du_b[64];
     float du_r[64];
@@ -953,9 +857,9 @@ static int tje_encode_main(
                     uint8 g = src_data[index + 1];
                     uint8 b = src_data[index + 2];
 
-                    float y  = 0.29900f * r + 0.58700f * g + 0.11400f * b - 128;
-                    float cb = -0.1687f * r - 0.3312f  * g + 0.50000f * b;
-                    float cr = 0.50000f * r - 0.41869f * g - 0.08131f * b;
+                    float y  = 0.299f * r + 0.587f * g + 0.114f * b;
+                    float cb = -0.1687f * r - 0.3313f * g + 0.5f * b + 128;
+                    float cr = 0.5f * r - 0.4187f * g - 0.0813f * b + 128;
 
 
                     int block_index = (off_y * 8 + off_x);
@@ -969,17 +873,17 @@ static int tje_encode_main(
             // Process block:
 
             encode_and_write_DU(file_out,
-                    du_y, fdtbl_luma,
+                    du_y, state->qt_luma,
                     state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                     state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(file_out,
-                    du_b, fdtbl_chroma,
+                    du_b, state->qt_chroma,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(file_out,
-                    du_r, fdtbl_chroma,
+                    du_r, state->qt_chroma,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     &pred_r, &bitbuffer, &location);

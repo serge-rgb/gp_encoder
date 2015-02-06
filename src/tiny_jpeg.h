@@ -668,8 +668,10 @@ static void encode_and_write_DU(
     if (diff != 0)
     {
         calculate_variable_length_int(diff, bits);
-        write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], huff_dc_code[bits[1]]);   // (SIZE)
-        write_bits(fd, bitbuffer, location, bits[1], bits[0]);                              // (AMPLITUDE)
+        // (SIZE)
+        write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], huff_dc_code[bits[1]]);
+        // (AMPLITUDE)
+        write_bits(fd, bitbuffer, location, bits[1], bits[0]);
     }
     else
     {

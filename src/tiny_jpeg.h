@@ -169,18 +169,18 @@ static uint8 default_qt_chroma_from_paper[] =
 
 static uint8 default_qt_all_ones[] =
 {
-    1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,
+    8,8,8,8,8,8,8,8,
+    8,8,8,8,8,8,8,8,
+    8,8,8,8,8,8,8,8,
+    8,8,8,8,8,8,8,8,
+    8,8,8,8,8,8,8,8,
+    8,8,8,8,8,8,8,8,
+    8,8,8,8,8,8,8,8,
+    8,8,8,8,8,8,8,8,
 };
 
-static uint8* default_qt_luma   = default_qt_luma_from_spec;
-static uint8* default_qt_chroma = default_qt_chroma_from_spec;
+static uint8* default_qt_luma   = default_qt_all_ones;
+static uint8* default_qt_chroma = default_qt_all_ones;
 //static uint8* default_qt_chroma = default_qt_all_ones;
 
 // == Procedure to 'deflate' the huffman tree: JPEG spec, C.2
@@ -550,7 +550,8 @@ static void write_bits(FILE* fd, uint32* bitbuffer, uint32* location, uint16 num
 inline float apply_dct(int u, int v, float* mcu)
 {
     float res = 0.0f;
-    float c = ((u == 0) && (v == 0)) ? 0.70710678118654f : 1;
+    float cu = (u == 0) ? 0.70710678118654f : 1;
+    float cv = (v == 0) ? 0.70710678118654f : 1;
     for (int y = 0; y < 8; ++y)
     {
         for (int x = 0; x < 8; ++x)
@@ -561,7 +562,7 @@ inline float apply_dct(int u, int v, float* mcu)
                 cosf(((2.0f * y + 1.0f) * v * kPi) / 16.0f);
         }
     }
-    res *= 0.25f * c * c;
+    res *= 0.25f * cu * cv;
     return res;
 }
 

@@ -1,0 +1,41 @@
+%************************************************
+\chapter{Descripción de compresión JPEG con pérdida}\label{ch:jpeg_desc}
+%************************************************
+
+\section{Tipos de compresión}
+
+La compresión de datos puede ser \emph{con pérdida} o \emph{sin pérdida}. Una compresión sin pérdida es una función biyectiva. El dominio de la función es el espacio de datos que estamos interesados en comprimir. Los formatos de compresión sin péridida funcionan identificando información redundante y removiendo la redundancia, dejando la información intacta. La compresión con pérdida hace esto también, pero también identifica información ``inecesaria''. Dependiendo de la agresividad de la compresión, la pérdida de información puede ser desde imperceptible a inaceptable.
+
+El formato JPEG soporta varios tipos de compresión.
+
+\begin{list}{}{}
+\item \emph{Baseline}
+
+El tipo \emph{baseline} es el más popular y es el tipo de compresión en el que se enfoca este trabajo. Por brevedad, a menos de que se especifique lo contario, cuando el resto de este documento hable de compresión JPEG, estará hablando del tipo \emph{baseline}. La compresión está basada en la Transformada de Coseno Discreta para filtrar información innecesaria, y para reducir redundancia puede utilizar Árboles de Huffman o Codificación Aritmética.
+
+\item \emph{Progresivo}
+
+El tipo \emph{progresivo} es similar a \emph{baseline}, pero se le agregan propiedades deseables. La imagen se comprime en múltiples pasos, cada uno con mayor detalle. Con el método \emph{progresivo}, se puede desplegar la imágen sin que se tenga la totalidad de los datos en memoria.
+
+La utilidad de este método es poder dibujar la imágen mientras se está descargando de Internet. Cuando se está en un entorno con ancho de banda limitado, o cuando se descarga una imágen muy grande, es de valor para el usuario poder ver versiones de la imágen progresivamente más detalladas mientras se descarga.
+
+\item \emph{Sin pérdida}
+
+La compresión sin pérdida fue agregada a JPEG ``por que tenían que'' y no hubo un análisis riguroso para su diseño \citep{JPEGSTD}. Aunque la compresión JPEG sin pérdida no es mala, formatos como PNG son altamente más populares y efectivos. Mucho software simplemente no soporta JPEG con compresión sin pérdida.
+
+\item \emph{Compresión Jerárquica}
+
+El modo jerárquico codifica la imágen en varias versiones, cada una a diferentes resoluciones. Se guarda en una estructura ``piramidal''. La primera imágen está comprimida a resolución completa, y cada imágen sucesiva se guarda a la mitad de la resolución de la anterior. Esta pirámide se guarda en memoria de imágen más pequeña a imágen más grande.
+
+Este método es útil cuando la resolución de la imagen es muy grande, y la aplicación no necesita o no es capaz de utilizar la imagen en su tamaño completo.
+
+\end{list}
+
+\section{Descripción de la Compresión \emph{Baseline} de JPEG}
+
+%%% Local Variables:
+%%% mode: latex
+%%% ispell-local-dictionary: "espanol"
+%%% TeX-engine: xelatex
+%%% TeX-master: "../tesis"
+%

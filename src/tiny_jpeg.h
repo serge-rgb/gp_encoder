@@ -103,6 +103,13 @@ typedef int32         bool32;
 
 typedef struct
 {
+    void* data;
+    size_t used;
+    size_t size;
+} Buffer;
+
+typedef struct
+{
     uint8*  ehuffsize[4];
     uint16* ehuffcode[4];
 
@@ -111,7 +118,14 @@ typedef struct
 
     uint8* qt_luma;
     uint8* qt_chroma;
+    Buffer* buffer;
 } TJEState;
+
+enum
+{
+    TJE_OK              = (1 << 0),
+    TJE_BUFFER_OVERFLOW = (1 << 1),
+};
 
 // ============================================================
 // Table definitions.
@@ -372,19 +386,40 @@ static void tje_assert_(const char* expr, const char* file, int line)
 }
 #endif
 
-static void write_DQT(FILE* fd, uint8* matrix, uint8 id)
+static int buffer_write(Buffer* buffer, void* data, size_t num_bytes, int num_elements)
 {
-    tje_assert(fd);
+    size_t total = num_bytes * num_elements;
+    if (buffer->size < (buffer->used + total))
+    {
+        return TJE_BUFFER_OVERFLOW;
+    }
+    tje_memcpy((void*)(((uint8*)buffer->data) + buffer->used), data, total);
+    buffer->used += total;
+    return TJE_OK;
+}
+
+static int buffer_putc(Buffer* buffer, uint8 c)
+{
+    return buffer_write(buffer, &c, 1, 1);
+}
+
+
+
+static int write_DQT(Buffer* buffer, uint8* matrix, uint8 id)
+{
+    int result = TJE_OK;
+    tje_assert(buffer);
 
     int16 DQT = be_word(0xffdb);
-    fwrite(&DQT, sizeof(int16), 1, fd);
+    result |= buffer_write(buffer, &DQT, sizeof(int16), 1);
     int16 len = be_word(0x0043); // 2(len) + 1(id) + 64(matrix) = 67 = 0x43
-    fwrite(&len, sizeof(int16), 1, fd);
+    result |= buffer_write(buffer, &len, sizeof(int16), 1);
     tje_assert(id < 4);
     uint8 precision_and_id = id;  // 0x0000 8 bits | 0x00id
-    fwrite(&precision_and_id, sizeof(uint8), 1, fd);
+    result |= buffer_write(buffer, &precision_and_id, sizeof(uint8), 1);
     // Write matrix
-    fwrite(matrix, 64*sizeof(uint8), 1, fd);
+    result |= buffer_write(buffer, matrix, 64*sizeof(uint8), 1);
+    return result;
 }
 
 typedef enum
@@ -393,14 +428,14 @@ typedef enum
     AC = 1
 } HuffmanTableClass;
 
-static void write_DHT(
-        FILE *fd,
+static int write_DHT(
+        Buffer* buffer,
         uint8* matrix_len,
         uint8* matrix_val,
         HuffmanTableClass ht_class,
         uint8 id)
 {
-    tje_assert(fd);
+    tje_assert(buffer);
 
     int num_values = 0;
     for (int i = 0; i < 16; ++i)
@@ -415,11 +450,13 @@ static void write_DHT(
     tje_assert(id < 4);
     uint8 tc_th = ((((uint8)ht_class) << 4) | id);
 
-    fwrite(&DHT, sizeof(uint16), 1, fd);
-    fwrite(&len, sizeof(uint16), 1, fd);
-    fwrite(&tc_th, sizeof(uint8), 1, fd);
-    fwrite(matrix_len, sizeof(uint8), 16, fd);
-    fwrite(matrix_val, sizeof(uint8), num_values, fd);
+    int result = TJE_OK;
+    result |= buffer_write(buffer, &DHT, sizeof(uint16), 1);
+    result |= buffer_write(buffer, &len, sizeof(uint16), 1);
+    result |= buffer_write(buffer, &tc_th, sizeof(uint8), 1);
+    result |= buffer_write(buffer, matrix_len, sizeof(uint8), 16);
+    result |= buffer_write(buffer, matrix_val, sizeof(uint8), num_values);
+    return result;
 }
 // ============================================================
 //  Huffman deflation code.
@@ -518,7 +555,7 @@ static void calculate_variable_length_int(int value, uint16 out[2])
 }
 
 // Write bits to file.
-static void write_bits(FILE* fd, uint32* bitbuffer, uint32* location, uint16 num_bits, uint16 bits)
+static int write_bits(Buffer* buffer, uint32* bitbuffer, uint32* location, uint16 num_bits, uint16 bits)
 {
     //   v-- location
     //  [                     ]   <-- bit buffer
@@ -531,20 +568,26 @@ static void write_bits(FILE* fd, uint32* bitbuffer, uint32* location, uint16 num
     // Push the stack.
     *location += num_bits;
     *bitbuffer |= (bits << (32 - *location));
+    int result = TJE_OK;
     while (*location >= 8)
     {
         // Grab the most significant byte.
         uint8 c = (uint8)((*bitbuffer) >> 24);
         // Write it to file.
-        putc(c, fd);
+        int result = buffer_putc(buffer, c);
         if (c == 0xff)  // Special case: tell JPEG this is not a marker.
         {
-            putc(0, fd);
+            result |= buffer_putc(buffer, 0);
+        }
+        if (result != TJE_OK)
+        {
+            return result;
         }
         // Pop the stack.
         *bitbuffer <<= 8;
         *location -= 8;
     }
+    return TJE_OK;
 }
 
 inline float apply_dct(int u, int v, float* mcu)
@@ -567,12 +610,13 @@ inline float apply_dct(int u, int v, float* mcu)
 }
 
 static void encode_and_write_DU(
-        FILE* fd,
+        Buffer* buffer,
         float* mcu, uint8* qt,
         uint8* huff_dc_len, uint16* huff_dc_code,
         uint8* huff_ac_len, uint16* huff_ac_code,
         int* pred, uint32* bitbuffer, uint32* location)
 {
+    int result = TJE_OK;
     float dct_mcu[64];
     int8 du[64];  // Data unit in zig-zag order
 
@@ -603,14 +647,16 @@ static void encode_and_write_DU(
     {
         calculate_variable_length_int(diff, bits);
         // (SIZE)
-        write_bits(fd, bitbuffer, location, huff_dc_len[bits[1]], huff_dc_code[bits[1]]);
+        result = write_bits(buffer, bitbuffer, location, huff_dc_len[bits[1]], huff_dc_code[bits[1]]);
         // (AMPLITUDE)
-        write_bits(fd, bitbuffer, location, bits[1], bits[0]);
+        result |= write_bits(buffer, bitbuffer, location, bits[1], bits[0]);
     }
     else
     {
-        write_bits(fd, bitbuffer, location, huff_dc_len[0], huff_dc_code[0]);
+        result = write_bits(buffer, bitbuffer, location, huff_dc_len[0], huff_dc_code[0]);
     }
+
+    tje_assert(result == TJE_OK);
 
     // ==== Encode AC coefficients ====
 
@@ -636,10 +682,11 @@ static void encode_and_write_DU(
             if (zero_count == 16)
             {
                 // encode (ff,00) == 0xf0
-                write_bits(fd, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
+                result = write_bits(buffer, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
                 zero_count = 0;
             }
         }
+        tje_assert(result == TJE_OK);
         {
             calculate_variable_length_int(du[i], bits);
 
@@ -651,17 +698,19 @@ static void encode_and_write_DU(
             tje_assert(huff_ac_len[sym1] != 0);
 
             // Write symbol 1  --- (RUNLENGTH, SIZE)
-            write_bits(fd, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
+            result = write_bits(buffer, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
             // Write symbol 2  --- (AMPLITUDE)
-            write_bits(fd, bitbuffer, location, bits[1], bits[0]);
+            result |= write_bits(buffer, bitbuffer, location, bits[1], bits[0]);
         }
+        tje_assert(result == TJE_OK);
     }
 
     if (last_non_zero_i != 63)
     {
         // write EOB HUFF(00,00)
-        write_bits(fd, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
+        result = write_bits(buffer, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
     }
+    tje_assert(result == TJE_OK);
 
     return;
 }
@@ -722,19 +771,12 @@ static int tje_encode_main(
         const int height,
         const char* dest_path)
 {
-    int res = 0;
+    int result = TJE_OK;
 
     // TODO: support arbitrary resolutions.
     if (((height % 8) != 0) || ((width % 8) != 0))
     {
         tje_log("Supported resolutions are width and height multiples of 8.");
-        return 1;
-    }
-
-    FILE* file_out = fopen(dest_path, "wb");
-    if (!file_out)
-    {
-        tje_log("Could not open file for writing.");
         return 1;
     }
 
@@ -757,12 +799,14 @@ static int tje_encode_main(
         // Comment
         header.com = be_word(0xfffe);
         tje_memcpy(header.com_str, (void*)k_com_str, sizeof(k_com_str) - 1); // Skip the 0-bit
-        fwrite(&header, sizeof(JPEGHeader), 1, file_out);
+        result |= buffer_write(state->buffer, &header, sizeof(JPEGHeader), 1);
     }
 
     // Write quantization tables.
-    write_DQT(file_out, state->qt_luma, 0x00);
-    write_DQT(file_out, state->qt_chroma, 0x01);
+    result = write_DQT(state->buffer, state->qt_luma, 0x00);
+    tje_assert(result == TJE_OK);
+    result = write_DQT(state->buffer, state->qt_chroma, 0x01);
+    tje_assert(result == TJE_OK);
 
     {  // Write the frame marker.
         FrameHeader header;
@@ -790,13 +834,15 @@ static int tje_encode_main(
             header.component_spec[i] = spec;
         }
         // Write to file.
-        fwrite(&header, sizeof(FrameHeader), 1, file_out);
+        result = buffer_write(state->buffer, &header, sizeof(FrameHeader), 1);
+        tje_assert(result == TJE_OK);
     }
 
-    write_DHT(file_out, state->ht_bits[LUMA_DC], state->ht_vals[LUMA_DC], DC, 0);
-    write_DHT(file_out, state->ht_bits[LUMA_AC], state->ht_vals[LUMA_AC], AC, 0);
-    write_DHT(file_out, state->ht_bits[CHROMA_DC], state->ht_vals[CHROMA_DC], DC, 1);
-    write_DHT(file_out, state->ht_bits[CHROMA_AC], state->ht_vals[CHROMA_AC], AC, 1);
+    result  = write_DHT(state->buffer, state->ht_bits[LUMA_DC], state->ht_vals[LUMA_DC], DC, 0);
+    result |= write_DHT(state->buffer, state->ht_bits[LUMA_AC], state->ht_vals[LUMA_AC], AC, 0);
+    result |= write_DHT(state->buffer, state->ht_bits[CHROMA_DC], state->ht_vals[CHROMA_DC], DC, 1);
+    result |= write_DHT(state->buffer, state->ht_bits[CHROMA_AC], state->ht_vals[CHROMA_AC], AC, 1);
+    tje_assert(result == TJE_OK);
 
     // Write start of scan
     {
@@ -823,7 +869,8 @@ static int tje_encode_main(
         header.first = 0;
         header.last  = 63;
         header.ah_al = 0;
-        fwrite(&header, sizeof(ScanHeader), 1, file_out);
+        result = buffer_write(state->buffer, &header, sizeof(ScanHeader), 1);
+        tje_assert(result == TJE_OK);
     }
 
     // Write compressed data.
@@ -873,17 +920,17 @@ static int tje_encode_main(
 
             // Process block:
 
-            encode_and_write_DU(file_out,
+            encode_and_write_DU(state->buffer,
                     du_y, state->qt_luma,
                     state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                     state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
                     &pred_y, &bitbuffer, &location);
-            encode_and_write_DU(file_out,
+            encode_and_write_DU(state->buffer,
                     du_b, state->qt_chroma,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     &pred_b, &bitbuffer, &location);
-            encode_and_write_DU(file_out,
+            encode_and_write_DU(state->buffer,
                     du_r, state->qt_chroma,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
@@ -896,14 +943,14 @@ static int tje_encode_main(
         // flush
         {
             tje_assert(location < 8);
-            write_bits(file_out, &bitbuffer, &location, (uint16)(8 - location), 0xff);
+            result = write_bits(state->buffer, &bitbuffer, &location, (uint16)(8 - location), 0xff);
+            tje_assert(result == TJE_OK);
         }
         uint16 EOI = be_word(0xffd9);
-        fwrite(&EOI, sizeof(uint16), 1, file_out);
+        buffer_write(state->buffer, &EOI, sizeof(uint16), 1);
     }
-    res |= fclose(file_out);
 
-    return res;
+    return result;
 }
 
 void tje_deinit(TJEState* state)
@@ -924,6 +971,13 @@ int tje_encode_to_file(
         const int height,
         const char* dest_path)
 {
+    FILE* file_out = fopen(dest_path, "wb");
+    if (!file_out)
+    {
+        tje_log("Could not open file for writing.");
+        return 1;
+    }
+
     TJEState state = {};
 
     state.ht_bits[LUMA_DC]   = default_ht_luma_dc_len;
@@ -939,12 +993,26 @@ int tje_encode_to_file(
     state.ht_vals[CHROMA_DC] = default_ht_chroma_dc;
     state.ht_vals[CHROMA_AC] = default_ht_chroma_ac;
 
+    Buffer buffer = {};
+    {
+        // Assume that we will achieve at least 50% reduction
+        size_t sz = (size_t)((width * height * 3) / 2);
+        buffer.data = tje_malloc(sz);
+        buffer.used = 0;
+        buffer.size = sz;
+    }
+    state.buffer = &buffer;
+
     tje_init(&state);
 
     int result = tje_encode_main(&state, src_data, width, height, dest_path);
-    tje_assert(result == 0);
+    tje_assert(result == TJE_OK);
 
     tje_deinit(&state);
+
+    fwrite(buffer.data, buffer.used, 1, file_out);
+
+    result |= fclose(file_out);
 
     return result;
 }

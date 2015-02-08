@@ -18,7 +18,7 @@ void* arena_malloc_(size_t size)
 #define tje_malloc arena_malloc_
 #define tje_free(ptr)  // No freeing
 #define TJE_IMPLEMENTATION
-#include <tiny_jpeg.h>
+#include "tiny_jpeg.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"

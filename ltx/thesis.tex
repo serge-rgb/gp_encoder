@@ -35,15 +35,16 @@ ngerman,american,%
 \pagenumbering{roman}
 \pagestyle{plain}
 
+
 % ***********
 % Frontmatter
 % ***********
 \include{FrontBackmatter/Titlepage}
 %\include{FrontBackmatter/DirtyTitlepage}
 \include{FrontBackmatter/Titleback}
-\cleardoublepage\include{FrontBackmatter/Dedication}
-\cleardoublepage\include{FrontBackmatter/Abstract}
-\cleardoublepage\include{FrontBackmatter/Acknowledgments}
+% \cleardoublepage\include{FrontBackmatter/Dedication}
+% \cleardoublepage\include{FrontBackmatter/Abstract}
+% \cleardoublepage\include{FrontBackmatter/Acknowledgments}
 \pagestyle{scrheadings}
 \cleardoublepage\include{FrontBackmatter/Contents}
 
@@ -62,17 +63,46 @@ ngerman,american,%
 \tolerance=2000
 \emergencystretch=10pt
 
+% ================================================================================
+% rough structure outline.
+% 1 pg ~= 443 words.
+% ~20 pages. Intro. JPEG Overview and Description. Heuristics for quantization tables.
+% ~20 pages. Development: JPEG implementation. Genetic Algorithm design & impl. CUDA impl.
+% ~20 pages. Evolution results. Introduce concepts. Comparison between other software. Graph metrics
+% ~10 pages. Performance analysis. DCT implementation. CUDA tricks. CPU tricks.
+% ~1-2 pages. Conclusions.
+%
+% Notas
+%
+% Hablar de defectos de JPEG y como mi metodo funciona bien (Klay screenshot)
+%
+%
+%
+%
+% ================================================================================
 \include{chapters/intro}
+% ================================================================================
 
 % **********
 % Backmatter
 % **********
-\appendix
-\cleardoublepage
-\part{Apéndices} %TODO: part??
-\include{Chapters/Apendice}
-\cleardoublepage\include{FrontBackmatter/Bibliography}
-\nocite{*}
+% \appendix
+% \cleardoublepage
+% \part{Apéndices} %TODO: part??
+% \include{Chapters/Apendice}
+% \cleardoublepage\include{FrontBackmatter/Bibliography}
+% \nocite{*}
+
+% work-around to have small caps also here in the headline
+\manualmark
+\markboth{\spacedlowsmallcaps{\bibname}}{\spacedlowsmallcaps{\bibname}} % work-around to have small caps also
+%\phantomsection
+\refstepcounter{dummy}
+\addtocontents{toc}{\protect\vspace{\beforebibskip}} % to have the bib a bit from the rest in the toc
+\addcontentsline{toc}{chapter}{\tocEntry{\bibname}}
+\bibliographystyle{apalike}
+% \label{app:Bibliography}
+\bibliography{Bibliography}
 \end{document}
 
 %%% Local Variables:

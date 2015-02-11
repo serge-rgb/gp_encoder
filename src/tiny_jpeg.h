@@ -25,6 +25,8 @@ extern "C"
 //
 //  In case of name-clashing of types, define TJE_DONT_CREATE_TYPES.
 
+#include "memory.h"  // Using memory arena style management.
+
 // Usage:
 //  Takes src_data as 32 bit, 0xRRGGBBxx data.
 //  Writes encoded image to dest_path.
@@ -54,18 +56,6 @@ int tje_encode_to_file(
 #include <windows.h>
 #define snprintf sprintf_s  // Not quite the same but it works for us
 
-#endif
-
-
-#ifndef tje_malloc
-#include <stdlib.h> // malloc, free
-#define tje_malloc malloc
-#ifdef tje_free
-#error "tje_free is defined but tje_malloc is not"
-#endif
-#define tje_free(mem)\
-    free(mem);\
-    mem = NULL;
 #endif
 
 #ifdef TJE_DEBUG
@@ -466,11 +456,11 @@ static int write_DHT(
 // ============================================================
 
 // Returns all code sizes from the BITS specification (JPEG C.3)
-static uint8* huff_get_code_lengths(uint8* bits, int64 size)
+static uint8* huff_get_code_lengths(Arena* arena, uint8* bits, int64 size)
 {
     // Add 1 for the trailing 0, used as a terminator in huff_get_codes()
     int64 huffsize_sz = sizeof(uint8) * (size + 1);
-    uint8* huffsize = (uint8*)tje_malloc((size_t)huffsize_sz);
+    uint8* huffsize = (uint8*)arena_push_(arena, (size_t)huffsize_sz);
 
     int k = 0;
     for (int i = 0; i < 16; ++i)
@@ -486,17 +476,17 @@ static uint8* huff_get_code_lengths(uint8* bits, int64 size)
     return huffsize;
 }
 
-static uint16* huff_get_codes(uint8* huffsize, int64 size)
+static uint16* huff_get_codes(Arena* arena, uint8* huffsize, int64 count)
 {
     uint16 code = 0;
     int k = 0;
     uint8 sz = huffsize[0];
-    uint16* codes = (uint16*)tje_malloc(sizeof(uint16) * (size_t)(size));
+    uint16* codes = arena_push_array(arena, count, uint16);
     for(;;)
     {
         do
         {
-            tje_assert(k < size)
+            tje_assert(k < count)
             codes[k++] = code++;
         }
         while (huffsize[k] == sz);
@@ -514,6 +504,7 @@ static uint16* huff_get_codes(uint8* huffsize, int64 size)
 }
 
 static void huff_get_extended(
+        Arena* arena,
         uint8* huffval,
         uint8* huffsize,
         uint16* huffcode, int64 count,
@@ -594,7 +585,7 @@ static int write_bits(
     return TJE_OK;
 }
 
-float apply_dct(int u, int v, float* mcu)
+float apply_dct(const float* cosine_table, int u, int v, float* mcu)
 {
     float res = 0.0f;
     float cu = (u == 0) ? 0.70710678118654f : 1;
@@ -605,8 +596,7 @@ float apply_dct(int u, int v, float* mcu)
         {
             res +=
                 (mcu[y * 8 + x] - 128) *
-                cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f) *
-                cosf(((2.0f * y + 1.0f) * v * kPi) / 16.0f);
+                cosine_table[u * 8 + x] * cosine_table[v * 8 + y];
         }
     }
     res *= 0.25f * cu * cv;
@@ -618,6 +608,7 @@ static void encode_and_write_DU(
         float* mcu, uint8* qt,
         uint8* huff_dc_len, uint16* huff_dc_code,
         uint8* huff_ac_len, uint16* huff_ac_code,
+        const float* cosine_table,
         int* pred, uint32* bitbuffer, uint32* location)
 {
     int result = TJE_OK;
@@ -629,7 +620,7 @@ static void encode_and_write_DU(
     {
         for (int u = 0; u < 8; ++u)
         {
-            dct_mcu[v * 8 + u] = apply_dct(u, v, mcu);
+            dct_mcu[v * 8 + u] = apply_dct(cosine_table, u, v, mcu);
         }
     }
 
@@ -728,9 +719,22 @@ enum
 };
 
 // Set up huffman tables in state.
-static void tje_init (TJEState* state)
+static void tje_init (Arena* arena, TJEState* state)
 {
-    uint64 spec_tables_len[4];
+    tje_assert(state);
+
+    state->ht_bits[LUMA_DC]   = default_ht_luma_dc_len;
+    state->ht_bits[LUMA_AC]   = default_ht_luma_ac_len;
+    state->ht_bits[CHROMA_DC] = default_ht_chroma_dc_len;
+    state->ht_bits[CHROMA_AC] = default_ht_chroma_ac_len;
+
+    state->ht_vals[LUMA_DC]   = default_ht_luma_dc;
+    state->ht_vals[LUMA_AC]   = default_ht_luma_ac;
+    state->ht_vals[CHROMA_DC] = default_ht_chroma_dc;
+    state->ht_vals[CHROMA_AC] = default_ht_chroma_ac;
+
+	uint64 spec_tables_len[4] = { 0 };
+
     for (int i = 0; i < 4; ++i)
     {
         for (int k = 0; k < 16; ++k)
@@ -745,13 +749,14 @@ static void tje_init (TJEState* state)
         uint16* huffcode[4];// = {};
         for (int i = 0; i < 4; ++i)
         {
-            huffsize[i] = huff_get_code_lengths(state->ht_bits[i], spec_tables_len[i]);
-            huffcode[i] = huff_get_codes(huffsize[i], spec_tables_len[i]);
+            huffsize[i] = huff_get_code_lengths(arena, state->ht_bits[i], spec_tables_len[i]);
+            huffcode[i] = huff_get_codes(arena, huffsize[i], spec_tables_len[i]);
         }
         for (int i = 0; i < 4; ++i)
         {
             int64 count = spec_tables_len[i];
             huff_get_extended(
+                    arena,
                     state->ht_vals[i],
                     huffsize[i],
                     huffcode[i], count,
@@ -769,11 +774,11 @@ static void tje_init (TJEState* state)
 }
 
 static int tje_encode_main(
+        Arena* arena,
         TJEState* state,
         const unsigned char* src_data,
         const int width,
-        const int height,
-        const char* dest_path)
+        const int height)
 {
     int result = TJE_OK;
 
@@ -893,6 +898,22 @@ static int tje_encode_main(
     uint32 bitbuffer = 0;
     uint32 location = 0;
 
+
+    // There is tons of repetition here, because we want to have a predicable
+    // access pattern.
+    float* cosine_table = arena_push_array(arena, 8 * 8, float);
+    for (int w = 0; w < 8; ++w)
+    {
+        for (int z = 0; z < 8; ++z)
+        {
+            int64 index =
+                z +
+                w * 8;
+            cosine_table[index] =
+                cosf(((2.0f * z + 1.0f) * w * kPi) / 16);
+        }
+    }
+
     for (int y = 0; y < height; y += 8)
     {
         for (int x = 0; x < width; x += 8)
@@ -928,16 +949,19 @@ static int tje_encode_main(
                     du_y, state->qt_luma,
                     state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                     state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
+                    cosine_table,
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(state->buffer,
                     du_b, state->qt_chroma,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
+                    cosine_table,
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(state->buffer,
                     du_r, state->qt_chroma,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
+                    cosine_table,
                     &pred_r, &bitbuffer, &location);
         }
     }
@@ -984,32 +1008,30 @@ int tje_encode_to_file(
 
     TJEState state;// = {};
 
-    state.ht_bits[LUMA_DC]   = default_ht_luma_dc_len;
-    state.ht_bits[LUMA_AC]   = default_ht_luma_ac_len;
-    state.ht_bits[CHROMA_DC] = default_ht_chroma_dc_len;
-    state.ht_bits[CHROMA_AC] = default_ht_chroma_ac_len;
-
     state.qt_luma   = default_qt_luma;
     state.qt_chroma = default_qt_chroma;
 
-    state.ht_vals[LUMA_DC]   = default_ht_luma_dc;
-    state.ht_vals[LUMA_AC]   = default_ht_luma_ac;
-    state.ht_vals[CHROMA_DC] = default_ht_chroma_dc;
-    state.ht_vals[CHROMA_AC] = default_ht_chroma_ac;
+    // width * height * 3 is probably enough memory for the image + various structures.
+    size_t heap_size = width * height * 3;
+    void* big_chunk_of_memory = malloc(heap_size);
+
+    tje_assert(big_chunk_of_memory);
+
+    Arena arena = create_arena_from_array(big_chunk_of_memory, heap_size);
 
     ImgDataBuffer buffer;// = {};
     {
         // Assume that we will achieve at least 50% reduction
         size_t sz = (size_t)((width * height * 3) / 2);
-        buffer.data = tje_malloc(sz);
+        buffer.data = arena_push_array(&arena, sz, uint8);
         buffer.used = 0;
         buffer.size = sz;
     }
     state.buffer = &buffer;
 
-    tje_init(&state);
+    tje_init(&arena, &state);
 
-    int result = tje_encode_main(&state, src_data, width, height, dest_path);
+    int result = tje_encode_main(&arena, &state, src_data, width, height);
     tje_assert(result == TJE_OK);
 
     tje_deinit(&state);

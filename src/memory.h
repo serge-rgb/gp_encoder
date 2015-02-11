@@ -10,6 +10,9 @@ extern "C"
 
 #include <stdint.h>
 
+#define arena_push_elem(arena, type) (type*)arena_push_(arena, sizeof(type))
+#define arena_push_array(arena, count, type) (type*)arena_push_(arena, (count) * sizeof(type))
+
 typedef struct
 {
     int8_t* ptr;
@@ -17,7 +20,15 @@ typedef struct
     size_t count;
 } Arena;
 
-Arena arena_create(void* base, size_t size)
+int8_t* arena_push_(Arena* arena, size_t num_bytes)
+{
+    assert((arena->count + num_bytes) <= arena->size);
+    int8_t* result = arena->ptr + arena->count;
+    arena->count += num_bytes;
+    return result;
+}
+
+Arena create_arena_from_array(void* base, size_t size)
 {
     Arena arena = {0};
     arena.ptr = (int8_t*)base;
@@ -29,16 +40,20 @@ Arena arena_create(void* base, size_t size)
     return arena;
 }
 
-#define arena_push_elem(arena, type) (type*)arena_push_(arena, sizeof(type))
-#define arena_push_array(arena, count, type) (type*)arena_push_(arena, (count) * sizeof(type))
-int8_t* arena_push_(Arena* arena, size_t num_bytes)
+Arena create_arena(Arena* parent, size_t size)
 {
-    assert((arena->count + num_bytes) <= arena->size);
-    int8_t* result = arena->ptr + arena->count;
-    arena->count += num_bytes;
-    return result;
-}
+    void* ptr = arena_push_(parent, size);
+    assert(ptr);
 
+    Arena child;
+    {
+        child.size = size;
+        child.ptr = ptr;
+        child.count = 0;
+    }
+    return child;
+
+}
 #ifdef __cplusplus
 }
 #endif

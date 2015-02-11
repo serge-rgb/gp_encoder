@@ -34,7 +34,7 @@ int CALLBACK WinMain(
                 PAGE_READWRITE//  flProtect
                 );
 
-    int result = evolve_main(big_chunk_of_memory);
+    int result = evolve_main(big_chunk_of_memory, sz);
     return result;
 }
 #endif

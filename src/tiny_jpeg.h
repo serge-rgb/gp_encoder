@@ -511,8 +511,8 @@ static void huff_get_extended(
         uint8** out_ehuffsize,
         uint16** out_ehuffcode)
 {
-    uint8* ehuffsize  = (uint8*)tje_malloc(sizeof(uint8) * 256);
-    uint16* ehuffcode = (uint16*)tje_malloc(sizeof(uint16) * 256);
+    uint8* ehuffsize  = arena_push_array(arena, 256, uint8);
+    uint16* ehuffcode = arena_push_array(arena, 256, uint16);
 
     tje_memset(ehuffsize, 0, sizeof(uint8) * 256);
     tje_memset(ehuffcode, 0, sizeof(uint16) * 256);
@@ -763,12 +763,6 @@ static void tje_init (Arena* arena, TJEState* state)
                     &(state->ehuffsize[i]),
                     &(state->ehuffcode[i]));
         }
-        // Free non-ordered huffman data.
-        for (int i = 0; i < 4; ++i)
-        {
-            tje_free(huffsize[i]);
-            tje_free(huffcode[i]);
-        }
     }
 
 }
@@ -981,17 +975,6 @@ static int tje_encode_main(
     return result;
 }
 
-void tje_deinit(TJEState* state)
-{
-    // Free huffman tables.
-    for (int i = 0; i < 4; ++i)
-    {
-        tje_free(state->ehuffcode[i]);
-        tje_free(state->ehuffsize[i]);
-    }
-
-}
-
 // Define public interface.
 int tje_encode_to_file(
         const unsigned char* src_data,
@@ -1033,8 +1016,6 @@ int tje_encode_to_file(
 
     int result = tje_encode_main(&arena, &state, src_data, width, height);
     tje_assert(result == TJE_OK);
-
-    tje_deinit(&state);
 
     fwrite(buffer.data, buffer.used, 1, file_out);
 

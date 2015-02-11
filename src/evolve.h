@@ -5,18 +5,8 @@
  *
  */
 
-
 #include "memory.h"
 
-static Arena g_jpeg_arena;
-
-void* arena_malloc_(size_t size)
-{
-    return arena_push_(&g_jpeg_arena, size);
-}
-
-#define tje_malloc arena_malloc_
-#define tje_free(ptr)  // No freeing
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
 
@@ -28,10 +18,11 @@ void* arena_malloc_(size_t size)
 
 #define NUM_ENCODERS 4
 
-int evolve_main(void* big_chunk_of_memory)
+int evolve_main(void* big_chunk_of_memory, size_t size)
 {
-    // Reserve 20 megs for jpeg code.
-    g_jpeg_arena = create_arena_from_array(big_chunk_of_memory, 300 * 1024 * 1024);
+    static Arena jpeg_arena;
+
+    jpeg_arena = create_arena_from_array(big_chunk_of_memory, size);
 
     int width;
     int height;
@@ -54,19 +45,20 @@ int evolve_main(void* big_chunk_of_memory)
     int result = TJE_OK;
     for (int i = 0; i < NUM_ENCODERS; ++i)
     {
+        // One arena for each.
+        run_arenas[i] = create_arena(&jpeg_arena, 10 * 1024 * 1024);
+
         state[i].qt_luma   = default_qt_luma;
         state[i].qt_chroma = default_qt_chroma;
         ImgDataBuffer buffer;// = {};
         {
             // Assume that we will achieve at least 50% reduction
             size_t sz = (size_t)((width * height * 3) / 2);
-            buffer.data = tje_malloc(sz);
+            buffer.data = (void*)arena_push_(&run_arenas[i], sz);
             buffer.used = 0;
             buffer.size = sz;
         }
         state[i].buffer = &buffer;
-        // One arena for each.
-        run_arenas[i] = create_arena(&g_jpeg_arena, 10 * 1024 * 1024);
         tje_init(&run_arenas[i], &state[i]);
 
     }
@@ -83,12 +75,6 @@ int evolve_main(void* big_chunk_of_memory)
             break;
         }
     }
-
-    for (int i = 0; i < NUM_ENCODERS; ++i)
-    {
-        tje_deinit(&state[i]);
-    }
-
 
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");

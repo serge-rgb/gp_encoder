@@ -11,6 +11,6 @@ set compiler_flags_release=%compiler_flags% %warnings_release% /O2
 
 IF NOT EXIST build mkdir build
 pushd build
-cl /nologo /MP %warnings% %defines% %compiler_flags_debug% ..\src\win_evolve.cc
+cl /nologo /MP %warnings% %defines% %compiler_flags_debug% ..\src\win_evolve.c
 ::cl /nologo /MP %warnings% %defines% %compiler_flags_release% ..\src\evolve.cc
 popd

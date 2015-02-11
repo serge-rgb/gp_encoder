@@ -1,4 +1,8 @@
 #pragma once
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 #ifndef assert
 #include <assert.h>
@@ -15,7 +19,7 @@ typedef struct
 
 Arena arena_create(void* base, size_t size)
 {
-    Arena arena = {};
+    Arena arena = {0};
     arena.ptr = (int8_t*)base;
     if (arena.ptr)
     {
@@ -34,3 +38,7 @@ int8_t* arena_push_(Arena* arena, size_t num_bytes)
     arena->count += num_bytes;
     return result;
 }
+
+#ifdef __cplusplus
+}
+#endif

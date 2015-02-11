@@ -25,7 +25,7 @@ int CALLBACK WinMain(
     void* big_chunk_of_memory =
         VirtualAlloc(
 #ifdef TJE_DEBUG
-                (LPVOID)(1024LL * 1024 * 1024 * 1024), //  lpAddress,
+                NULL,//(LPVOID)(1024LL * 1024 * 1024 * 1024), //  lpAddress,
 #else
                 NULL, //  lpAddress,
 #endif

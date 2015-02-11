@@ -25,16 +25,13 @@ void* arena_malloc_(size_t size)
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../third_party/stb/stb_image_write.h"
 
+
+static const int NUM_ENCODERS = 1;
+
 int evolve_main(void* big_chunk_of_memory)
 {
     // Reserve 20 megs for jpeg code.
     g_jpeg_arena = arena_create(big_chunk_of_memory, 20 * 1024 * 1024);
-
-    // One meg arena.
-    Arena test_arena = arena_create(
-            (void*)((uint8_t*)big_chunk_of_memory + g_jpeg_arena.size), 1024 * 1024);
-
-    int* array_of_zeroes = arena_push_array(&test_arena, 1000, int);
 
     int width;
     int height;
@@ -50,6 +47,13 @@ int evolve_main(void* big_chunk_of_memory)
     }
 
     tje_assert (num_components == 3);
+
+/*     TJEState state[NUM_ENCODERS]; */
+
+/*     for (int i = 0; i < NUM_ENCODERS; ++i) */
+/*     { */
+/*         tje_init(&state[i]); */
+/*     } */
 
     int result = tje_encode_to_file(
             data,

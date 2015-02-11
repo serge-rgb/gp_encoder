@@ -15,6 +15,10 @@
  *
  */
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 // ============================================================
 // Public interface:
 // ============================================================
@@ -106,7 +110,7 @@ typedef struct
     void* data;
     size_t used;
     size_t size;
-} Buffer;
+} ImgDataBuffer;
 
 typedef struct
 {
@@ -118,7 +122,7 @@ typedef struct
 
     uint8* qt_luma;
     uint8* qt_chroma;
-    Buffer* buffer;
+    ImgDataBuffer* buffer;
 } TJEState;
 
 enum
@@ -378,15 +382,14 @@ typedef struct ScanHeader_s
 #ifdef TJE_DEBUG
 static void tje_assert_(const char* expr, const char* file, int line)
 {
-    const size_t sz = 256;
-    char buffer[sz];
-    snprintf(buffer, sz, "Assertion Failed: \"%s\" -- %s : %d\n", expr, file, line);
+    char buffer[256];
+    snprintf(buffer, 256, "Assertion Failed: \"%s\" -- %s : %d\n", expr, file, line);
     tje_log(buffer);
     exit(-1);
 }
 #endif
 
-static int buffer_write(Buffer* buffer, void* data, size_t num_bytes, int num_elements)
+static int buffer_write(ImgDataBuffer* buffer, void* data, size_t num_bytes, int num_elements)
 {
     size_t total = num_bytes * num_elements;
     if (buffer->size < (buffer->used + total))
@@ -398,14 +401,14 @@ static int buffer_write(Buffer* buffer, void* data, size_t num_bytes, int num_el
     return TJE_OK;
 }
 
-static int buffer_putc(Buffer* buffer, uint8 c)
+static int buffer_putc(ImgDataBuffer* buffer, uint8 c)
 {
     return buffer_write(buffer, &c, 1, 1);
 }
 
 
 
-static int write_DQT(Buffer* buffer, uint8* matrix, uint8 id)
+static int write_DQT(ImgDataBuffer* buffer, uint8* matrix, uint8 id)
 {
     int result = TJE_OK;
     tje_assert(buffer);
@@ -429,7 +432,7 @@ typedef enum
 } HuffmanTableClass;
 
 static int write_DHT(
-        Buffer* buffer,
+        ImgDataBuffer* buffer,
         uint8* matrix_len,
         uint8* matrix_val,
         HuffmanTableClass ht_class,
@@ -466,8 +469,8 @@ static int write_DHT(
 static uint8* huff_get_code_lengths(uint8* bits, int64 size)
 {
     // Add 1 for the trailing 0, used as a terminator in huff_get_codes()
-    size_t huffsize_sz = sizeof(uint8) * (size + 1);
-    uint8* huffsize = (uint8*)tje_malloc(huffsize_sz);
+    int64 huffsize_sz = sizeof(uint8) * (size + 1);
+    uint8* huffsize = (uint8*)tje_malloc((size_t)huffsize_sz);
 
     int k = 0;
     for (int i = 0; i < 16; ++i)
@@ -488,7 +491,7 @@ static uint16* huff_get_codes(uint8* huffsize, int64 size)
     uint16 code = 0;
     int k = 0;
     uint8 sz = huffsize[0];
-    uint16* codes = (uint16*)tje_malloc(sizeof(uint16) * (size));
+    uint16* codes = (uint16*)tje_malloc(sizeof(uint16) * (size_t)(size));
     for(;;)
     {
         do
@@ -555,7 +558,8 @@ static void calculate_variable_length_int(int value, uint16 out[2])
 }
 
 // Write bits to file.
-static int write_bits(Buffer* buffer, uint32* bitbuffer, uint32* location, uint16 num_bits, uint16 bits)
+static int write_bits(
+        ImgDataBuffer* buffer, uint32* bitbuffer, uint32* location, uint16 num_bits, uint16 bits)
 {
     //   v-- location
     //  [                     ]   <-- bit buffer
@@ -590,7 +594,7 @@ static int write_bits(Buffer* buffer, uint32* bitbuffer, uint32* location, uint1
     return TJE_OK;
 }
 
-inline float apply_dct(int u, int v, float* mcu)
+float apply_dct(int u, int v, float* mcu)
 {
     float res = 0.0f;
     float cu = (u == 0) ? 0.70710678118654f : 1;
@@ -610,7 +614,7 @@ inline float apply_dct(int u, int v, float* mcu)
 }
 
 static void encode_and_write_DU(
-        Buffer* buffer,
+        ImgDataBuffer* buffer,
         float* mcu, uint8* qt,
         uint8* huff_dc_len, uint16* huff_dc_code,
         uint8* huff_ac_len, uint16* huff_ac_code,
@@ -726,7 +730,7 @@ enum
 // Set up huffman tables in state.
 static void tje_init (TJEState* state)
 {
-    uint64 spec_tables_len[4] = {};
+    uint64 spec_tables_len[4];
     for (int i = 0; i < 4; ++i)
     {
         for (int k = 0; k < 16; ++k)
@@ -737,8 +741,8 @@ static void tje_init (TJEState* state)
 
     // Fill out the extended tables..
     {
-        uint8* huffsize[4] = {};
-        uint16* huffcode[4] = {};
+        uint8* huffsize[4];// = {};
+        uint16* huffcode[4];// = {};
         for (int i = 0; i < 4; ++i)
         {
             huffsize[i] = huff_get_code_lengths(state->ht_bits[i], spec_tables_len[i]);
@@ -978,7 +982,7 @@ int tje_encode_to_file(
         return 1;
     }
 
-    TJEState state = {};
+    TJEState state;// = {};
 
     state.ht_bits[LUMA_DC]   = default_ht_luma_dc_len;
     state.ht_bits[LUMA_AC]   = default_ht_luma_ac_len;
@@ -993,7 +997,7 @@ int tje_encode_to_file(
     state.ht_vals[CHROMA_DC] = default_ht_chroma_dc;
     state.ht_vals[CHROMA_AC] = default_ht_chroma_ac;
 
-    Buffer buffer = {};
+    ImgDataBuffer buffer;// = {};
     {
         // Assume that we will achieve at least 50% reduction
         size_t sz = (size_t)((width * height * 3) / 2);
@@ -1019,3 +1023,7 @@ int tje_encode_to_file(
 // ============================================================
 #endif // TJE_IMPLEMENTATION
 // ============================================================
+
+#ifdef __cplusplus
+}  // extern C
+#endif

@@ -46,6 +46,10 @@ int tje_encode_to_file(
 // ============================================================
 // ============================================================
 
+// It is about 10% faster to use a large table, but it requires a *lot* more
+// memory
+#define TJE_LARGE_TABLE 0
+
 // C std lib
 #include <inttypes.h>
 #include <stdio.h>  // FILE, puts
@@ -97,13 +101,6 @@ typedef int32         bool32;
 
 typedef struct
 {
-    void* data;
-    size_t used;
-    size_t size;
-} ImgDataBuffer;
-
-typedef struct
-{
     uint8*  ehuffsize[4];
     uint16* ehuffcode[4];
 
@@ -112,7 +109,7 @@ typedef struct
 
     uint8* qt_luma;
     uint8* qt_chroma;
-    ImgDataBuffer* buffer;
+    Arena buffer;  // Compressed data stored here.
 } TJEState;
 
 enum
@@ -379,26 +376,24 @@ static void tje_assert_(const char* expr, const char* file, int line)
 }
 #endif
 
-static int buffer_write(ImgDataBuffer* buffer, void* data, size_t num_bytes, int num_elements)
+static int buffer_write(Arena* buffer, void* data, size_t num_bytes, int num_elements)
 {
     size_t total = num_bytes * num_elements;
-    if (buffer->size < (buffer->used + total))
+    if (buffer->size < (buffer->count + total))
     {
         return TJE_BUFFER_OVERFLOW;
     }
-    tje_memcpy((void*)(((uint8*)buffer->data) + buffer->used), data, total);
-    buffer->used += total;
+    tje_memcpy((void*)(((uint8*)buffer->ptr) + buffer->count), data, total);
+    buffer->count += total;
     return TJE_OK;
 }
 
-static int buffer_putc(ImgDataBuffer* buffer, uint8 c)
+static int buffer_putc(Arena* buffer, uint8 c)
 {
     return buffer_write(buffer, &c, 1, 1);
 }
 
-
-
-static int write_DQT(ImgDataBuffer* buffer, uint8* matrix, uint8 id)
+static int write_DQT(Arena* buffer, uint8* matrix, uint8 id)
 {
     int result = TJE_OK;
     tje_assert(buffer);
@@ -422,7 +417,7 @@ typedef enum
 } HuffmanTableClass;
 
 static int write_DHT(
-        ImgDataBuffer* buffer,
+        Arena* buffer,
         uint8* matrix_len,
         uint8* matrix_val,
         HuffmanTableClass ht_class,
@@ -460,7 +455,7 @@ static uint8* huff_get_code_lengths(Arena* arena, uint8* bits, int64 size)
 {
     // Add 1 for the trailing 0, used as a terminator in huff_get_codes()
     int64 huffsize_sz = sizeof(uint8) * (size + 1);
-    uint8* huffsize = (uint8*)arena_push_(arena, (size_t)huffsize_sz);
+    uint8* huffsize = (uint8*)arena_push_bytes(arena, (size_t)huffsize_sz);
 
     int k = 0;
     for (int i = 0; i < 16; ++i)
@@ -550,7 +545,7 @@ static void calculate_variable_length_int(int value, uint16 out[2])
 
 // Write bits to file.
 static int write_bits(
-        ImgDataBuffer* buffer, uint32* bitbuffer, uint32* location, uint16 num_bits, uint16 bits)
+        Arena* buffer, uint32* bitbuffer, uint32* location, uint16 num_bits, uint16 bits)
 {
     //   v-- location
     //  [                     ]   <-- bit buffer
@@ -590,13 +585,23 @@ float apply_dct(const float* cosine_table, int u, int v, float* mcu)
     float res = 0.0f;
     float cu = (u == 0) ? 0.70710678118654f : 1;
     float cv = (v == 0) ? 0.70710678118654f : 1;
+    const int64 base_index =
+        v * 8 * 8 * 8 +
+        u * 8 * 8;
     for (int y = 0; y < 8; ++y)
     {
         for (int x = 0; x < 8; ++x)
         {
+            int64 index = base_index +
+                y * 8 + x;
+#if TJE_LARGE_TABLE
+            res +=
+                (mcu[y * 8 + x] - 128) * cosine_table[index];
+#else
             res +=
                 (mcu[y * 8 + x] - 128) *
                 cosine_table[u * 8 + x] * cosine_table[v * 8 + y];
+#endif
         }
     }
     res *= 0.25f * cu * cv;
@@ -604,7 +609,7 @@ float apply_dct(const float* cosine_table, int u, int v, float* mcu)
 }
 
 static void encode_and_write_DU(
-        ImgDataBuffer* buffer,
+        Arena* buffer,
         float* mcu, uint8* qt,
         uint8* huff_dc_len, uint16* huff_dc_code,
         uint8* huff_ac_len, uint16* huff_ac_code,
@@ -733,7 +738,7 @@ static void tje_init (Arena* arena, TJEState* state)
     state->ht_vals[CHROMA_DC] = default_ht_chroma_dc;
     state->ht_vals[CHROMA_AC] = default_ht_chroma_ac;
 
-	uint64 spec_tables_len[4] = { 0 };
+    uint64 spec_tables_len[4] = { 0 };
 
     for (int i = 0; i < 4; ++i)
     {
@@ -787,6 +792,7 @@ static int tje_encode_main(
     //  Actual write-to-file.
     // ============================================================
 
+    state->buffer = arena_spawn(arena, (width * height * 3) / 2);
     { // Write header
         JPEGHeader header;
         // JFIF header.
@@ -802,13 +808,13 @@ static int tje_encode_main(
         // Comment
         header.com = be_word(0xfffe);
         tje_memcpy(header.com_str, (void*)k_com_str, sizeof(k_com_str) - 1); // Skip the 0-bit
-        result |= buffer_write(state->buffer, &header, sizeof(JPEGHeader), 1);
+        result |= buffer_write(&state->buffer, &header, sizeof(JPEGHeader), 1);
     }
 
     // Write quantization tables.
-    result = write_DQT(state->buffer, state->qt_luma, 0x00);
+    result = write_DQT(&state->buffer, state->qt_luma, 0x00);
     tje_assert(result == TJE_OK);
-    result = write_DQT(state->buffer, state->qt_chroma, 0x01);
+    result = write_DQT(&state->buffer, state->qt_chroma, 0x01);
     tje_assert(result == TJE_OK);
 
     {  // Write the frame marker.
@@ -837,14 +843,14 @@ static int tje_encode_main(
             header.component_spec[i] = spec;
         }
         // Write to file.
-        result = buffer_write(state->buffer, &header, sizeof(FrameHeader), 1);
+        result = buffer_write(&state->buffer, &header, sizeof(FrameHeader), 1);
         tje_assert(result == TJE_OK);
     }
 
-    result  = write_DHT(state->buffer, state->ht_bits[LUMA_DC], state->ht_vals[LUMA_DC], DC, 0);
-    result |= write_DHT(state->buffer, state->ht_bits[LUMA_AC], state->ht_vals[LUMA_AC], AC, 0);
-    result |= write_DHT(state->buffer, state->ht_bits[CHROMA_DC], state->ht_vals[CHROMA_DC], DC, 1);
-    result |= write_DHT(state->buffer, state->ht_bits[CHROMA_AC], state->ht_vals[CHROMA_AC], AC, 1);
+    result  = write_DHT(&state->buffer, state->ht_bits[LUMA_DC], state->ht_vals[LUMA_DC], DC, 0);
+    result |= write_DHT(&state->buffer, state->ht_bits[LUMA_AC], state->ht_vals[LUMA_AC], AC, 0);
+    result |= write_DHT(&state->buffer, state->ht_bits[CHROMA_DC], state->ht_vals[CHROMA_DC], DC, 1);
+    result |= write_DHT(&state->buffer, state->ht_bits[CHROMA_AC], state->ht_vals[CHROMA_AC], AC, 1);
     tje_assert(result == TJE_OK);
 
     // Write start of scan
@@ -872,7 +878,7 @@ static int tje_encode_main(
         header.first = 0;
         header.last  = 63;
         header.ah_al = 0;
-        result = buffer_write(state->buffer, &header, sizeof(ScanHeader), 1);
+        result = buffer_write(&state->buffer, &header, sizeof(ScanHeader), 1);
         tje_assert(result == TJE_OK);
     }
 
@@ -895,18 +901,34 @@ static int tje_encode_main(
 
     // There is tons of repetition here, because we want to have a predicable
     // access pattern.
+#if TJE_LARGE_TABLE
+    float* cosine_table = arena_push_array(arena, 8 * 8 * 8 * 8, float);
+    for (int v = 0; v < 8; ++v)
+        for (int u = 0; u < 8; ++u)
+            for (int y = 0; y < 8; ++y)
+                for (int x = 0; x < 8; ++x)
+                {
+                    int64 index =
+                        v * 8 * 8 * 8 +
+                        u * 8 * 8 +
+                        y * 8 +
+                        x;
+                    cosine_table[index] =
+                        cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f) *
+                        cosf(((2.0f * y + 1.0f) * v * kPi) / 16.0f);
+                }
+#else
     float* cosine_table = arena_push_array(arena, 8 * 8, float);
-    for (int w = 0; w < 8; ++w)
-    {
-        for (int z = 0; z < 8; ++z)
-        {
-            int64 index =
-                z +
-                w * 8;
-            cosine_table[index] =
-                cosf(((2.0f * z + 1.0f) * w * kPi) / 16);
-        }
-    }
+        for (int u = 0; u < 8; ++u)
+            for (int x = 0; x < 8; ++x)
+            {
+                    int64 index =
+                        u * 8 +
+                        x;
+                    cosine_table[index] =
+                        cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f);
+            }
+#endif
 
     for (int y = 0; y < height; y += 8)
     {
@@ -939,19 +961,19 @@ static int tje_encode_main(
 
             // Process block:
 
-            encode_and_write_DU(state->buffer,
+            encode_and_write_DU(&state->buffer,
                     du_y, state->qt_luma,
                     state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                     state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
                     cosine_table,
                     &pred_y, &bitbuffer, &location);
-            encode_and_write_DU(state->buffer,
+            encode_and_write_DU(&state->buffer,
                     du_b, state->qt_chroma,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     cosine_table,
                     &pred_b, &bitbuffer, &location);
-            encode_and_write_DU(state->buffer,
+            encode_and_write_DU(&state->buffer,
                     du_r, state->qt_chroma,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
@@ -965,11 +987,11 @@ static int tje_encode_main(
         // flush
         {
             tje_assert(location < 8);
-            result = write_bits(state->buffer, &bitbuffer, &location, (uint16)(8 - location), 0xff);
+            result = write_bits(&state->buffer, &bitbuffer, &location, (uint16)(8 - location), 0xff);
             tje_assert(result == TJE_OK);
         }
         uint16 EOI = be_word(0xffd9);
-        buffer_write(state->buffer, &EOI, sizeof(uint16), 1);
+        buffer_write(&state->buffer, &EOI, sizeof(uint16), 1);
     }
 
     return result;
@@ -1000,24 +1022,14 @@ int tje_encode_to_file(
 
     tje_assert(big_chunk_of_memory);
 
-    Arena arena = create_arena_from_array(big_chunk_of_memory, heap_size);
-
-    ImgDataBuffer buffer;// = {};
-    {
-        // Assume that we will achieve at least 50% reduction
-        size_t sz = (size_t)((width * height * 3) / 2);
-        buffer.data = arena_push_array(&arena, sz, uint8);
-        buffer.used = 0;
-        buffer.size = sz;
-    }
-    state.buffer = &buffer;
+    Arena arena = arena_init(big_chunk_of_memory, heap_size);
 
     tje_init(&arena, &state);
 
     int result = tje_encode_main(&arena, &state, src_data, width, height);
     tje_assert(result == TJE_OK);
 
-    fwrite(buffer.data, buffer.used, 1, file_out);
+    fwrite(state.buffer.ptr, state.buffer.count, 1, file_out);
 
     result |= fclose(file_out);
 

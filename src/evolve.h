@@ -18,11 +18,14 @@
 
 #define NUM_ENCODERS 4
 
+#define KILOBYTES(t) ((t) * 1024LL)
+#define MEGABYTES(t) ((t) * KILOBYTES(1))
+
 int evolve_main(void* big_chunk_of_memory, size_t size)
 {
     static Arena jpeg_arena;
 
-    jpeg_arena = create_arena_from_array(big_chunk_of_memory, size);
+    jpeg_arena = arena_init(big_chunk_of_memory, size);
 
     int width;
     int height;
@@ -43,24 +46,19 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     Arena run_arenas[NUM_ENCODERS];  // Reset each time an encoder finishes.
 
     int result = TJE_OK;
+    const size_t memory_for_run =
+#if TJE_LARGE_TABLE
+        (width * height * 3 / 2) + MEGABYTES(40);
+#else
+        (width * height * 3 / 2) + MEGABYTES(8);
+#endif
     for (int i = 0; i < NUM_ENCODERS; ++i)
     {
-        // One arena for each.
-        run_arenas[i] = create_arena(&jpeg_arena, 10 * 1024 * 1024);
+        run_arenas[i] = arena_spawn(&jpeg_arena, memory_for_run);
 
         state[i].qt_luma   = default_qt_luma;
         state[i].qt_chroma = default_qt_chroma;
-        ImgDataBuffer buffer;// = {};
-        {
-            // Assume that we will achieve at least 50% reduction
-            size_t sz = (size_t)((width * height * 3) / 2);
-            buffer.data = (void*)arena_push_(&run_arenas[i], sz);
-            buffer.used = 0;
-            buffer.size = sz;
-        }
-        state[i].buffer = &buffer;
         tje_init(&run_arenas[i], &state[i]);
-
     }
 
     // Do the evolution

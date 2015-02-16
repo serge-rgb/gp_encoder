@@ -76,5 +76,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");
+
+
     return result;
 }

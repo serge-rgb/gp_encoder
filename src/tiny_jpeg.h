@@ -455,7 +455,7 @@ static uint8* huff_get_code_lengths(Arena* arena, uint8* bits, int64 size)
 {
     // Add 1 for the trailing 0, used as a terminator in huff_get_codes()
     int64 huffsize_sz = sizeof(uint8) * (size + 1);
-    uint8* huffsize = (uint8*)arena_push_bytes(arena, (size_t)huffsize_sz);
+    uint8* huffsize = (uint8*)arena_alloc_bytes(arena, (size_t)huffsize_sz);
 
     int k = 0;
     for (int i = 0; i < 16; ++i)
@@ -476,7 +476,7 @@ static uint16* huff_get_codes(Arena* arena, uint8* huffsize, int64 count)
     uint16 code = 0;
     int k = 0;
     uint8 sz = huffsize[0];
-    uint16* codes = arena_push_array(arena, count, uint16);
+    uint16* codes = arena_alloc_array(arena, count, uint16);
     for(;;)
     {
         do
@@ -506,8 +506,8 @@ static void huff_get_extended(
         uint8** out_ehuffsize,
         uint16** out_ehuffcode)
 {
-    uint8* ehuffsize  = arena_push_array(arena, 256, uint8);
-    uint16* ehuffcode = arena_push_array(arena, 256, uint16);
+    uint8* ehuffsize  = arena_alloc_array(arena, 256, uint8);
+    uint16* ehuffcode = arena_alloc_array(arena, 256, uint16);
 
     tje_memset(ehuffsize, 0, sizeof(uint8) * 256);
     tje_memset(ehuffcode, 0, sizeof(uint16) * 256);
@@ -902,7 +902,7 @@ static int tje_encode_main(
     // There is tons of repetition here, because we want to have a predicable
     // access pattern.
 #if TJE_LARGE_TABLE
-    float* cosine_table = arena_push_array(arena, 8 * 8 * 8 * 8, float);
+    float* cosine_table = arena_alloc_array(arena, 8 * 8 * 8 * 8, float);
     for (int v = 0; v < 8; ++v)
         for (int u = 0; u < 8; ++u)
             for (int y = 0; y < 8; ++y)
@@ -918,7 +918,7 @@ static int tje_encode_main(
                         cosf(((2.0f * y + 1.0f) * v * kPi) / 16.0f);
                 }
 #else
-    float* cosine_table = arena_push_array(arena, 8 * 8, float);
+    float* cosine_table = arena_alloc_array(arena, 8 * 8, float);
         for (int u = 0; u < 8; ++u)
             for (int x = 0; x < 8; ++x)
             {

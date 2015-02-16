@@ -5,7 +5,7 @@
  *
  */
 
-#include "memory.h"
+#include <libserg/memory.h>
 
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
@@ -62,9 +62,6 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     }
 
     // Do the evolution
-    for (int i = 0; i < NUM_ENCODERS; ++i)
-    {
-    }
     for (int i = 0; i < NUM_ENCODERS; ++i)
     {
         result = tje_encode_main(&run_arenas[i], &state[i], data, width, height);

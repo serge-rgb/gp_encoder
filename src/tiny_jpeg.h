@@ -25,8 +25,6 @@ extern "C"
 //
 //  In case of name-clashing of types, define TJE_DONT_CREATE_TYPES.
 
-#include "memory.h"  // Using memory arena style management.
-
 // Usage:
 //  Takes src_data as 32 bit, 0xRRGGBBxx data.
 //  Writes encoded image to dest_path.

@@ -46,7 +46,7 @@ int tje_encode_to_file(
 
 // It is about 10% faster to use a large table, but it requires a *lot* more
 // memory
-#define TJE_LARGE_TABLE 0
+#define TJE_LARGE_TABLE 1
 
 // C std lib
 #include <inttypes.h>

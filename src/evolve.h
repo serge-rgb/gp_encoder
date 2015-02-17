@@ -16,10 +16,25 @@
 #include "../third_party/stb/stb_image_write.h"
 
 
-#define NUM_ENCODERS 4
+#define NUM_ENCODERS 8
 
 #define KILOBYTES(t) ((t) * 1024LL)
 #define MEGABYTES(t) ((t) * KILOBYTES(1))
+
+
+// Threading:
+//  We have a FIFO of at most NUM_ENCODERS matrices.
+//  Encoder threads consume the matrices.
+//  When the matrices are consumed, the results are evaluated
+
+// Note: __stdcall is redundant in x64 code.
+unsigned int __stdcall encoder_thread(void* thread_args)
+{
+    // translate args.
+    // get matrix.
+    //
+    return 0;
+}
 
 int evolve_main(void* big_chunk_of_memory, size_t size)
 {
@@ -42,35 +57,37 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     tje_assert (num_components == 3);
 
-    TJEState state[NUM_ENCODERS] = {0};
-    Arena run_arenas[NUM_ENCODERS];  // Reset each time an encoder finishes.
-
     int result = TJE_OK;
-    const size_t memory_for_run =
-#if TJE_LARGE_TABLE
-        (width * height * 3 / 2) + MEGABYTES(40);
-#else
-        (width * height * 3 / 2) + MEGABYTES(8);
-#endif
-    for (int i = 0; i < NUM_ENCODERS; ++i)
-    {
-        run_arenas[i] = arena_spawn(&jpeg_arena, memory_for_run);
 
-        state[i].qt_luma   = default_qt_luma;
-        state[i].qt_chroma = default_qt_chroma;
-        tje_init(&run_arenas[i], &state[i]);
-    }
-
-    // Do the evolution
-    for (int i = 0; i < NUM_ENCODERS; ++i)
+    TJEState state[NUM_ENCODERS] = {0};
+    const size_t memory_for_run = size / NUM_ENCODERS;
     {
-        result = tje_encode_main(&run_arenas[i], &state[i], data, width, height);
-        if (result != TJE_OK)
+        Arena run_arenas[NUM_ENCODERS];  // Reset each time an encoder finishes.
+        for (int i = 0; i < NUM_ENCODERS; ++i)
         {
-            break;
-        }
-    }
+            run_arenas[i] = arena_spawn(&jpeg_arena, memory_for_run);
 
+            state[i].qt_luma   = default_qt_luma;
+            state[i].qt_chroma = default_qt_chroma;
+            tje_init(&run_arenas[i], &state[i]);
+        }
+
+        // Do the evolution
+        for (int i = 0; i < NUM_ENCODERS; ++i)
+        {
+            result = tje_encode_main(&run_arenas[i], &state[i], data, width, height);
+            if (result != TJE_OK)
+            {
+                break;
+            }
+        }
+
+        // Do evaluation. Sort encoders.
+        // Mutate / cross.
+
+        // Reset root arena
+        arena_reset(&jpeg_arena);
+    }
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");
 

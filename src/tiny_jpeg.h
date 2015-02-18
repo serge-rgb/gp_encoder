@@ -108,6 +108,8 @@ typedef struct
     uint8* qt_luma;
     uint8* qt_chroma;
     Arena buffer;  // Compressed data stored here.
+
+    uint64 mse;  // Mean square error.
 } TJEState;
 
 enum
@@ -608,11 +610,14 @@ float apply_dct(const float* cosine_table, int u, int v, float* mcu)
 
 static void encode_and_write_DU(
         Arena* buffer,
-        float* mcu, uint8* qt,
-        uint8* huff_dc_len, uint16* huff_dc_code,
+        float* mcu, uint8* qt,  // The block
+        uint64* mse,  // Maximum square error (can be NULL).
+        uint8* huff_dc_len, uint16* huff_dc_code,  // Huffman tables
         uint8* huff_ac_len, uint16* huff_ac_code,
-        const float* cosine_table,
-        int* pred, uint32* bitbuffer, uint32* location)
+        const float* cosine_table, // DCT cache
+        int* pred,  // Previous DC coefficient
+        uint32* bitbuffer,  // Bitstack.
+        uint32* location)
 {
     int result = TJE_OK;
     float dct_mcu[64];
@@ -633,6 +638,16 @@ static void encode_and_write_DU(
         float fval = dct_mcu[i] / qt[i];
         // TODO: implement a rounding function to avoid dependence on math.h
         int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
+        if (mse)
+        {
+            // Note: It doesn't really matter that we are calculating the error
+            // after DCT has been applied, since we are using it only locally,
+            // as a metric to improve the algorithm.
+            // Not using floating point, because an encoder would reconstruct exactly this:
+            const int reconstructed = (int)(val) * qt[i];
+            const uint64 diff = (uint64)abs( (int)(dct_mcu[i]) - reconstructed );
+            *mse += diff * diff;
+        }
         du[zig_zag_indices[i]] = val;
     }
 
@@ -917,16 +932,19 @@ static int tje_encode_main(
                 }
 #else
     float* cosine_table = arena_alloc_array(arena, 8 * 8, float);
-        for (int u = 0; u < 8; ++u)
-            for (int x = 0; x < 8; ++x)
-            {
-                    int64 index =
-                        u * 8 +
-                        x;
-                    cosine_table[index] =
-                        cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f);
-            }
+    for (int u = 0; u < 8; ++u)
+        for (int x = 0; x < 8; ++x)
+        {
+            int64 index =
+                u * 8 +
+                x;
+            cosine_table[index] =
+                cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f);
+        }
 #endif
+
+
+    state->mse = 0;
 
     for (int y = 0; y < height; y += 8)
     {
@@ -957,26 +975,35 @@ static int tje_encode_main(
             }
             // ====
 
+
             // Process block:
 
+            uint64 block_mse = 0;  // Calculating only for luma right now.
             encode_and_write_DU(&state->buffer,
                     du_y, state->qt_luma,
+                    &block_mse,
                     state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                     state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
                     cosine_table,
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
                     du_b, state->qt_chroma,
+                    0,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     cosine_table,
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
                     du_r, state->qt_chroma,
+                    0,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     cosine_table,
                     &pred_r, &bitbuffer, &location);
+
+            //block_mse /= (uint64)(width * height);  // Avoid overflow, technically more correct.
+
+            state->mse += block_mse;
         }
     }
 

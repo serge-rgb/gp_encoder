@@ -109,7 +109,7 @@ typedef struct
     uint8* qt_chroma;
     Arena buffer;  // Compressed data stored here.
 
-    uint64 mse;  // Mean square error.
+    float mse;  // Mean square error.
 } TJEState;
 
 enum
@@ -580,72 +580,159 @@ static int write_bits(
     return TJE_OK;
 }
 
-float apply_dct(const float* cosine_table, int u, int v, float* mcu)
+// DCT implementation by Thomas G. Lane.
+// Obtained through NVIDIA
+//  http://developer.download.nvidia.com/SDK/9.5/Samples/vidimaging_samples.html#gpgpu_dct
+//
+// QUOTE:
+//  This implementation is based on Arai, Agui, and Nakajima's algorithm for
+//  scaled DCT.  Their original paper (Trans. IEICE E-71(11):1095) is in
+//  Japanese, but the algorithm is described in the Pennebaker & Mitchell
+//  JPEG textbook (see REFERENCES section in file README).  The following code
+//  is based directly on figure 4-8 in P&M.
+//
+void fdct (float * data)
 {
-    float res = 0.0f;
-    float cu = (u == 0) ? 0.70710678118654f : 1;
-    float cv = (v == 0) ? 0.70710678118654f : 1;
-    const int64 base_index =
-        v * 8 * 8 * 8 +
-        u * 8 * 8;
-    for (int y = 0; y < 8; ++y)
-    {
-        for (int x = 0; x < 8; ++x)
-        {
-            int64 index = base_index +
-                y * 8 + x;
-#if TJE_LARGE_TABLE
-            res +=
-                (mcu[y * 8 + x] - 128) * cosine_table[index];
-#else
-            res +=
-                (mcu[y * 8 + x] - 128) *
-                cosine_table[u * 8 + x] * cosine_table[v * 8 + y];
-#endif
-        }
-    }
-    res *= 0.25f * cu * cv;
-    return res;
+  float tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7;
+  float tmp10, tmp11, tmp12, tmp13;
+  float z1, z2, z3, z4, z5, z11, z13;
+  float *dataptr;
+  int ctr;
+
+  /* Pass 1: process rows. */
+
+  dataptr = data;
+  for (ctr = 7; ctr >= 0; ctr--) {
+    tmp0 = dataptr[0] + dataptr[7];
+    tmp7 = dataptr[0] - dataptr[7];
+    tmp1 = dataptr[1] + dataptr[6];
+    tmp6 = dataptr[1] - dataptr[6];
+    tmp2 = dataptr[2] + dataptr[5];
+    tmp5 = dataptr[2] - dataptr[5];
+    tmp3 = dataptr[3] + dataptr[4];
+    tmp4 = dataptr[3] - dataptr[4];
+
+    /* Even part */
+
+    tmp10 = tmp0 + tmp3;    /* phase 2 */
+    tmp13 = tmp0 - tmp3;
+    tmp11 = tmp1 + tmp2;
+    tmp12 = tmp1 - tmp2;
+
+    dataptr[0] = tmp10 + tmp11; /* phase 3 */
+    dataptr[4] = tmp10 - tmp11;
+
+    z1 = (tmp12 + tmp13) * ((float) 0.707106781); /* c4 */
+    dataptr[2] = tmp13 + z1;    /* phase 5 */
+    dataptr[6] = tmp13 - z1;
+
+    /* Odd part */
+
+    tmp10 = tmp4 + tmp5;    /* phase 2 */
+    tmp11 = tmp5 + tmp6;
+    tmp12 = tmp6 + tmp7;
+
+    /* The rotator is modified from fig 4-8 to avoid extra negations. */
+    z5 = (tmp10 - tmp12) * ((float) 0.382683433); /* c6 */
+    z2 = ((float) 0.541196100) * tmp10 + z5; /* c2-c6 */
+    z4 = ((float) 1.306562965) * tmp12 + z5; /* c2+c6 */
+    z3 = tmp11 * ((float) 0.707106781); /* c4 */
+
+    z11 = tmp7 + z3;        /* phase 5 */
+    z13 = tmp7 - z3;
+
+    dataptr[5] = z13 + z2;  /* phase 6 */
+    dataptr[3] = z13 - z2;
+    dataptr[1] = z11 + z4;
+    dataptr[7] = z11 - z4;
+
+    dataptr += 8;     /* advance pointer to next row */
+  }
+
+  /* Pass 2: process columns. */
+
+  dataptr = data;
+  for (ctr = 8-1; ctr >= 0; ctr--) {
+    tmp0 = dataptr[8*0] + dataptr[8*7];
+    tmp7 = dataptr[8*0] - dataptr[8*7];
+    tmp1 = dataptr[8*1] + dataptr[8*6];
+    tmp6 = dataptr[8*1] - dataptr[8*6];
+    tmp2 = dataptr[8*2] + dataptr[8*5];
+    tmp5 = dataptr[8*2] - dataptr[8*5];
+    tmp3 = dataptr[8*3] + dataptr[8*4];
+    tmp4 = dataptr[8*3] - dataptr[8*4];
+
+    /* Even part */
+
+    tmp10 = tmp0 + tmp3;    /* phase 2 */
+    tmp13 = tmp0 - tmp3;
+    tmp11 = tmp1 + tmp2;
+    tmp12 = tmp1 - tmp2;
+
+    dataptr[8*0] = tmp10 + tmp11; /* phase 3 */
+    dataptr[8*4] = tmp10 - tmp11;
+
+    z1 = (tmp12 + tmp13) * ((float) 0.707106781); /* c4 */
+    dataptr[8*2] = tmp13 + z1; /* phase 5 */
+    dataptr[8*6] = tmp13 - z1;
+
+    /* Odd part */
+
+    tmp10 = tmp4 + tmp5;    /* phase 2 */
+    tmp11 = tmp5 + tmp6;
+    tmp12 = tmp6 + tmp7;
+
+    /* The rotator is modified from fig 4-8 to avoid extra negations. */
+    z5 = (tmp10 - tmp12) * ((float) 0.382683433); /* c6 */
+    z2 = ((float) 0.541196100) * tmp10 + z5; /* c2-c6 */
+    z4 = ((float) 1.306562965) * tmp12 + z5; /* c2+c6 */
+    z3 = tmp11 * ((float) 0.707106781); /* c4 */
+
+    z11 = tmp7 + z3;        /* phase 5 */
+    z13 = tmp7 - z3;
+
+    dataptr[8*5] = z13 + z2; /* phase 6 */
+    dataptr[8*3] = z13 - z2;
+    dataptr[8*1] = z11 + z4;
+    dataptr[8*7] = z11 - z4;
+
+    dataptr++;          /* advance pointer to next column */
+  }
 }
 
 static void encode_and_write_DU(
         Arena* buffer,
-        float* mcu, uint8* qt,  // The block
-        uint64* mse,  // Maximum square error (can be NULL).
+        float* mcu,
+        float* qt,  // Pre-processed quantization matrix.
+        float* mse,  // Maximum square error (can be NULL).
         uint8* huff_dc_len, uint16* huff_dc_code,  // Huffman tables
         uint8* huff_ac_len, uint16* huff_ac_code,
-        const float* cosine_table, // DCT cache
         int* pred,  // Previous DC coefficient
         uint32* bitbuffer,  // Bitstack.
         uint32* location)
 {
     int result = TJE_OK;
-    float dct_mcu[64];
     int8 du[64];  // Data unit in zig-zag order
 
-    // Quantization
-    for (int v = 0; v < 8; ++v)
-    {
-        for (int u = 0; u < 8; ++u)
-        {
-            dct_mcu[v * 8 + u] = apply_dct(cosine_table, u, v, mcu);
-        }
-    }
-
+    fdct(mcu);
 
     for (int i = 0; i < 64; ++i)
     {
-        float fval = dct_mcu[i] / qt[i];
-        // TODO: implement a rounding function to avoid dependence on math.h
-        int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
+        float fval = mcu[i] / 8.0f;
+        fval *= qt[i];
+        // XXX: Rounding is really, really expensive... So this encoder is not douing it right now.
+        //int8 val = (int8)(roundf(fval));
+        //int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
+        int8 val = (int8)fval;
         if (mse)
         {
             // Note: It doesn't really matter that we are calculating the error
             // after DCT has been applied, since we are using it only locally,
             // as a metric to improve the algorithm.
             // Not using floating point, because an encoder would reconstruct exactly this:
-            const int reconstructed = (int)(val) * qt[i];
-            const uint64 diff = (uint64)abs( (int)(dct_mcu[i]) - reconstructed );
+            // TODO: rethink this.
+            const float reconstructed = (float)val / qt[i];
+            const float diff = fabsf(fval - reconstructed);
             *mse += diff * diff;
         }
         du[zig_zag_indices[i]] = val;
@@ -736,8 +823,13 @@ enum
     CHROMA_AC,
 };
 
+struct processed_qt {
+    float chroma[64];
+    float luma[64];
+};
+
 // Set up huffman tables in state.
-static void tje_init (Arena* arena, TJEState* state)
+static struct processed_qt tje_init (Arena* arena, TJEState* state)
 {
     tje_assert(state);
 
@@ -783,11 +875,43 @@ static void tje_init (Arena* arena, TJEState* state)
         }
     }
 
+    struct processed_qt pqt;
+    // Again, taken from classic japanese implementation.
+    //
+    /* For float AA&N IDCT method, divisors are equal to quantization
+     * coefficients scaled by scalefactor[row]*scalefactor[col], where
+     *   scalefactor[0] = 1
+     *   scalefactor[k] = cos(k*PI/16) * sqrt(2)    for k=1..7
+     * We apply a further scale factor of 8.
+     * What's actually stored is 1/divisor so that the inner loop can
+     * use a multiplication rather than a division.
+     */
+    static const float aanscalefactor[] =
+    {
+        1.0f, 1.387039845f, 1.306562965f, 1.175875602f,
+        1.0f, 0.785694958f, 0.541196100f, 0.275899379f
+    };
+
+    // build (de)quantization tables
+    {
+        for(int y=0; y<8; y++)
+        {
+            for(int x=0; x<8; x++)
+            {
+                pqt.luma[y*8+x] = 1.0f / (aanscalefactor[x] * aanscalefactor[y] * 8.0f);
+                pqt.chroma[y*8+x] = 1.0f / (aanscalefactor[x] * aanscalefactor[y] * 8.0f);
+            }
+        }
+    }
+
+    return pqt;
+
 }
 
 static int tje_encode_main(
         Arena* arena,
         TJEState* state,
+        struct processed_qt* pqt,
         const unsigned char* src_data,
         const int width,
         const int height)
@@ -911,39 +1035,6 @@ static int tje_encode_main(
     uint32 bitbuffer = 0;
     uint32 location = 0;
 
-
-    // There is tons of repetition here, because we want to have a predicable
-    // access pattern.
-#if TJE_LARGE_TABLE
-    float* cosine_table = arena_alloc_array(arena, 8 * 8 * 8 * 8, float);
-    for (int v = 0; v < 8; ++v)
-        for (int u = 0; u < 8; ++u)
-            for (int y = 0; y < 8; ++y)
-                for (int x = 0; x < 8; ++x)
-                {
-                    int64 index =
-                        v * 8 * 8 * 8 +
-                        u * 8 * 8 +
-                        y * 8 +
-                        x;
-                    cosine_table[index] =
-                        cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f) *
-                        cosf(((2.0f * y + 1.0f) * v * kPi) / 16.0f);
-                }
-#else
-    float* cosine_table = arena_alloc_array(arena, 8 * 8, float);
-    for (int u = 0; u < 8; ++u)
-        for (int x = 0; x < 8; ++x)
-        {
-            int64 index =
-                u * 8 +
-                x;
-            cosine_table[index] =
-                cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f);
-        }
-#endif
-
-
     state->mse = 0;
 
     for (int y = 0; y < height; y += 8)
@@ -962,9 +1053,9 @@ static int tje_encode_main(
                     uint8 g = src_data[index + 1];
                     uint8 b = src_data[index + 2];
 
-                    float y  = 0.299f * r + 0.587f * g + 0.114f * b;
-                    float cb = -0.1687f * r - 0.3313f * g + 0.5f * b + 128;
-                    float cr = 0.5f * r - 0.4187f * g - 0.0813f * b + 128;
+                    float y  = 0.299f * r + 0.587f * g + 0.114f * b - 128;
+                    float cb = -0.1687f * r - 0.3313f * g + 0.5f * b;
+                    float cr = 0.5f * r - 0.4187f * g - 0.0813f * b;
 
 
                     int block_index = (off_y * 8 + off_x);
@@ -978,27 +1069,24 @@ static int tje_encode_main(
 
             // Process block:
 
-            uint64 block_mse = 0;  // Calculating only for luma right now.
+            float block_mse = 0;  // Calculating only for luma right now.
             encode_and_write_DU(&state->buffer,
-                    du_y, state->qt_luma,
+                    du_y, pqt->luma,
                     &block_mse,
                     state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                     state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
-                    cosine_table,
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
-                    du_b, state->qt_chroma,
+                    du_b, pqt->chroma,
                     0,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
-                    cosine_table,
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
-                    du_r, state->qt_chroma,
+                    du_r, pqt->chroma,
                     0,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
-                    cosine_table,
                     &pred_r, &bitbuffer, &location);
 
             //block_mse /= (uint64)(width * height);  // Avoid overflow, technically more correct.
@@ -1006,6 +1094,8 @@ static int tje_encode_main(
             state->mse += block_mse;
         }
     }
+
+    state->mse /= width * height;
 
     // Finish the image.
     {
@@ -1049,9 +1139,9 @@ int tje_encode_to_file(
 
     Arena arena = arena_init(big_chunk_of_memory, heap_size);
 
-    tje_init(&arena, &state);
+    struct processed_qt pqt = tje_init(&arena, &state);
 
-    int result = tje_encode_main(&arena, &state, src_data, width, height);
+    int result = tje_encode_main(&arena, &state, &pqt, src_data, width, height);
     tje_assert(result == TJE_OK);
 
     fwrite(state.buffer.ptr, state.buffer.count, 1, file_out);

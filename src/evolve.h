@@ -16,7 +16,7 @@
 #include "../third_party/stb/stb_image_write.h"
 
 
-#define NUM_ENCODERS 8
+#define NUM_ENCODERS 16
 
 #define KILOBYTES(t) ((t) * 1024LL)
 #define MEGABYTES(t) ((t) * KILOBYTES(1))
@@ -63,19 +63,20 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     const size_t memory_for_run = size / NUM_ENCODERS;
     {
         Arena run_arenas[NUM_ENCODERS];  // Reset each time an encoder finishes.
+        struct processed_qt pqts[NUM_ENCODERS];
         for (int i = 0; i < NUM_ENCODERS; ++i)
         {
             run_arenas[i] = arena_spawn(&jpeg_arena, memory_for_run);
 
             state[i].qt_luma   = default_qt_luma;
             state[i].qt_chroma = default_qt_chroma;
-            tje_init(&run_arenas[i], &state[i]);
+            pqts[i] = tje_init(&run_arenas[i], &state[i]);
         }
 
         // Do the evolution
         for (int i = 0; i < NUM_ENCODERS; ++i)
         {
-            result = tje_encode_main(&run_arenas[i], &state[i], data, width, height);
+            result = tje_encode_main(&run_arenas[i], &state[i], &pqts[i], data, width, height);
             if (result != TJE_OK)
             {
                 break;

@@ -720,10 +720,17 @@ static void encode_and_write_DU(
     {
         float fval = mcu[i] / 8.0f;
         fval *= qt[i];
-        // XXX: Rounding is really, really expensive... So this encoder is not douing it right now.
         //int8 val = (int8)(roundf(fval));
         //int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
+        //int8 val = (int8)fval;
+        // Better way: Save a whole lot of branching.
+        {
+            fval += 128;
+            fval = floorf(fval + 0.5f);
+            fval -= 128;
+        }
         int8 val = (int8)fval;
+
         if (mse)
         {
             // Note: It doesn't really matter that we are calculating the error

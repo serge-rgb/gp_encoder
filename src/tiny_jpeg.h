@@ -110,6 +110,7 @@ typedef struct
     Arena buffer;  // Compressed data stored here.
 
     float mse;  // Mean square error.
+    size_t final_size;  // Size in bytes of the compressed image.
 } TJEState;
 
 enum
@@ -369,8 +370,8 @@ typedef struct ScanHeader_s
 #ifdef TJE_DEBUG
 static void tje_assert_(const char* expr, const char* file, int line)
 {
-    char buffer[256];
-    snprintf(buffer, 256, "Assertion Failed: \"%s\" -- %s : %d\n", expr, file, line);
+    char buffer[512];
+    snprintf(buffer, 512, "Assertion Failed: \"%s\" -- %s : %d\n", expr, file, line);
     tje_log(buffer);
     exit(-1);
 }
@@ -836,7 +837,7 @@ struct processed_qt {
 };
 
 // Set up huffman tables in state.
-static struct processed_qt tje_init (Arena* arena, TJEState* state)
+static void tje_init (Arena* arena, TJEState* state)
 {
     tje_assert(state);
 
@@ -881,6 +882,23 @@ static struct processed_qt tje_init (Arena* arena, TJEState* state)
                     &(state->ehuffcode[i]));
         }
     }
+}
+
+static int tje_encode_main(
+        Arena* arena,
+        TJEState* state,
+        const unsigned char* src_data,
+        const int width,
+        const int height)
+{
+    int result = TJE_OK;
+
+    // TODO: support arbitrary resolutions.
+    if (((height % 8) != 0) || ((width % 8) != 0))
+    {
+        tje_log("Supported resolutions are width and height multiples of 8.");
+        return 1;
+    }
 
     struct processed_qt pqt;
     // Again, taken from classic japanese implementation.
@@ -905,31 +923,10 @@ static struct processed_qt tje_init (Arena* arena, TJEState* state)
         {
             for(int x=0; x<8; x++)
             {
-                pqt.luma[y*8+x] = 1.0f / (aanscalefactor[x] * aanscalefactor[y] * 8.0f);
-                pqt.chroma[y*8+x] = 1.0f / (aanscalefactor[x] * aanscalefactor[y] * 8.0f);
+                pqt.luma[y*8+x] = 1.0f / (aanscalefactor[x] * aanscalefactor[y] * state->qt_luma[y*8 + x]);
+                pqt.chroma[y*8+x] = 1.0f / (aanscalefactor[x] * aanscalefactor[y] * state->qt_chroma[y*8 + x]);
             }
         }
-    }
-
-    return pqt;
-
-}
-
-static int tje_encode_main(
-        Arena* arena,
-        TJEState* state,
-        struct processed_qt* pqt,
-        const unsigned char* src_data,
-        const int width,
-        const int height)
-{
-    int result = TJE_OK;
-
-    // TODO: support arbitrary resolutions.
-    if (((height % 8) != 0) || ((width % 8) != 0))
-    {
-        tje_log("Supported resolutions are width and height multiples of 8.");
-        return 1;
     }
 
     // ============================================================
@@ -1078,19 +1075,19 @@ static int tje_encode_main(
 
             float block_mse = 0;  // Calculating only for luma right now.
             encode_and_write_DU(&state->buffer,
-                    du_y, pqt->luma,
+                    du_y, pqt.luma,
                     &block_mse,
                     state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                     state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
-                    du_b, pqt->chroma,
+                    du_b, pqt.chroma,
                     0,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
-                    du_r, pqt->chroma,
+                    du_r, pqt.chroma,
                     0,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
@@ -1101,8 +1098,6 @@ static int tje_encode_main(
             state->mse += block_mse;
         }
     }
-
-    state->mse /= width * height;
 
     // Finish the image.
     {
@@ -1115,6 +1110,10 @@ static int tje_encode_main(
         uint16 EOI = be_word(0xffd9);
         buffer_write(&state->buffer, &EOI, sizeof(uint16), 1);
     }
+
+    state->mse /= width * height;
+    state->final_size = state->buffer.count;
+
 
     return result;
 }
@@ -1146,9 +1145,9 @@ int tje_encode_to_file(
 
     Arena arena = arena_init(big_chunk_of_memory, heap_size);
 
-    struct processed_qt pqt = tje_init(&arena, &state);
+    tje_init(&arena, &state);
 
-    int result = tje_encode_main(&arena, &state, &pqt, src_data, width, height);
+    int result = tje_encode_main(&arena, &state, src_data, width, height);
     tje_assert(result == TJE_OK);
 
     fwrite(state.buffer.ptr, state.buffer.count, 1, file_out);

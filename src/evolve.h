@@ -21,19 +21,38 @@
 #define KILOBYTES(t) ((t) * 1024LL)
 #define MEGABYTES(t) ((t) * KILOBYTES(1))
 
+#ifdef _WIN32
+// Note: __stdcall is redundant in x64 code.
+#define PLATFORM_CALL __stdcall
+#endif
+
+#ifndef PLATFORM_CALL
+#define PLATFORM_CALL
+#endif
+
+
+typedef struct
+{
+    Arena*  thread_arena;
+    struct processed_qt* pqt;
+    TJEState* state;
+    int width;
+    int height;
+    unsigned char* data;
+} ThreadArgs;
 
 // Threading:
 //  We have a FIFO of at most NUM_ENCODERS matrices.
 //  Encoder threads consume the matrices.
 //  When the matrices are consumed, the results are evaluated
 
-// Note: __stdcall is redundant in x64 code.
-unsigned int __stdcall encoder_thread(void* thread_args)
+unsigned int PLATFORM_CALL encoder_thread(void* thread_data)
 {
-    // translate args.
-    // get matrix.
-    //
-    return 0;
+    int result = TJE_OK;
+    ThreadArgs* args = (ThreadArgs*)(thread_data);
+    // TODO: modify state with some matrix...
+    result = tje_encode_main(args->thread_arena, args->state, args->pqt, args->data, args->width, args->height);
+    return result;
 }
 
 int evolve_main(void* big_chunk_of_memory, size_t size)
@@ -76,7 +95,16 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         // Do the evolution
         for (int i = 0; i < NUM_ENCODERS; ++i)
         {
-            result = tje_encode_main(&run_arenas[i], &state[i], &pqts[i], data, width, height);
+            ThreadArgs args = {0};
+            {
+                args.thread_arena = &run_arenas[i];
+                args.pqt = &pqts[i];
+                args.state = &state[i];
+                args.width = width;
+                args.height = height;
+                args.data = data;
+            }
+            result = encoder_thread(&args);
             if (result != TJE_OK)
             {
                 break;
@@ -89,6 +117,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         // Reset root arena
         arena_reset(&jpeg_arena);
     }
+
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");
 

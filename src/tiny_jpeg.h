@@ -33,10 +33,6 @@ int tje_encode_to_file(
         const int width,
         const int height,
         const char* dest_path);
-// TODO:
-//  encode to buffer
-//  specify quantization tables
-
 // ============================================================
 // Internal
 // ============================================================

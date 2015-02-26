@@ -7,6 +7,7 @@
 
 #include <libserg/memory.h>
 
+
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
 
@@ -15,23 +16,16 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../third_party/stb/stb_image_write.h"
 
+#include <process.h>
 
-#define NUM_ENCODERS 1
+#define NUM_ENCODERS 16
 
 #define KILOBYTES(t) ((t) * 1024LL)
 #define MEGABYTES(t) ((t) * KILOBYTES(1))
 
-#ifdef _WIN32
-// Note: __stdcall is redundant in x64 code.
-#define PLATFORM_CALL __stdcall
-#endif
+#define NUM_TABLES 128
 
-#ifndef PLATFORM_CALL
-#define PLATFORM_CALL
-#endif
-
-
-#define NUM_TABLES 3
+static volatile LONG g_num_tables_processed;  // Atomically incremented each time an encoder uses a table.
 
 typedef struct
 {
@@ -48,6 +42,7 @@ typedef struct
 {
     float   mse;
     size_t  size;
+    int table_id;
 } EncodeResult;
 
 static uint8*       g_quantization_tables[NUM_TABLES];
@@ -58,7 +53,7 @@ static EncodeResult g_encode_results[NUM_TABLES];
 //  Encoder threads consume the matrices.
 //  When the matrices are consumed, the results are evaluated
 
-unsigned int PLATFORM_CALL encoder_thread(void* thread_data)
+unsigned int __stdcall encoder_thread(void* thread_data)
 {
     int result = TJE_OK;
     ThreadArgs* args = (ThreadArgs*)(thread_data);
@@ -69,12 +64,15 @@ unsigned int PLATFORM_CALL encoder_thread(void* thread_data)
     {
         er.mse = args->state->mse;
         er.size = args->state->final_size;
+        er.table_id = args->table_id;
     }
 
     // TODO: acquire lock
     // Note: a lock is not required if we guarantee that every encoder in flight has a unique table_id
     g_encode_results[args->table_id] = er;
     // TODO: release
+
+    InterlockedIncrement(&g_num_tables_processed);
 
     return result;
 }
@@ -106,13 +104,13 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     const size_t memory_for_run = size / NUM_ENCODERS;
 
-    Arena run_arenas[NUM_ENCODERS];  // Reset each time an encoder finishes.
+    Arena init_arenas[NUM_ENCODERS];  // Reset each time an encoder finishes.
 
     // Init encoders.
     for (int i = 0; i < NUM_ENCODERS; ++i)
     {
-        run_arenas[i] = arena_spawn(&jpeg_arena, memory_for_run);
-        tje_init(&run_arenas[i], &state[i]);
+        init_arenas[i] = arena_spawn(&jpeg_arena, memory_for_run);
+        tje_init(&init_arenas[i], &state[i]);
     }
 
     // Init tables
@@ -147,58 +145,56 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     // Do the evolution
 
-    // Evaluation 1: encode image for each matrix.
-
-    // TODO: simple job system. producer/consumer. Fixed thread number.
-    // Grab matrices atomically.
-    //
-    // == Producer:
-    // While not satisfied:
-    //  mutate and crossover using fitness func.
-    //  push to queue
-    //  wait for processed stack.
-    // == Consumer:
-    //  if stack is not empty,
-    //  pop stack.
-    //  encode and write results
-    // STACKS (same size):
-    // [  Matrices   ] -- Plain data, pointers to quantization tables
-    // [  STATUS     ] -- fresh, processing, done  (semaphore? .. yes..)
-    // [  Results    ] -- a EncodeResult struct for every matrix.
-
     int is_good_enough = 0;
+
+    Arena run_arenas[NUM_ENCODERS] = { 0 };
+    // Re-usable memory for threads.
+    for (int i = 0; i < NUM_ENCODERS; ++i)
+    {
+        run_arenas[i] =
+            arena_spawn(&init_arenas[i], init_arenas[i].size - init_arenas[i].count);
+    }
 
     while (!is_good_enough)
     {
-        // Process all tables.
+        // Get semaphore
+        // run thread
+        //
+
         int table_id = 0;
-        for (int i = 0; i < NUM_ENCODERS; ++i)
+        // Process all tables.
+        while(g_num_tables_processed != NUM_TABLES)
         {
-            // Get matrices
-            state[i].qt_luma = g_quantization_tables[table_id];
-            state[i].qt_chroma = g_quantization_tables[table_id];
-            ThreadArgs args = {0};
+            HANDLE threads[NUM_ENCODERS] = { 0 };
+            // Launch a thread for each encoder.
+            for (int i = 0; i < NUM_ENCODERS && table_id < NUM_TABLES; ++i)
             {
-                args.thread_arena = &run_arenas[i];
-                args.state = &state[i];
-                args.width = width;
-                args.height = height;
-                args.data = data;
-                args.table_id = table_id;
+                state[i].qt_luma = g_quantization_tables[table_id];
+                state[i].qt_chroma = g_quantization_tables[table_id];
+                ThreadArgs* args = arena_alloc_elem(&run_arenas[i], ThreadArgs);
+                {
+                    args->thread_arena = &run_arenas[i];
+                    args->state = &state[i];
+                    args->width = width;
+                    args->height = height;
+                    args->data = data;
+                    args->table_id = table_id;
+                }
+
+                threads[i] = (HANDLE)_beginthreadex(NULL, 0, encoder_thread, args, 0, NULL);
+
+                ++table_id;
+                // Clean up state
+                // TODO remove?
+                state[i].mse = 0;
+                state[i].final_size = 0;
             }
-            result = encoder_thread(&args);
-            if (result != TJE_OK)
+            // Wait for encoders to finish..
+            WaitForMultipleObjects(NUM_ENCODERS, threads, TRUE, INFINITE);
+
+            for (int i = 0; i < NUM_ENCODERS && table_id < NUM_TABLES; ++i)
             {
-                break;
-            }
-            // Clean up state
-            state[i].mse = 0;
-            state[i].final_size = 0;
-            table_id++;
-            // Wrap around encoders until we are finished with the tables.
-            if (i == NUM_ENCODERS - 1 && table_id < NUM_TABLES)
-            {
-                i = -1;
+                arena_reset(&run_arenas[i]);
             }
         }
 

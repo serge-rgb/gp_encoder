@@ -831,7 +831,8 @@ enum
     CHROMA_AC,
 };
 
-struct processed_qt {
+struct processed_qt
+{
     float chroma[64];
     float luma[64];
 };

@@ -106,7 +106,7 @@ typedef struct
     Arena buffer;  // Compressed data stored here.
 
     float mse;  // Mean square error.
-    size_t final_size;  // Size in bytes of the compressed image.
+    float compression_ratio;  // Size in bytes of the compressed image.
 } TJEState;
 
 enum
@@ -1079,13 +1079,13 @@ static int tje_encode_main(
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
                     du_b, pqt.chroma,
-                    0,
+                    &block_mse,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
                     du_r, pqt.chroma,
-                    0,
+                    &block_mse,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                     &pred_r, &bitbuffer, &location);
@@ -1109,8 +1109,7 @@ static int tje_encode_main(
     }
 
     state->mse /= width * height;
-    state->final_size = state->buffer.count;
-
+    state->compression_ratio = (float)state->buffer.count / (float)(width * height * 3);
 
     return result;
 }
@@ -1150,6 +1149,8 @@ int tje_encode_to_file(
     fwrite(state.buffer.ptr, state.buffer.count, 1, file_out);
 
     result |= fclose(file_out);
+
+    free(big_chunk_of_memory);
 
     return result;
 }

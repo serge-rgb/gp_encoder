@@ -42,7 +42,7 @@ typedef struct
 typedef struct
 {
     float   mse;
-    size_t  size;
+    float  compression_ratio;
     int table_id;
 } EncodeResult;
 
@@ -65,7 +65,7 @@ unsigned int __stdcall encoder_thread(void* thread_data)
     EncodeResult er = { 0 };
     {
         er.mse = args->state->mse;
-        er.size = args->state->final_size;
+        er.compression_ratio = args->state->compression_ratio;
         er.table_id = args->table_id;
     }
 
@@ -76,6 +76,14 @@ unsigned int __stdcall encoder_thread(void* thread_data)
     InterlockedIncrement(&g_num_tables_processed);
 
     return result;
+}
+
+static void gen_random_table(uint8* table)
+{
+    for (int i = 0; i < 64; ++i)
+    {
+        table[i] = (rand() % 120) + 8;
+    }
 }
 
 int evolve_main(void* big_chunk_of_memory, size_t size)
@@ -103,29 +111,12 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     TJEState state[NUM_ENCODERS] = {0};
 
-    const size_t memory_for_encoder = size / NUM_ENCODERS;
-
-
-    // We use init_arenas for tje_init, but then we pass all the memory to
-    // run_arenas, which will be constantly reset by encoder threads
-    Arena init_arenas[NUM_ENCODERS];
-    Arena run_arenas[NUM_ENCODERS];
-
-    // Init encoders.
-    for (int i = 0; i < NUM_ENCODERS; ++i)
-    {
-        init_arenas[i] = arena_spawn(&jpeg_arena, memory_for_encoder);
-        tje_init(&init_arenas[i], &state[i]);
-        // Inherit the rest of the memory to run_arenas
-        run_arenas[i] = arena_spawn(&init_arenas[i], init_arenas[i].size - init_arenas[i].count);
-    }
-
     // Init tables
     // TODO: add some randomization
     for (int i = 0; i < NUM_TABLES; ++i)
     {
         int r = i % 3;
-        switch(r)
+        switch(i)
         {
         case 0:
             {
@@ -139,22 +130,41 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             }
         case 2:
             {
-                g_quantization_tables[i] = default_qt_all_ones;
+                g_quantization_tables[i] = default_qt_chroma_from_paper;
+                //g_quantization_tables[i] = default_qt_all_ones;
                 break;
             }
         default:
             {
-                tje_assert(!"Case not handled");
+                g_quantization_tables[i] = arena_alloc_array(&jpeg_arena, 64, uint8);
+                gen_random_table(g_quantization_tables[i]);
                 break;
             }
         }
     }
 
+    const size_t memory_for_encoder = (jpeg_arena.size - jpeg_arena.count) / NUM_ENCODERS;
+
+    // We use init_arenas for tje_init, but then we pass all the memory to
+    // run_arenas, which will be constantly reset by encoder threads
+    Arena init_arenas[NUM_ENCODERS];
+    Arena run_arenas[NUM_ENCODERS];
+
+
+    // Init encoders.
+    for (int i = 0; i < NUM_ENCODERS; ++i)
+    {
+        init_arenas[i] = arena_spawn(&jpeg_arena, memory_for_encoder);
+        tje_init(&init_arenas[i], &state[i]);
+        // Inherit the rest of the memory to run_arenas
+        run_arenas[i] = arena_spawn(&init_arenas[i], init_arenas[i].size - init_arenas[i].count);
+    }
+
+
     // Do the evolution
-
-    int is_good_enough = 0;
-
-    while (!is_good_enough)
+    const int num_generations = 100;
+    float max_error = -1.0f;
+    for(int generation_i = 0; generation_i < num_generations; ++generation_i)
     {
         int table_id = 0;
         // Process all tables.
@@ -192,7 +202,16 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         // Evaluation.
         // How much do we care about error vs size:
         //   fitness = error * (fitness_factor) + size * (1 - fitness_factor)
-        float fitness_factor = 0.5f;
+        float fitness_factor = 0.9f;
+        // Find maximum error on the first generation.
+        if (max_error < 0)
+        {
+            for (int i = 0; i < NUM_TABLES; ++i)
+            {
+                float e = g_encode_results[i].mse;
+                if (e > max_error) max_error = e;
+            }
+        }
         // Do a bubble sort.
         bool32 sorted = 0;
         while(!sorted)
@@ -205,8 +224,12 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     EncodeResult a = g_encode_results[i];
                     EncodeResult b = g_encode_results[j];
 
-                    float score_a = a.mse * fitness_factor + a.size * (1 - fitness_factor);
-                    float score_b = b.mse * fitness_factor + b.size * (1 - fitness_factor);
+                    float score_a =
+                        a.mse / max_error * fitness_factor +
+                        a.compression_ratio * (1 - fitness_factor);
+                    float score_b =
+                        b.mse / max_error * fitness_factor +
+                        b.compression_ratio * (1 - fitness_factor);
                     if (score_b < score_a)
                     {
                         // Swap
@@ -217,14 +240,50 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                 }
             }
         }
-        is_good_enough = 1;
+        // Keep the fittest. Mutate the rest.
+        const int num_survivors = 3;
+        const int mutation_wiggle = 1;  // (+/-)mutation_wiggle for each table index.
+        for (int i = num_survivors; i < NUM_TABLES - num_survivors; ++i)
+        {
+            // Pick a parent
+            int parent_i = (rand() % num_survivors);
+            parent_i = g_encode_results[parent_i].table_id;
+
+            int child_i = g_encode_results[i].table_id;
+            // Mutate child a bit from parent
+            for (int j = 0; j < 64; ++j)
+            {
+                int sign = (2*(rand() % 2)) - 1;
+                uint32 new_value = g_quantization_tables[child_i][j] + sign * (rand() % mutation_wiggle);
+                if (new_value < 10) new_value = 10;
+                if (new_value > 100) new_value = 100;
+                g_quantization_tables[child_i][j] = (uint8) new_value;
+            }
+        }
+        g_num_tables_processed = 0;
     }
 
-    // Do evaluation. Sort encoders.
-    // Mutate / cross.
+    // Test with our own winning table.
+    {
+        int win_index = g_encode_results[0].table_id;
+        TJEState state = { 0 };
 
-    // Reset root arena
-    arena_reset(&jpeg_arena);
+        state.qt_luma   = g_quantization_tables[win_index];
+        state.qt_chroma   = g_quantization_tables[win_index];
+
+        // Reset root arena
+        arena_reset(&jpeg_arena);
+
+        tje_init(&jpeg_arena, &state);
+
+        int result = tje_encode_main(&jpeg_arena, &state, data, width, height);
+        tje_assert(result == TJE_OK);
+
+        FILE* file_out = fopen("out1.jpg", "wb");
+        fwrite(state.buffer.ptr, state.buffer.count, 1, file_out);
+
+        result |= fclose(file_out);
+    }
 
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");

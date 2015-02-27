@@ -696,12 +696,181 @@ void fdct (float * data)
     dataptr++;          /* advance pointer to next column */
   }
 }
+/* Dequantize a coefficient by multiplying it by the multiplier-table
+ * entry; produce a float result.
+ */
+
+#define DEQUANTIZE(coef,quantval)  (((float) (coef)) * (quantval))
+
+/*
+ * Perform dequantization and inverse DCT on one block of coefficients.
+ */
+
+void idct (float *inptr, float *outptr, float *quantptr)
+{
+  float tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7;
+  float tmp10, tmp11, tmp12, tmp13;
+  float z5, z10, z11, z12, z13;
+  float * wsptr;
+  int ctr;
+  float workspace[64]; /* buffers data between passes */
+
+  /* Pass 1: process columns from input, store into work array. */
+
+  wsptr = workspace;
+  for (ctr = 8; ctr > 0; ctr--) {
+    /* Due to quantization, we will usually find that many of the input
+     * coefficients are zero, especially the AC terms.  We can exploit this
+     * by short-circuiting the IDCT calculation for any column in which all
+     * the AC terms are zero.  In that case each output is equal to the
+     * DC coefficient (with scale factor as needed).
+     * With typical images and quantization tables, half or more of the
+     * column DCT calculations can be simplified this way.
+     */
+
+#if 0
+    if (inptr[8*1] == 0 && inptr[8*2] == 0 &&
+	inptr[8*3] == 0 && inptr[8*4] == 0 &&
+	inptr[8*5] == 0 && inptr[8*6] == 0 &&
+	inptr[8*7] == 0) {
+      /* AC terms all zero */
+      float dcval = DEQUANTIZE(inptr[8*0], quantptr[8*0]);
+
+      wsptr[8*0] = dcval;
+      wsptr[8*1] = dcval;
+      wsptr[8*2] = dcval;
+      wsptr[8*3] = dcval;
+      wsptr[8*4] = dcval;
+      wsptr[8*5] = dcval;
+      wsptr[8*6] = dcval;
+      wsptr[8*7] = dcval;
+
+      inptr++;			/* advance pointers to next column */
+      quantptr++;
+      wsptr++;
+      continue;
+    }
+#endif
+
+    /* Even part */
+
+    tmp0 = DEQUANTIZE(inptr[8*0], quantptr[8*0]);
+    tmp1 = DEQUANTIZE(inptr[8*2], quantptr[8*2]);
+    tmp2 = DEQUANTIZE(inptr[8*4], quantptr[8*4]);
+    tmp3 = DEQUANTIZE(inptr[8*6], quantptr[8*6]);
+
+    tmp10 = tmp0 + tmp2;	/* phase 3 */
+    tmp11 = tmp0 - tmp2;
+
+    tmp13 = tmp1 + tmp3;	/* phases 5-3 */
+    tmp12 = (tmp1 - tmp3) * ((float) 1.414213562) - tmp13; /* 2*c4 */
+
+    tmp0 = tmp10 + tmp13;	/* phase 2 */
+    tmp3 = tmp10 - tmp13;
+    tmp1 = tmp11 + tmp12;
+    tmp2 = tmp11 - tmp12;
+
+    /* Odd part */
+
+    tmp4 = DEQUANTIZE(inptr[8*1], quantptr[8*1]);
+    tmp5 = DEQUANTIZE(inptr[8*3], quantptr[8*3]);
+    tmp6 = DEQUANTIZE(inptr[8*5], quantptr[8*5]);
+    tmp7 = DEQUANTIZE(inptr[8*7], quantptr[8*7]);
+
+    z13 = tmp6 + tmp5;		/* phase 6 */
+    z10 = tmp6 - tmp5;
+    z11 = tmp4 + tmp7;
+    z12 = tmp4 - tmp7;
+
+    tmp7 = z11 + z13;		/* phase 5 */
+    tmp11 = (z11 - z13) * ((float) 1.414213562); /* 2*c4 */
+
+    z5 = (z10 + z12) * ((float) 1.847759065); /* 2*c2 */
+    tmp10 = ((float) 1.082392200) * z12 - z5; /* 2*(c2-c6) */
+    tmp12 = ((float) -2.613125930) * z10 + z5; /* -2*(c2+c6) */
+
+    tmp6 = tmp12 - tmp7;	/* phase 2 */
+    tmp5 = tmp11 - tmp6;
+    tmp4 = tmp10 + tmp5;
+
+    wsptr[8*0] = tmp0 + tmp7;
+    wsptr[8*7] = tmp0 - tmp7;
+    wsptr[8*1] = tmp1 + tmp6;
+    wsptr[8*6] = tmp1 - tmp6;
+    wsptr[8*2] = tmp2 + tmp5;
+    wsptr[8*5] = tmp2 - tmp5;
+    wsptr[8*4] = tmp3 + tmp4;
+    wsptr[8*3] = tmp3 - tmp4;
+
+    inptr++;			/* advance pointers to next column */
+    quantptr++;
+    wsptr++;
+  }
+
+  /* Pass 2: process rows from work array, store into output array. */
+  /* Note that we must descale the results by a factor of 8 == 2**3. */
+
+  wsptr = workspace;
+  for (ctr = 0; ctr < 8; ctr++) {
+    /* Rows of zeroes can be exploited in the same way as we did with columns.
+     * However, the column calculation has created many nonzero AC terms, so
+     * the simplification applies less often (typically 5% to 10% of the time).
+     * And testing floats for zero is relatively expensive, so we don't bother.
+     */
+
+    /* Even part */
+
+    tmp10 = wsptr[0] + wsptr[4];
+    tmp11 = wsptr[0] - wsptr[4];
+
+    tmp13 = wsptr[2] + wsptr[6];
+    tmp12 = (wsptr[2] - wsptr[6]) * ((float) 1.414213562) - tmp13;
+
+    tmp0 = tmp10 + tmp13;
+    tmp3 = tmp10 - tmp13;
+    tmp1 = tmp11 + tmp12;
+    tmp2 = tmp11 - tmp12;
+
+    /* Odd part */
+
+    z13 = wsptr[5] + wsptr[3];
+    z10 = wsptr[5] - wsptr[3];
+    z11 = wsptr[1] + wsptr[7];
+    z12 = wsptr[1] - wsptr[7];
+
+    tmp7 = z11 + z13;
+    tmp11 = (z11 - z13) * ((float) 1.414213562);
+
+    z5 = (z10 + z12) * ((float) 1.847759065); /* 2*c2 */
+    tmp10 = ((float) 1.082392200) * z12 - z5; /* 2*(c2-c6) */
+    tmp12 = ((float) -2.613125930) * z10 + z5; /* -2*(c2+c6) */
+
+    tmp6 = tmp12 - tmp7;
+    tmp5 = tmp11 - tmp6;
+    tmp4 = tmp10 + tmp5;
+
+    /* Final output stage: scale down by a factor of 8 and range-limit */
+
+#define DESCALE (1.0f / 8.0f)
+    outptr[0] = (tmp0 + tmp7) * DESCALE;
+    outptr[7] = (tmp0 - tmp7) * DESCALE;
+    outptr[1] = (tmp1 + tmp6) * DESCALE;
+    outptr[6] = (tmp1 - tmp6) * DESCALE;
+    outptr[2] = (tmp2 + tmp5) * DESCALE;
+    outptr[5] = (tmp2 - tmp5) * DESCALE;
+    outptr[4] = (tmp3 + tmp4) * DESCALE;
+    outptr[3] = (tmp3 - tmp4) * DESCALE;
+
+    wsptr += 8;		/* advance pointer to next row */
+    outptr += 8;
+  }
+}
 
 static void encode_and_write_DU(
         Arena* buffer,
         float* mcu,
         float* qt,  // Pre-processed quantization matrix.
-        float* mse,  // Maximum square error (can be NULL).
+        uint64* mse,  // Maximum square error (can be NULL).
         uint8* huff_dc_len, uint16* huff_dc_code,  // Huffman tables
         uint8* huff_ac_len, uint16* huff_ac_code,
         int* pred,  // Previous DC coefficient
@@ -711,6 +880,9 @@ static void encode_and_write_DU(
     int result = TJE_OK;
     int8 du[64];  // Data unit in zig-zag order
 
+
+    float mcu_copy[64];
+    memcpy(mcu_copy, mcu, 64 * sizeof(float));
     fdct(mcu);
 
     for (int i = 0; i < 64; ++i)
@@ -727,19 +899,25 @@ static void encode_and_write_DU(
             fval -= 128;
         }
         int8 val = (int8)fval;
-
-        if (mse)
-        {
-            // Note: It doesn't really matter that we are calculating the error
-            // after DCT has been applied, since we are using it only locally,
-            // as a metric to improve the algorithm.
-            // Not using floating point, because an encoder would reconstruct exactly this:
-            // TODO: rethink this.
-            const float reconstructed = (float)val / qt[i];
-            const float diff = fabsf(fval - reconstructed);
-            *mse += diff * diff;
-        }
         du[zig_zag_indices[i]] = val;
+    }
+
+    if (mse)
+    {
+        // Note: It doesn't really matter that we are calculating the error
+        // after DCT has been applied, since we are using it only locally,
+        // as a metric to improve the algorithm.
+        // Not using floating point, because an encoder would reconstruct exactly this:
+        // TODO: rethink this.
+        float reconstructed[64] = {0};
+        idct(mcu, reconstructed, qt);
+        for (int i = 0; i < 64; ++i)
+        {
+            reconstructed[i] *= 2000;
+			mcu_copy[i] *= 1000;
+			int int_diff = (int)reconstructed[i] - (int)mcu_copy[i];
+			*mse += (uint64)int_diff * (uint64)int_diff;
+        }
     }
 
     uint16 bits[2];
@@ -1070,7 +1248,7 @@ static int tje_encode_main(
 
             // Process block:
 
-            float block_mse = 0;  // Calculating only for luma right now.
+            uint64 block_mse = 0;  // Calculating only for luma right now.
             encode_and_write_DU(&state->buffer,
                     du_y, pqt.luma,
                     &block_mse,
@@ -1092,7 +1270,7 @@ static int tje_encode_main(
 
             //block_mse /= (uint64)(width * height);  // Avoid overflow, technically more correct.
 
-            state->mse += block_mse;
+            state->mse += (float)block_mse / (float)(width * height);
         }
     }
 

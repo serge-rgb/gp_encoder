@@ -21,7 +21,7 @@ int CALLBACK WinMain(
         int nCmdShow)
 {
 
-    size_t sz = 1 * (1024LL * 1024 * 1024);  // One gigabyte.
+    size_t sz = 2 * (1024LL * 1024 * 1024);  // One gigabyte.
     void* big_chunk_of_memory =
         VirtualAlloc(
 #ifdef TJE_DEBUG

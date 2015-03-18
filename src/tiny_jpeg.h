@@ -913,10 +913,10 @@ static void encode_and_write_DU(
         idct(mcu, reconstructed, qt);
         for (int i = 0; i < 64; ++i)
         {
-            reconstructed[i] *= 2000;
-			mcu_copy[i] *= 1000;
-			int int_diff = (int)reconstructed[i] - (int)mcu_copy[i];
-			*mse += (uint64)int_diff * (uint64)int_diff;
+            reconstructed[i] *= 2 * 1000;
+            mcu_copy[i] *= 1000;
+            int int_diff = (int)reconstructed[i] - (int)mcu_copy[i];
+            *mse += (uint64)int_diff * (uint64)int_diff;
         }
     }
 

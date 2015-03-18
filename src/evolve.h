@@ -121,7 +121,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 #if 0
         case 0:
             {
-                g_quantization_tables[i] = default_qt_luma_from_spec;
+                //g_quantization_tables[i] = default_qt_luma_from_spec;
+                g_quantization_tables[i] = default_qt_all_ones;
                 break;
             }
         case 1:
@@ -152,7 +153,6 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     Arena init_arenas[NUM_ENCODERS];
     Arena run_arenas[NUM_ENCODERS];
 
-
     // Init encoders.
     for (int i = 0; i < NUM_ENCODERS; ++i)
     {
@@ -162,9 +162,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         run_arenas[i] = arena_spawn(&init_arenas[i], init_arenas[i].size - init_arenas[i].count);
     }
 
-
     // Do the evolution
-    const int num_generations = 50;
+    const int num_generations = 30;
     float max_error = -1.0f;
     for(int generation_i = 0; generation_i < num_generations; ++generation_i)
     {
@@ -229,11 +228,11 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     EncodeResult b = g_encode_results[j];
 
                     float score_a =
-                        a.mse * fitness_factor;// +
-                        //(4.0f * a.compression_ratio) * (1 - fitness_factor);
+                        a.mse * fitness_factor +
+                        ((max_error / 10.0f) * a.compression_ratio) * (1 - fitness_factor);
                     float score_b =
-                        b.mse * fitness_factor;// +
-                        //(4.0f *  b.compression_ratio) * (1 - fitness_factor);
+                        b.mse * fitness_factor +
+                        ((max_error / 10.0f) *  b.compression_ratio) * (1 - fitness_factor);
                     if (score_b < score_a)
                     {
                         // Swap
@@ -245,7 +244,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             }
         }
         // Keep the fittest. Mutate the rest.
-        const int num_survivors = 4;
+        const int num_survivors = 3;
         const int mutation_wiggle = 4;// generation_i < (num_generations / 2) ? 4 : 4;
         // (+/-)mutation_wiggle for each table index.
         for (int i = num_survivors; i < NUM_TABLES; ++i)
@@ -256,13 +255,24 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             // Mutate child a bit from parent
             for (int j = 0; j < 64; ++j)
             {
+                int should_mutate = (rand() % 60) == 0;
+                if (!should_mutate)
+                {
+                    g_quantization_tables[child_i][j] = g_quantization_tables[parent_i][j];
+                    continue;
+                }
                 int sign = 2*(rand() % 2) - 1;
 
                 uint32 new_value =
-                    sign * (g_quantization_tables[parent_i][j] + (rand() % mutation_wiggle));
+                   g_quantization_tables[parent_i][j] +  (sign * (rand() % mutation_wiggle));
 
-                if (new_value < 8) new_value = 8;
+                /* if (new_value < 8) new_value = 8; */
+                /* if (new_value > 90) new_value = 90; */
+#if 0
+                if (zig_zag_indices[j] <= 9 && new_value < 32) new_value = 32;
+                if (zig_zag_indices[j] > 9 && new_value < 32) new_value = 32;
                 if (new_value > 99) new_value = 99;
+#endif
 
                 g_quantization_tables[child_i][j] = (uint8) new_value;
             }

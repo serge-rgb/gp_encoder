@@ -111,7 +111,6 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     {
         g_quantization_tables[i] = arena_alloc_array(&jpeg_arena, 64, uint8);
         gen_quality_table(g_quantization_tables[i]);
-        break;
     }
 
     const size_t memory_for_encoder = (jpeg_arena.size - jpeg_arena.count) / NUM_ENCODERS;
@@ -230,7 +229,6 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                 g_quantization_tables[child_i][j] = (uint8) new_value;
             }
         }
-        g_num_tables_processed = 0;
     }
 
     // Test with our own winning table.

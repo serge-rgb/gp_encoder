@@ -23,7 +23,7 @@
 #define KILOBYTES(t) ((t) * 1024LL)
 #define MEGABYTES(t) ((t) * KILOBYTES(1))
 
-#define NUM_TABLES 16
+#define NUM_TABLES 8
 
 // Atomically incremented each time an encoder uses a table.
 static volatile LONG g_num_tables_processed;
@@ -76,6 +76,14 @@ unsigned int __stdcall encoder_thread(void* thread_data)
     InterlockedIncrement(&g_num_tables_processed);
 
     return result;
+}
+
+static void gen_quality_table(uint8* table)
+{
+    for (int i = 0; i < 64; ++i)
+    {
+        table[i] = 8;
+    }
 }
 
 static void gen_random_table(uint8* table)
@@ -140,7 +148,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         default:
             {
                 g_quantization_tables[i] = arena_alloc_array(&jpeg_arena, 64, uint8);
-                gen_random_table(g_quantization_tables[i]);
+                gen_quality_table(g_quantization_tables[i]);
                 break;
             }
         }
@@ -163,8 +171,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     }
 
     // Do the evolution
-    const int num_generations = 30;
-    float max_error = -1.0f;
+    const int num_generations = 25;
+    float max_ratio = 1.0f;
     for(int generation_i = 0; generation_i < num_generations; ++generation_i)
     {
         int table_id = 0;
@@ -205,15 +213,12 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         // Evaluation.
         // How much do we care about error vs size:
         //   fitness = error * (fitness_factor) + size * (1 - fitness_factor)
-        float fitness_factor = 1.0f;
+        float fitness_factor = 0.01f;
         // Find maximum error on the first generation.
-        if (max_error < 0)
+        if (max_ratio == 1.0f)
         {
-            for (int i = 0; i < NUM_TABLES; ++i)
-            {
-                float e = g_encode_results[i].mse;
-                if (e > max_error) max_error = e;
-            }
+            // When this excecutes, 0-index contains the default_qt_all_ones table.
+            max_ratio = g_encode_results[0].compression_ratio;
         }
         // Do a bubble sort.
         bool32 sorted = 0;
@@ -228,11 +233,9 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     EncodeResult b = g_encode_results[j];
 
                     float score_a =
-                        a.mse * fitness_factor +
-                        ((max_error / 10.0f) * a.compression_ratio) * (1 - fitness_factor);
+                        a.mse * fitness_factor + (1 - fitness_factor) * (a.compression_ratio / max_ratio);
                     float score_b =
-                        b.mse * fitness_factor +
-                        ((max_error / 10.0f) *  b.compression_ratio) * (1 - fitness_factor);
+                        b.mse * fitness_factor + (1 - fitness_factor) * (b.compression_ratio / max_ratio);
                     if (score_b < score_a)
                     {
                         // Swap
@@ -244,7 +247,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             }
         }
         // Keep the fittest. Mutate the rest.
-        const int num_survivors = 3;
+        const int num_survivors = 1;
         const int mutation_wiggle = 4;// generation_i < (num_generations / 2) ? 4 : 4;
         // (+/-)mutation_wiggle for each table index.
         for (int i = num_survivors; i < NUM_TABLES; ++i)
@@ -261,18 +264,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     g_quantization_tables[child_i][j] = g_quantization_tables[parent_i][j];
                     continue;
                 }
-                int sign = 2*(rand() % 2) - 1;
-
                 uint32 new_value =
-                   g_quantization_tables[parent_i][j] +  (sign * (rand() % mutation_wiggle));
-
-                /* if (new_value < 8) new_value = 8; */
-                /* if (new_value > 90) new_value = 90; */
-#if 0
-                if (zig_zag_indices[j] <= 9 && new_value < 32) new_value = 32;
-                if (zig_zag_indices[j] > 9 && new_value < 32) new_value = 32;
-                if (new_value > 99) new_value = 99;
-#endif
+                   g_quantization_tables[parent_i][j] + (rand() % mutation_wiggle);
 
                 g_quantization_tables[child_i][j] = (uint8) new_value;
             }
@@ -289,11 +282,12 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         state.qt_chroma = g_quantization_tables[win_index];
 
         // Reset root arena
-        arena_reset(&jpeg_arena);
+        arena_reset(&init_arenas[0]);
+        arena_reset(&run_arenas[0]);
 
-        tje_init(&jpeg_arena, &state);
+        tje_init(&init_arenas[0], &state);
 
-        int result = tje_encode_main(&jpeg_arena, &state, data, width, height);
+        int result = tje_encode_main(&run_arenas[0], &state, data, width, height);
         tje_assert(result == TJE_OK);
 
         FILE* file_out = fopen("out1.jpg", "wb");

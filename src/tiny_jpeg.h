@@ -948,7 +948,7 @@ static void encode_and_write_DU(
         {
             ++zero_count;
             ++i;
-            if (zero_count == 16)
+            if (zero_count == 15)
             {
                 // encode (ff,00) == 0xf0
                 result = write_bits(buffer, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
@@ -1277,7 +1277,7 @@ static int tje_encode_main(
         buffer_write(&state->buffer, &EOI, sizeof(uint16), 1);
     }
 
-    state->compression_ratio = (float)state->buffer.count / (float)(width * height * 3);
+    state->compression_ratio = (float)state->buffer.count / (float)(width * height * bytes_per_pixel);
 
     return result;
 }

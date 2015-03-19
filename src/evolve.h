@@ -25,14 +25,11 @@
 
 #define NUM_TABLES 8
 
-// Atomically incremented each time an encoder uses a table.
-static volatile LONG g_num_tables_processed;
-
 typedef struct
 {
     Arena*  thread_arena;  // Heap memory unique to this thread
     int table_id;  // Index into the table stacks associated with this thread.
-    // == Parameters for tje_encode_main
+    // ==== Parameters for tje_encode_main:
     TJEState* state;
     int width;
     int height;
@@ -50,7 +47,7 @@ static uint8*       g_quantization_tables[NUM_TABLES];
 static EncodeResult g_encode_results[NUM_TABLES];
 
 // Threading:
-//  We have a FIFO of at most NUM_ENCODERS matrices.
+//  We have an array of at most NUM_TABLES matrices.
 //  Encoder threads consume the matrices.
 //  When the matrices are consumed, the results are evaluated
 
@@ -73,8 +70,6 @@ unsigned int __stdcall encoder_thread(void* thread_data)
     // flight has a unique table_id
     g_encode_results[args->table_id] = er;
 
-    InterlockedIncrement(&g_num_tables_processed);
-
     return result;
 }
 
@@ -83,14 +78,6 @@ static void gen_quality_table(uint8* table)
     for (int i = 0; i < 64; ++i)
     {
         table[i] = 8;
-    }
-}
-
-static void gen_random_table(uint8* table)
-{
-    for (int i = 0; i < 64; ++i)
-    {
-        table[i] = (rand() % 90) + 8;
     }
 }
 
@@ -120,38 +107,11 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     TJEState state[NUM_ENCODERS] = {0};
 
     // Init tables
-    // TODO: add some randomization
     for (int i = 0; i < NUM_TABLES; ++i)
     {
-        int r = i % 3;
-        switch(i)
-        {
-#if 0
-        case 0:
-            {
-                //g_quantization_tables[i] = default_qt_luma_from_spec;
-                g_quantization_tables[i] = default_qt_all_ones;
-                break;
-            }
-        case 1:
-            {
-                g_quantization_tables[i] = default_qt_chroma_from_paper;
-                break;
-            }
-        case 2:
-            {
-                g_quantization_tables[i] = default_qt_chroma_from_paper;
-                //g_quantization_tables[i] = default_qt_all_ones;
-                break;
-            }
-#endif
-        default:
-            {
-                g_quantization_tables[i] = arena_alloc_array(&jpeg_arena, 64, uint8);
-                gen_quality_table(g_quantization_tables[i]);
-                break;
-            }
-        }
+        g_quantization_tables[i] = arena_alloc_array(&jpeg_arena, 64, uint8);
+        gen_quality_table(g_quantization_tables[i]);
+        break;
     }
 
     const size_t memory_for_encoder = (jpeg_arena.size - jpeg_arena.count) / NUM_ENCODERS;
@@ -177,7 +137,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     {
         int table_id = 0;
         // Process all tables.
-        while(g_num_tables_processed != NUM_TABLES)
+        while(table_id != NUM_TABLES)
         {
             HANDLE threads[NUM_ENCODERS] = { 0 };
             // Launch a thread for each encoder.
@@ -233,9 +193,9 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     EncodeResult b = g_encode_results[j];
 
                     float score_a =
-                        a.mse * fitness_factor + (1 - fitness_factor) * (a.compression_ratio / max_ratio);
+                        (a.mse * fitness_factor) + (1 - fitness_factor) * (a.compression_ratio / max_ratio);
                     float score_b =
-                        b.mse * fitness_factor + (1 - fitness_factor) * (b.compression_ratio / max_ratio);
+                        (b.mse * fitness_factor) + (1 - fitness_factor) * (b.compression_ratio / max_ratio);
                     if (score_b < score_a)
                     {
                         // Swap
@@ -248,7 +208,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         }
         // Keep the fittest. Mutate the rest.
         const int num_survivors = 1;
-        const int mutation_wiggle = 4;// generation_i < (num_generations / 2) ? 4 : 4;
+        const int mutation_wiggle = 4;
         // (+/-)mutation_wiggle for each table index.
         for (int i = num_survivors; i < NUM_TABLES; ++i)
         {
@@ -281,7 +241,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         state.qt_luma   = g_quantization_tables[win_index];
         state.qt_chroma = g_quantization_tables[win_index];
 
-        // Reset root arena
+        // Reuse one of the arenas from the evolution looop.
         arena_reset(&init_arenas[0]);
         arena_reset(&run_arenas[0]);
 

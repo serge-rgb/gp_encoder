@@ -866,57 +866,13 @@ void idct (float *inptr, float *outptr, float *quantptr)
   }
 }
 
-float slow_fdct(const float* cosine_table, int u, int v, float* mcu)
-{
-    float res = 0.0f;
-    float cu = (u == 0) ? 0.70710678118654f : 1;
-    float cv = (v == 0) ? 0.70710678118654f : 1;
-    const int64 base_index =
-        v * 8 * 8 * 8 +
-        u * 8 * 8;
-    for (int y = 0; y < 8; ++y)
-    {
-        for (int x = 0; x < 8; ++x)
-        {
-            int64 index = base_index +
-                y * 8 + x;
-            res +=
-                (mcu[y * 8 + x]) *
-                cosine_table[u * 8 + x] * cosine_table[v * 8 + y];
-        }
-    }
-    res *= 0.25f * cu * cv;
-    return res;
-}
-
-float slow_idct(const float* cosine_table, int x, int y, float* dct_mcu)
-{
-    float res = 0.0f;
-    for (int v = 0; v < 8; ++v)
-    {
-        for (int u = 0; u < 8; ++u)
-        {
-            float cu = (u == 0) ? 0.70710678118654f : 1;
-            float cv = (v == 0) ? 0.70710678118654f : 1;
-            res +=
-                cu * cv *
-                dct_mcu[v * 8 + u] *
-                cosine_table[x * 8 + u] * cosine_table[y * 8 + v];
-        }
-    }
-    //res *= 0.25f * cu * cv;
-    return 0.25f * res;
-}
-
 static void encode_and_write_DU(
         Arena* buffer,
         float* mcu,
-//        float* qt,  // Pre-processed quantization matrix.
-        uint8* qt,  // Simple quantization matrix.
+        float* qt,  // Pre-processed quantization matrix.
         uint64* mse,  // Maximum square error (can be NULL).
         uint8* huff_dc_len, uint16* huff_dc_code,  // Huffman tables
         uint8* huff_ac_len, uint16* huff_ac_code,
-        const float* cosine_table,
         int* pred,  // Previous DC coefficient
         uint32* bitbuffer,  // Bitstack.
         uint32* location)
@@ -925,25 +881,23 @@ static void encode_and_write_DU(
     int8 du[64];  // Data unit in zig-zag order
 
     float dct_mcu[64];
-    for (int v = 0; v < 8; ++v)
-    {
-        for (int u = 0; u < 8; ++u)
-        {
-            dct_mcu[v * 8 + u] = slow_fdct(cosine_table, u, v, mcu);
-        }
-    }
+    memcpy(dct_mcu, mcu, 64 * sizeof(float));
+    fdct(dct_mcu);
 
     for (int i = 0; i < 64; ++i)
     {
-        float fval = dct_mcu[i] / qt[i];
-        // Fast rounding
+        float fval = dct_mcu[i] / 8.0f;
+        fval *= qt[i];
+        //int8 val = (int8)(roundf(fval));
+        //int8 val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
+        //int8 val = (int8)fval;
+        // Better way: Save a whole lot of branching.
         {
             fval += 128;
             fval = floorf(fval + 0.5f);
             fval -= 128;
         }
         int8 val = (int8)fval;
-        val = (int8)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
         du[zig_zag_indices[i]] = val;
         if (mse)
         {
@@ -1243,16 +1197,6 @@ static int tje_encode_main(
     int pred_b = 0;
     int pred_r = 0;
 
-    float* cosine_table = arena_alloc_array(arena, 8 * 8, float);
-    for (int u = 0; u < 8; ++u)
-    {
-        for (int x = 0; x < 8; ++x)
-        {
-            int64 index = u * 8 + x;
-            cosine_table[index] = cosf(((2.0f * x + 1.0f) * u * kPi) / 16.0f);
-        }
-    }
-
     // Bit stack
     uint32 bitbuffer = 0;
     uint32 location = 0;
@@ -1291,28 +1235,28 @@ static int tje_encode_main(
 
             uint64 block_mse = 0;  // Calculating only for luma right now.
             encode_and_write_DU(&state->buffer,
-                    /* du_y, pqt.luma, */
-                    du_y, state->qt_luma,
+                    du_y, pqt.luma,
+                    /* du_y, state->qt_luma, */
                     &block_mse,
                     state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                     state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
-                    cosine_table,
+                    /* cosine_table, */
                     &pred_y, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
-                    /* du_b, pqt.chroma, */
-                    du_b, state->qt_chroma,
+                    du_b, pqt.chroma,
+                    /* du_b, state->qt_chroma, */
                     &block_mse,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
-                    cosine_table,
+                    /* cosine_table, */
                     &pred_b, &bitbuffer, &location);
             encode_and_write_DU(&state->buffer,
-                    /* du_r, pqt.chroma, */
-                    du_r, state->qt_chroma,
+                    du_r, pqt.chroma,
+                    /* du_r, state->qt_chroma, */
                     &block_mse,
                     state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                     state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
-                    cosine_table,
+                    /* cosine_table, */
                     &pred_r, &bitbuffer, &location);
 
 

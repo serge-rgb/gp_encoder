@@ -5,8 +5,6 @@
  *
  */
 
-#include <libserg/memory.h>
-
 
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
@@ -25,9 +23,11 @@
 
 #define NUM_TABLES 8
 
+typedef int b32;
+
 typedef struct
 {
-    Arena*  thread_arena;  // Heap memory unique to this thread
+    TJEArena*  thread_arena;  // Heap memory unique to this thread
     int table_id;  // Index into the table stacks associated with this thread.
     // ==== Parameters for tje_encode_main:
     TJEState* state;
@@ -43,7 +43,7 @@ typedef struct
     int     table_id;
 } EncodeResult;
 
-static uint8*       g_quantization_tables[NUM_TABLES];
+static uint8_t*       g_quantization_tables[NUM_TABLES];
 static EncodeResult g_encode_results[NUM_TABLES];
 
 // Threading:
@@ -56,8 +56,8 @@ unsigned int __stdcall encoder_thread(void* thread_data)
     int result = TJE_OK;
     ThreadArgs* args = (ThreadArgs*)(thread_data);
 
-    result = tje_encode_main(
-            args->thread_arena, args->state, args->data, args->width, args->height);
+    result = tje_encode_main(args->thread_arena,
+                             args->state, args->data, args->width, args->height);
 
     EncodeResult er = { 0 };
     {
@@ -73,7 +73,7 @@ unsigned int __stdcall encoder_thread(void* thread_data)
     return result;
 }
 
-static void gen_quality_table(uint8* table)
+static void gen_quality_table(uint8_t* table)
 {
     for (int i = 0; i < 64; ++i)
     {
@@ -83,9 +83,9 @@ static void gen_quality_table(uint8* table)
 
 int evolve_main(void* big_chunk_of_memory, size_t size)
 {
-    static Arena jpeg_arena;
+    static TJEArena jpeg_arena;
 
-    jpeg_arena = arena_init(big_chunk_of_memory, size);
+    jpeg_arena = tjei_arena_init(big_chunk_of_memory, size);
 
     int width;
     int height;
@@ -100,7 +100,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         return 1;
     }
 
-    tje_assert (num_components == 3);
+    assert (num_components == 3);
 
     int result = TJE_OK;
 
@@ -109,7 +109,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     // Init tables
     for (int i = 0; i < NUM_TABLES; ++i)
     {
-        g_quantization_tables[i] = arena_alloc_array(&jpeg_arena, 64, uint8);
+        g_quantization_tables[i] = tjei_arena_alloc_array(&jpeg_arena, 64, uint8_t);
         gen_quality_table(g_quantization_tables[i]);
     }
 
@@ -117,16 +117,17 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     // We use init_arenas for tje_init, but then we pass all the memory to
     // run_arenas, which will be constantly reset by encoder threads
-    Arena init_arenas[NUM_ENCODERS];
-    Arena run_arenas[NUM_ENCODERS];
+    TJEArena init_arenas[NUM_ENCODERS];
+    TJEArena run_arenas[NUM_ENCODERS];
 
     // Init encoders.
     for (int i = 0; i < NUM_ENCODERS; ++i)
     {
-        init_arenas[i] = arena_spawn(&jpeg_arena, memory_for_encoder);
+        init_arenas[i] = tjei_arena_spawn(&jpeg_arena, memory_for_encoder);
         tje_init(&init_arenas[i], &state[i]);
         // Inherit the rest of the memory to run_arenas
-        run_arenas[i] = arena_spawn(&init_arenas[i], init_arenas[i].size - init_arenas[i].count);
+        run_arenas[i] = tjei_arena_spawn(&init_arenas[i],
+                                         init_arenas[i].size - init_arenas[i].count);
     }
 
     // Do the evolution
@@ -144,7 +145,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             {
                 state[i].qt_luma = g_quantization_tables[table_id];
                 state[i].qt_chroma = g_quantization_tables[table_id];
-                ThreadArgs* args = arena_alloc_elem(&run_arenas[i], ThreadArgs);
+                ThreadArgs* args = tjei_arena_alloc_elem(&run_arenas[i], ThreadArgs);
                 {
                     args->thread_arena = &run_arenas[i];
                     args->state = &state[i];
@@ -164,7 +165,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             // Cleanup
             for (int i = 0; i < NUM_ENCODERS && table_id < NUM_TABLES; ++i)
             {
-                arena_reset(&run_arenas[i]);
+                tjei_arena_reset(&run_arenas[i]);
                 state[i].mse = 0;
             }
         }
@@ -180,7 +181,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             max_ratio = g_encode_results[0].compression_ratio;
         }
         // Do a bubble sort.
-        bool32 sorted = 0;
+        b32 sorted = 0;
         while(!sorted)
         {
             sorted = 1;
@@ -192,9 +193,11 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     EncodeResult b = g_encode_results[j];
 
                     float score_a =
-                        (a.mse * fitness_factor) + (1 - fitness_factor) * (a.compression_ratio / max_ratio);
+                        (a.mse * fitness_factor) + (1 - fitness_factor) *
+                        (a.compression_ratio / max_ratio);
                     float score_b =
-                        (b.mse * fitness_factor) + (1 - fitness_factor) * (b.compression_ratio / max_ratio);
+                        (b.mse * fitness_factor) + (1 - fitness_factor) *
+                        (b.compression_ratio / max_ratio);
                     if (score_b < score_a)
                     {
                         // Swap
@@ -223,10 +226,10 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     g_quantization_tables[child_i][j] = g_quantization_tables[parent_i][j];
                     continue;
                 }
-                uint32 new_value =
+                uint32_t new_value =
                    g_quantization_tables[parent_i][j] + (rand() % mutation_wiggle);
 
-                g_quantization_tables[child_i][j] = (uint8) new_value;
+                g_quantization_tables[child_i][j] = (uint8_t) new_value;
             }
         }
     }
@@ -240,13 +243,13 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         state.qt_chroma = g_quantization_tables[win_index];
 
         // Reuse one of the arenas from the evolution looop.
-        arena_reset(&init_arenas[0]);
-        arena_reset(&run_arenas[0]);
+        tjei_arena_reset(&init_arenas[0]);
+        tjei_arena_reset(&run_arenas[0]);
 
         tje_init(&init_arenas[0], &state);
 
         int result = tje_encode_main(&run_arenas[0], &state, data, width, height);
-        tje_assert(result == TJE_OK);
+        assert(result == TJE_OK);
 
         FILE* file_out = fopen("out1.jpg", "wb");
         fwrite(state.buffer.ptr, state.buffer.count, 1, file_out);
@@ -256,7 +259,6 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");
-
 
     return result;
 }

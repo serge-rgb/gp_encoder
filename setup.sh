@@ -6,10 +6,10 @@ else
     cd ../..
 fi
 
-if [ ! -d third_party/libnuwen ]; then
-    git clone https://github.com/serge-rgb/libnuwen third_party/libnuwen
+if [ ! -d src/tiny_jpeg ]; then
+    git clone https://github.com/serge-rgb/TinyJPEG.git src/tiny_jpeg
 else
-    cd third_party/libnuwen
+    cd src/tiny_jpeg
     git pull
     cd ../..
 fi

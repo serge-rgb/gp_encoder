@@ -5,9 +5,6 @@
  *
  */
 
-#include <libnuwen/memory.h>
-
-
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
 
@@ -31,6 +28,8 @@
 
 #define NUM_TABLES 8
 
+#define bool32 int
+
 typedef struct
 {
     TJEArena*  thread_arena;  // Heap memory unique to this thread
@@ -49,7 +48,7 @@ typedef struct
     int     table_id;
 } EncodeResult;
 
-static uint8*       g_quantization_tables[NUM_TABLES];
+static uint8_t*       g_quantization_tables[NUM_TABLES];
 static EncodeResult g_encode_results[NUM_TABLES];
 
 // Threading:
@@ -234,7 +233,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                 uint32_t new_value =
                    g_quantization_tables[parent_i][j] + (rand() % mutation_wiggle);
 
-                g_quantization_tables[child_i][j] = (uint8) new_value;
+                g_quantization_tables[child_i][j] = (uint8_t) new_value;
             }
         }
     }

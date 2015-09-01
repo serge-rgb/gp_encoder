@@ -5,6 +5,8 @@
  *
  */
 
+#include <libnuwen/memory.h>
+
 
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
@@ -14,7 +16,13 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../third_party/stb/stb_image_write.h"
 
+#if defined(WIN32)
 #include <process.h>
+#define THREAD_CALL __stdcall
+#elif defined(__linux__)
+#error port to SDL
+#define THREAD_CALL
+#endif
 
 #define NUM_ENCODERS 8
 
@@ -22,8 +30,6 @@
 #define MEGABYTES(t) ((t) * KILOBYTES(1))
 
 #define NUM_TABLES 8
-
-typedef int b32;
 
 typedef struct
 {
@@ -43,7 +49,7 @@ typedef struct
     int     table_id;
 } EncodeResult;
 
-static uint8_t*       g_quantization_tables[NUM_TABLES];
+static uint8*       g_quantization_tables[NUM_TABLES];
 static EncodeResult g_encode_results[NUM_TABLES];
 
 // Threading:
@@ -51,7 +57,7 @@ static EncodeResult g_encode_results[NUM_TABLES];
 //  Encoder threads consume the matrices.
 //  When the matrices are consumed, the results are evaluated
 
-unsigned int __stdcall encoder_thread(void* thread_data)
+unsigned int THREAD_CALL encoder_thread(void* thread_data)
 {
     int result = TJE_OK;
     ThreadArgs* args = (ThreadArgs*)(thread_data);
@@ -181,7 +187,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             max_ratio = g_encode_results[0].compression_ratio;
         }
         // Do a bubble sort.
-        b32 sorted = 0;
+        bool32 sorted = 0;
         while(!sorted)
         {
             sorted = 1;
@@ -196,8 +202,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                         (a.mse * fitness_factor) + (1 - fitness_factor) *
                         (a.compression_ratio / max_ratio);
                     float score_b =
-                        (b.mse * fitness_factor) + (1 - fitness_factor) *
-                        (b.compression_ratio / max_ratio);
+                        (b.mse * fitness_factor) + (1 - fitness_factor) * (b.compression_ratio / max_ratio);
                     if (score_b < score_a)
                     {
                         // Swap
@@ -229,7 +234,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                 uint32_t new_value =
                    g_quantization_tables[parent_i][j] + (rand() % mutation_wiggle);
 
-                g_quantization_tables[child_i][j] = (uint8_t) new_value;
+                g_quantization_tables[child_i][j] = (uint8) new_value;
             }
         }
     }
@@ -259,6 +264,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");
+
 
     return result;
 }

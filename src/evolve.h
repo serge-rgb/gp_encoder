@@ -8,6 +8,8 @@
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
 
+#include "libserg.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -17,7 +19,7 @@
 #include <process.h>
 #define THREAD_CALL __stdcall
 #elif defined(__linux__)
-#error port to SDL
+#include <pthread.h>
 #define THREAD_CALL
 #endif
 
@@ -56,14 +58,16 @@ static EncodeResult g_encode_results[NUM_TABLES];
 //  Encoder threads consume the matrices.
 //  When the matrices are consumed, the results are evaluated
 
-unsigned int THREAD_CALL encoder_thread(void* thread_data)
+static SglSemaphore* g_encoder_semaphore;
+
+static void THREAD_CALL encoder_thread(void* thread_data)
 {
-    int result = TJE_OK;
     ThreadArgs* args = (ThreadArgs*)(thread_data);
 
-    result = tje_encode_main(args->thread_arena,
-                             args->state, args->data, args->width, args->height);
+    int result = tje_encode_main(args->thread_arena,
+                                 args->state, args->data, args->width, args->height);
 
+    assert (result == TJE_OK);
     EncodeResult er = { 0 };
     {
         er.mse = args->state->mse;
@@ -75,7 +79,7 @@ unsigned int THREAD_CALL encoder_thread(void* thread_data)
     // flight has a unique table_id
     g_encode_results[args->table_id] = er;
 
-    return result;
+    sgl_semaphore_signal(g_encoder_semaphore);
 }
 
 static void gen_quality_table(uint8_t* table)
@@ -95,7 +99,29 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     int width;
     int height;
     int num_components;
+#if 1
     unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
+#else  // fill data manually
+    {
+        width = 1024;
+        height = 768;
+        num_components = 3;
+    }
+    unsigned char* data = (uint8_t*)calloc(1, width * height * 3);
+
+    {
+        uint32_t* pixels = (uint32_t*)data;
+        for (int h = 0; h < height; ++h)
+        {
+            for (int w = 0; w < width; ++w)
+            {
+                data[(h * width + w)*num_components + 0] = 0xff;
+                data[(h * width + w)*num_components + 1] = 0xff;
+                data[(h * width + w)*num_components + 2] = 0xff;
+            }
+        }
+    }
+#endif
 
     if (!data)
     {
@@ -135,16 +161,19 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                                          init_arenas[i].size - init_arenas[i].count);
     }
 
+    g_encoder_semaphore = sgl_create_semaphore(0);
+
     // Do the evolution
-    const int num_generations = 25;
+    //const int num_generations = 25;
+    const int num_generations = 2;
     float max_ratio = 1.0f;
     for(int generation_i = 0; generation_i < num_generations; ++generation_i)
     {
+        int fired = 0;
         int table_id = 0;
         // Process all tables.
         while(table_id != NUM_TABLES)
         {
-            HANDLE threads[NUM_ENCODERS] = { 0 };
             // Launch a thread for each encoder.
             for (int i = 0; i < NUM_ENCODERS && table_id < NUM_TABLES; ++i)
             {
@@ -160,12 +189,17 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     args->table_id = table_id;
                 }
 
-                threads[i] = (HANDLE)_beginthreadex(NULL, 0, encoder_thread, args, 0, NULL);
+                sgl_create_thread(encoder_thread, (void*)args);
+                ++fired;
 
                 ++table_id;
             }
             // Wait for encoders to finish..
-            WaitForMultipleObjects(NUM_ENCODERS, threads, TRUE, INFINITE);
+            do
+            {
+                sgl_semaphore_wait(g_encoder_semaphore);
+            }
+            while(--fired);
 
             // Cleanup
             for (int i = 0; i < NUM_ENCODERS && table_id < NUM_TABLES; ++i)
@@ -263,6 +297,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");
+    stbi_write_tga("out_test.tga", width, height, 3, data);
 
 
     return result;

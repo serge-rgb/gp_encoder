@@ -8,6 +8,7 @@ third_party/*
 # build crap
 build/*
 src/tiny_jpeg
+src/libserg
 
 # vim crap
 tags

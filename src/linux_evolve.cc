@@ -9,7 +9,7 @@
 
 int main(int argc, char** argv)
 {
-    size_t sz = 1 * (1024LL * 1024 * 1024);
+    size_t sz = 4 * (1024LL * 1024 * 1024);
     void* big_chunk_of_memory = calloc(1, sz);
     int result = evolve_main(big_chunk_of_memory, sz);
     free(big_chunk_of_memory);

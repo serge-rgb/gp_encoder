@@ -23,9 +23,9 @@ La Codificación de Entropía son métodos de compresión sin pérdida de inform
 
 Dos años después de la publicación de Shannon, David Huffman inventó lo que hoy conocemos como Codificación Huffman \citep{Huffman}. Los Códigos de Huffman son códigos de prefijos que minimizan la longitud de los códigos individuales. Se mantienen hasta hoy como la técnica más aprovechada en algoritmos de compresión sin pérdida.
 
-Después de Huffman, el método más popular para reducir redundancia es la Codificación Aritmética. Es un método más sofisticado que consigue mejores resultados. Entre $5%$ y $10%$ según el estándar JPEG \citep[JPEGSTD]. La especificación de la compresión JPEG incluye la capacidad de utilizar codificación aritmética, pero en la práctica no tiende a ser usada. En particular, las implementaciones de código abierto no podían usar legalmente Codificación Aritmética ya que es una técnica altamente patentada \citep{jpeg_patents}.
+Después de Huffman, el método más popular para reducir redundancia es la Codificación Aritmética. Es un método más sofisticado que consigue mejores resultados. Entre $5\%$ y $10\%$ según el estándar JPEG \citep{JPEGSTD}. La especificación de la compresión JPEG incluye la capacidad de utilizar codificación aritmética, pero en la práctica no tiende a ser usada. En particular, las implementaciones de código abierto no podían usar legalmente Codificación Aritmética ya que es una técnica altamente patentada \citep{jpeg_patents}.
 
-En 1974, Nasir Ahmed publicó un artículo describiendo su "Transformada de Coseno Discreta" \emph{(DCT)}. La DCT es un caso particular de la transformada de Fourier, restringida a los números reales.
+En 1974, Nasir Ahmed publicó un artículo describiendo su Transformada de Coseno Discreta \emph{(DCT)}. La DCT es un caso particular de la transformada de Fourier, restringida a los números reales.
 
 La compresión JPEG como casi todos la usamos se basa en códigos de Huffman y en la Transformada de Coseno Discreta.
 

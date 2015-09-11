@@ -18,7 +18,7 @@
 #if defined(WIN32)
 #include <process.h>
 #define THREAD_CALL __stdcall
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__MACH__)
 #include <pthread.h>
 #define THREAD_CALL
 #endif

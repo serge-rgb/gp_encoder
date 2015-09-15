@@ -23,7 +23,8 @@
 #define THREAD_CALL
 #endif
 
-#define NUM_ENCODERS 8
+//#define NUM_ENCODERS 8
+#define NUM_ENCODERS 1
 
 #define KILOBYTES(t) ((t) * 1024LL)
 #define MEGABYTES(t) ((t) * KILOBYTES(1))
@@ -103,8 +104,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
 #else  // fill data manually
     {
-        width = 1024;
-        height = 768;
+        width = 260;
+        height = 260;
         num_components = 3;
     }
     unsigned char* data = (uint8_t*)calloc(1, width * height * 3);
@@ -115,9 +116,9 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         {
             for (int w = 0; w < width; ++w)
             {
-                data[(h * width + w)*num_components + 0] = 0xff;
-                data[(h * width + w)*num_components + 1] = 0xff;
-                data[(h * width + w)*num_components + 2] = 0xff;
+                data[(h * width + w)*num_components + 0] = w % 256;
+                data[(h * width + w)*num_components + 1] = 0x00;
+                data[(h * width + w)*num_components + 2] = h % 256;
             }
         }
     }
@@ -235,7 +236,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                         (a.mse * fitness_factor) + (1 - fitness_factor) *
                         (a.compression_ratio / max_ratio);
                     float score_b =
-                        (b.mse * fitness_factor) + (1 - fitness_factor) * (b.compression_ratio / max_ratio);
+                        (b.mse * fitness_factor) + (1 - fitness_factor) *
+                        (b.compression_ratio / max_ratio);
                     if (score_b < score_a)
                     {
                         // Swap
@@ -297,7 +299,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     // Test
     tje_encode_to_file(data, width, height, "out.jpg");
-    stbi_write_tga("out_test.tga", width, height, 3, data);
+    stbi_write_bmp("out_test.bmp", width, height, 3, data);
 
 
     return result;

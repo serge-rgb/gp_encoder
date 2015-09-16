@@ -41,6 +41,7 @@ typedef struct
     TJEState* state;
     int width;
     int height;
+    int num_components;
     unsigned char* data;
 } ThreadArgs;
 
@@ -66,7 +67,8 @@ static void THREAD_CALL encoder_thread(void* thread_data)
     ThreadArgs* args = (ThreadArgs*)(thread_data);
 
     int result = tje_encode_main(args->thread_arena,
-                                 args->state, args->data, args->width, args->height);
+                                 args->state, args->data,
+                                 args->width, args->height, args->num_components);
 
     assert (result == TJE_OK);
     EncodeResult er = { 0 };
@@ -101,7 +103,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     int height;
     int num_components;
 #if 1
-    unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
+    unsigned char* data = stbi_load("in.png", &width, &height, &num_components, 0);
 #else  // fill data manually
     {
         width = 260;
@@ -131,8 +134,6 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         tje_log(err);
         return 1;
     }
-
-    assert (num_components == 3);
 
     int result = TJE_OK;
 
@@ -186,6 +187,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
                     args->state = &state[i];
                     args->width = width;
                     args->height = height;
+                    args->num_components = num_components;
                     args->data = data;
                     args->table_id = table_id;
                 }
@@ -288,18 +290,18 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
         tje_init(&init_arenas[0], &state);
 
-        int result = tje_encode_main(&run_arenas[0], &state, data, width, height);
+        int result = tje_encode_main(&run_arenas[0], &state, data, width, height, num_components);
         assert(result == TJE_OK);
 
-        FILE* file_out = fopen("out1.jpg", "wb");
+        FILE* file_out = fopen("out.jpg", "wb");
         fwrite(state.buffer.ptr, state.buffer.count, 1, file_out);
 
         result |= fclose(file_out);
     }
 
-    // Test
-    tje_encode_to_file(data, width, height, "out.jpg");
-    stbi_write_bmp("out_test.bmp", width, height, 3, data);
+    tje_encode_to_file(data, width, height, num_components, "out_default.jpg");
+    // Reference
+    stbi_write_bmp("out_test.bmp", width, height, num_components, data);
 
 
     return result;

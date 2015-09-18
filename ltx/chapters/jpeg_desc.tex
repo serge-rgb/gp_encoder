@@ -2,6 +2,20 @@
 \chapter{Descripción de compresión JPEG con pérdida}\label{ch:jpeg_desc}
 %************************************************
 
+\section{Historia y Descripciones Breves de los Fundamentos Matemáticos}
+
+La Teoría de Codificación es una sub-rama de la Teoría de la Información que marcó el inicio del estudio formal de la compresión de datos. La Teoría de la Información, nacida en 1948 con la publicación del artículo de Claude E. Shannon ``A Mathematical Theory of Communication'' \citep{shannon}, gira alrededor de los conceptos de \emph{densidad de información}, \emph{entropía de información} y \emph{redundancia de información}.
+
+La Codificación de Entropía son métodos de compresión sin pérdida de información que no toman en cuenta el contenido. Los dos métodos más populares actualmente son los Códigos de Huffman y la Codificación Aritmética.
+
+Dos años después de la publicación de Shannon, David Huffman inventó lo que hoy conocemos como Codificación Huffman \citep{Huffman}. Los Códigos de Huffman son códigos de prefijos que minimizan la longitud de los códigos individuales. Se mantienen hasta hoy como la técnica más aprovechada en algoritmos de compresión sin pérdida.
+
+Después de Huffman, el método más popular para reducir redundancia es la Codificación Aritmética. Es un método más sofisticado que consigue mejores resultados. Entre $5\%$ y $10\%$ según el estándar JPEG \citep{JPEGSTD}. La especificación de la compresión JPEG incluye la capacidad de utilizar codificación aritmética, pero en la práctica no tiende a ser usada. En particular, las implementaciones de código abierto no podían usar legalmente Codificación Aritmética ya que es una técnica altamente patentada \citep{jpeg_patents}.
+
+En 1974, Nasir Ahmed publicó un artículo describiendo su Transformada de Coseno Discreta \emph{(DCT)}, por sus siglas en Inglés. La DCT es un caso particular de la transformada de Fourier, restringida a los números reales.
+
+La compresión JPEG como casi todos la usamos se basa en códigos de Huffman y en la Transformada de Coseno Discreta.
+
 % ============================================================
 \section{Tipos de compresión}
 % ============================================================
@@ -37,6 +51,11 @@ Este método es útil cuando la resolución de la imagen es muy grande, y la apl
 \section{Descripción de la Compresión \emph{Baseline} de JPEG}
 % ============================================================
 
+El codificador implementado en este trabajo es el \emph{Baseline JPEG}, al que también se le refiere como \emph{DCT-Based Coding}, traducido aquí como \emph{Codificación DCT}.
+
+La codificación DCT divide a la imágen en bloques de $8\times8$ píxeles. Cada bloque de $8\times8$ pasa por una serie de transformaciones y salen secuencialmente como datos comprimidos.
+
+El primer paso en el \emph{pipeline} es separar los componentes de la imágen. Las dos maneras más comunes de representar imágenes en computadoras es \verb+RGB+ o \verb+RGBA+: Cada píxel ocupa 32 bits de espacio, divididos en componentes de 8 bits. Cada componente corresponde a un color a al valor de opacidad, comúnmente denominado \emph{alpha}. Por tanto, \verb+RGB+ corresponde al byte \verb+RRGGBBXX+, con \verb+RR+ representando rojo, \verb+GG+ representando verde y \verb+BB+ representando azul. \verb+XX+ se usa por convención para decir que esos bits no son utilizados. De la misma manera, \verb+RGBA+ corresponde a \verb+RRGGBBAA+, donde el último byte se usa para el valor \emph{alpha}.
 
 
 %%% Local Variables:

@@ -15,40 +15,28 @@ La Compresión de Datos es una de las ramas más viejas de las Ciencias de la Co
 
 Es un matrimonio entre teoría y práctica que combina el rigor matemático de las teorías en las que se basa y el ingenio y la eficacia del implementador.
 
-\section{Historia y Descripciones Breves de los Fundamentos Matemáticos}
-
-La Teoría de Codificación es una sub-rama de la Teoría de la Información que marcó el inicio del estudio formal de la compresión de datos. La Teoría de la Información, nacida en 1948 con la publicación del artículo de Claude E. Shannon ``A Mathematical Theory of Communication'' \citep{shannon}, gira alrededor de los conceptos de \emph{densidad de información}, \emph{entropía de información} y \emph{redundancia de información}.
-
-La Codificación de Entropía son métodos de compresión sin pérdida de información que no toman en cuenta el contenido. Los dos métodos más populares actualmente son los Códigos de Huffman y la Codificación Aritmética.
-
-Dos años después de la publicación de Shannon, David Huffman inventó lo que hoy conocemos como Codificación Huffman \citep{Huffman}. Los Códigos de Huffman son códigos de prefijos que minimizan la longitud de los códigos individuales. Se mantienen hasta hoy como la técnica más aprovechada en algoritmos de compresión sin pérdida.
-
-Después de Huffman, el método más popular para reducir redundancia es la Codificación Aritmética. Es un método más sofisticado que consigue mejores resultados. Entre $5\%$ y $10\%$ según el estándar JPEG \citep{JPEGSTD}. La especificación de la compresión JPEG incluye la capacidad de utilizar codificación aritmética, pero en la práctica no tiende a ser usada. En particular, las implementaciones de código abierto no podían usar legalmente Codificación Aritmética ya que es una técnica altamente patentada \citep{jpeg_patents}.
-
-En 1974, Nasir Ahmed publicó un artículo describiendo su Transformada de Coseno Discreta \emph{(DCT)}. La DCT es un caso particular de la transformada de Fourier, restringida a los números reales.
-
-La compresión JPEG como casi todos la usamos se basa en códigos de Huffman y en la Transformada de Coseno Discreta.
-
 \section{Motivación}
 
-A principios de la década de 1990, cuando la popularidad de Internet estaba iniciando su crecimiento exponencial, un comité de matemáticos e ingenieros, llamado "Joint Photographic Experts Group", o JPEG estandarizó un formato de compresión de imágenes \citep{JPEGSTD}. El formato JPEG, soportando varios métodos de compresión, fue adaptado rápidamente y hoy en día es soportado por prácticamente todo programa que soporte imágenes. Imágenes JPEG están incluidas en millones de páginas web y virtualmente todo navegador lo soporta. Sus propiedades lo hacen ideal para contenido fotográfico. Desde que ha habido fotografía digital a nivel consumidor, su formato de elección ha sido JPEG. Los creadores de este formato se basaron en fuertes principios matemáticos, pero su éxito no vino solamente de méritos teóricos; la implementación de referencia fue desarrollada en tándem con la especificación. Esta simbiosis entre ingeniería y teoría es una de las razones por las que JPEG es interesante de estudiar, y una de las razones por las que es un formato ubicuo en la era digital.
+A principios de la década de 1990, cuando la popularidad de Internet estaba iniciando su crecimiento exponencial, un comité de matemáticos e ingenieros, llamado "Joint Photographic Experts Group", o JPEG estandarizó un formato de compresión de imágenes \citep{JPEGSTD}. El formato JPEG, soportando varios métodos de compresión, fue adaptado rápidamente y hoy en día es soportado por prácticamente todo programa que tenga que leer imágenes. Imágenes JPEG están incluidas en millones de páginas web y virtualmente todo navegador lo soporta.
 
 Por su naturaleza, los formatos de datos son esclavos a la inercia. Mientras nuestro nuevo conocimiento matemático nos da herramientas que podemos utilizar para crear técnicas más eficientes y compresión de mayor calidad, los datos viejos siguen estando en sus viejos formatos y migrar puede ser difícil o imposible. En el caso de compresión con pérdida, migrar datos a nuevos formatos hace que se pierda parte de la información. Ésta pérdida, en muchos casos, es un precio demasiado alto que pagar para obtener las ventajas de nuevos y mejores formatos con compresión de datos.
 
-Como resultado, se puede notar que la adopción de nuevas técnicas de compresión tiende a ir de la mano con la migración a nuevos medios tecnológicos, e.g. VHS a DVD. Es poco probable que en el corto o mediano plazo veamos una migración tecnológica que nos haga cambiar fundamentalmente la manera que guardamos y compartimos fotografías. JPEG es la técnica de compresión con pérdida es más utilizada en el mundo y no hay razón para pensar que eso va a cambiar en el futuro concebible.
+Como resultado, se puede notar que la adopción de nuevas técnicas de compresión tiende a ir de la mano con la migración a nuevos medios tecnológicos, e.g. VHS a DVD. Es poco probable que en el corto o mediano plazo veamos una migración tecnológica que nos haga cambiar fundamentalmente la manera que guardamos y compartimos fotografías. JPEG es la técnica de compresión con pérdida es más utilizada en el mundo y no hay razón para pensar que eso va a cambiar en el futuro cercano.
+
+Dado que las computadoras son mcho más rápidas de lo que eran en los 90s, y dada la dificultad de adoptar nuevos formatos de compresión, la motivación de este trabajo viene de la pregunta:  ¿Qué se puede hacer con el poder de sobra que tenemos a nuestra disposición?
+
+El resultado este trabajo es una manera de obtener una compresión JPEG de mejor calidad a la de codificadores convencionales, usando un algoritmo genético.
 
 \section{Objetivo}
 
-La compresión JPEG, que será descrita más adelante (TODO anchor), tiene un componente importante para el cual no existe solución óptima. Este componente es un par de matrices de 64 elementos que afecta vitalmente la calidad y la compresión de la imágen.
+La compresión JPEG, que será descrita en el capítulo \ref{ch:jpeg_desc}, tiene un componente importante para el cual no existe solución óptima. El componente al que me refiero es un par de matrices cuadradas de tamaño $8\times8$. La elección de qué matrices elegir para comprimir una imagen determina en gran parte la calidad y la tasa de compresión.
 
-La especificación incluye matrices de ejemplo, pero la elección de qué par de matrices usar está en las manos de cada codificador JPEG. Estos pares, en la mayoría de los casos, se generan una sola vez y el codificador las usa para siempre. Se encuentran con heurísticas, haciendo pruebas con grandes cantidades de imágenes para encontrar una matriz que sirva bien para la imágen promedio.
+La especificación JPEG \citep{JPEGSTD} incluye matrices de ejemplo, pero la elección de qué par de matrices usar está en las manos de cada codificador JPEG. En la mayoría de los casos, cada implementador deja fijas en su codificador una lista de pares de matrices que corresponden a diferentes niveles de calidad. Las matrices se generan \"a ojo\". Sabiendo cómo funciona el algoritmo, y probando la calidad de la compresión para cada matriz sobre un conjunto fijo de imágenes que se consideran representativas.
 
-El enfoque de este trabajo es producir un codificador JPEG que encuentre un buen par de matrices, de manera individual, para la imagen que se quiere comprimir. Se utiliza un algoritmo genético que evoluciona matrices. La aptitud de cada par de matrices se determina haciendo comparaciones entre la imagen resultante y la original. (TODO mejorar descripcion cuando exista un algoritmo genético)
+El enfoque de este trabajo es producir un codificador JPEG que encuentre un par de matrices ideal para la imagen particular que se está decidiendo codificar. Se implementó un codificador JPEG diseñado desde cero para adaptarse a un algoritmo genético. La implementación hace uso del paralelismo en CPUs y GPUs.
 
 
-% [x] los formatos de compresión, por que es interesante para un programador
-% [x] factores externos que solidifican formatos. inercia: soporte externo. como esto impide el progreso
-% [] descripcion breve de jpeg. hacer nota de que hay una parte que se presta a heurísticas
-% [] explicar que jpeg se creó en un mundo distinto. hoy en día tiene sentido gastar los recursos que tenemos en estas heuristicas
+
+En los siguientes capítulos, se da una descripción del funcionamiento de la compresión JPEG y una introducción a los algoritmos genéticos. Después, se da una descripción de los detalles de la implementación, seguido de un desglose de los resultados y una sección donde se habla de las conclusiones obtenidas.
 
 

@@ -103,8 +103,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     int height;
     int num_components;
 #if 1
-    //unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
-    unsigned char* data = stbi_load("in.png", &width, &height, &num_components, 0);
+    unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("in.png", &width, &height, &num_components, 0);
 #else  // fill data manually
     {
         width = 260;

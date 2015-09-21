@@ -23,8 +23,6 @@
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
 
-#include "../jo_jpeg.cpp"
-
 
 //#define NUM_ENCODERS 8
 #define NUM_ENCODERS 1
@@ -301,7 +299,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         state.qt_luma   = g_quantization_tables[win_index];
         state.qt_chroma = g_quantization_tables[win_index];
 
-        // Reuse one of the arenas from the evolution looop.
+        // Reuse one of the arenas from the evolution loop.
         tjei_arena_reset(&init_arenas[0]);
         tjei_arena_reset(&run_arenas[0]);
 

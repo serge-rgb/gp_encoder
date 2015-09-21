@@ -5,9 +5,6 @@
  *
  */
 
-#define TJE_IMPLEMENTATION
-#include "tiny_jpeg.h"
-
 #include "libserg.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -22,6 +19,12 @@
 #include <pthread.h>
 #define THREAD_CALL
 #endif
+
+#define TJE_IMPLEMENTATION
+#include "tiny_jpeg.h"
+
+#include "../jo_jpeg.cpp"
+
 
 //#define NUM_ENCODERS 8
 #define NUM_ENCODERS 1
@@ -89,7 +92,7 @@ static void gen_quality_table(uint8_t* table)
 {
     for (int i = 0; i < 64; ++i)
     {
-        table[i] = 8;
+        table[i] = 1;
     }
 }
 
@@ -103,12 +106,16 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     int height;
     int num_components;
 #if 1
-    unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
-    //unsigned char* data = stbi_load("in.png", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("_in.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("ic.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("pin.bmp", &width, &height, &num_components, 0);
+    unsigned char* data = stbi_load("in_klay.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("homer.png", &width, &height, &num_components, 0);
 #else  // fill data manually
     {
-        width = 260;
-        height = 260;
+        width = 2561;
+        height = 2567;
         num_components = 3;
     }
     unsigned char* data = (uint8_t*)calloc(1, width * height * 3);
@@ -136,6 +143,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     }
 
     int result = TJE_OK;
+
+#if 0 //==================== LET's KILL THIS BUG!
 
     TJEState state[NUM_ENCODERS] = {0};
 
@@ -298,10 +307,20 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
         result |= fclose(file_out);
     }
+#endif
 
-    tje_encode_to_file(data, width, height, num_components, "out_default.jpg");
+
     // Reference
     stbi_write_bmp("out_test.bmp", width, height, num_components, data);
+    jo_write_jpg("out_jo.jpg", data, width, height, num_components, 100);
+    tje_encode_to_file(data, width, height, num_components, "out_default.jpg");
+
+    int w,h,n;
+    data = stbi_load("out_default.jpg", &w, &h, &n, 0);
+    if (!data)
+    {
+        assert(!"stb failed");
+    }
 
 
     return result;

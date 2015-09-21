@@ -9,8 +9,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../third_party/stb/stb_image_write.h"
+/* #define STB_IMAGE_WRITE_IMPLEMENTATION */
+/* #include "../third_party/stb/stb_image_write.h" */
 
 #if defined(WIN32)
 #include <process.h>
@@ -71,7 +71,7 @@ static void THREAD_CALL encoder_thread(void* thread_data)
 
     int result = tje_encode_main(args->thread_arena,
                                  args->state, args->data,
-                                 args->width, args->height, args->num_components);
+                                 args->width, args->height, args->num_components, NULL);
 
     assert (result == TJE_OK);
     EncodeResult er = { 0 };
@@ -110,7 +110,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     //unsigned char* data = stbi_load("_in.bmp", &width, &height, &num_components, 0);
     //unsigned char* data = stbi_load("ic.bmp", &width, &height, &num_components, 0);
     //unsigned char* data = stbi_load("pin.bmp", &width, &height, &num_components, 0);
-    unsigned char* data = stbi_load("in_klay.bmp", &width, &height, &num_components, 0);
+    unsigned char* data = stbi_load("hin.bmp", &width, &height, &num_components, 0);
+    //unsigned char* data = stbi_load("in_klay.bmp", &width, &height, &num_components, 0);
     //unsigned char* data = stbi_load("homer.png", &width, &height, &num_components, 0);
 #else  // fill data manually
     {
@@ -126,9 +127,16 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         {
             for (int w = 0; w < width; ++w)
             {
+#if 0
                 data[(h * width + w)*num_components + 0] = w % 256;
                 data[(h * width + w)*num_components + 1] = 0x00;
                 data[(h * width + w)*num_components + 2] = h % 256;
+#elif 1
+                data[(h * width + w)*num_components + 0] = 0xfe;
+                data[(h * width + w)*num_components + 1] = rand();
+                data[(h * width + w)*num_components + 2] = 0xfe;
+
+#endif
             }
         }
     }
@@ -311,17 +319,12 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
 
     // Reference
-    stbi_write_bmp("out_test.bmp", width, height, num_components, data);
-    jo_write_jpg("out_jo.jpg", data, width, height, num_components, 100);
     tje_encode_to_file(data, width, height, num_components, "out_default.jpg");
 
     int w,h,n;
-    data = stbi_load("out_default.jpg", &w, &h, &n, 0);
-    if (!data)
-    {
-        assert(!"stb failed");
-    }
 
+    data = stbi_load("out_default.jpg", &w, &h, &n, 0);
+    assert(data);
 
     return result;
 }

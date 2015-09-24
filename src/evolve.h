@@ -9,8 +9,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
-/* #define STB_IMAGE_WRITE_IMPLEMENTATION */
-/* #include "../third_party/stb/stb_image_write.h" */
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../third_party/stb/stb_image_write.h"
 
 #if defined(WIN32)
 #include <process.h>
@@ -23,11 +23,7 @@
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
 
-#include "../jo_jpeg.cpp"
-
-
-//#define NUM_ENCODERS 8
-#define NUM_ENCODERS 1
+#define NUM_ENCODERS 8
 
 #define KILOBYTES(t) ((t) * 1024LL)
 #define MEGABYTES(t) ((t) * KILOBYTES(1))
@@ -96,11 +92,31 @@ static void gen_quality_table(uint8_t* table)
     }
 }
 
+// Use this instead of fwrite
+#if 0
+static int tjei_buffer_write(TJEArena* buffer, void* data, size_t num_bytes, int num_elements) {
+    size_t total = num_bytes * num_elements;
+    if (buffer->size < (buffer->count + total))
+    {
+        return TJE_BUFFER_OVERFLOW;
+    }
+    memcpy((void*)(((uint8_t*)buffer->ptr) + buffer->count), data, total);
+    buffer->count += total;
+    return TJE_OK;
+}
+
+static int tjei_buffer_putc(TJEArena* buffer, uint8_t c) {
+    return tjei_buffer_write(buffer, &c, 1, 1);
+}
+
+#endif
+
+
 int evolve_main(void* big_chunk_of_memory, size_t size)
 {
-    static TJEArena jpeg_arena;
+    static Arena jpeg_arena;
 
-    jpeg_arena = tjei_arena_init(big_chunk_of_memory, size);
+    jpeg_arena = arena_init(big_chunk_of_memory, size);
 
     int width;
     int height;
@@ -152,14 +168,14 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     int result = TJE_OK;
 
-#if 0 //==================== LET's KILL THIS BUG!
+#if 1
 
     TJEState state[NUM_ENCODERS] = {0};
 
     // Init tables
     for (int i = 0; i < NUM_TABLES; ++i)
     {
-        g_quantization_tables[i] = tjei_arena_alloc_array(&jpeg_arena, 64, uint8_t);
+        g_quantization_tables[i] = arena_alloc_array(&jpeg_arena, 64, uint8_t);
         gen_quality_table(g_quantization_tables[i]);
     }
 
@@ -173,10 +189,10 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
     // Init encoders.
     for (int i = 0; i < NUM_ENCODERS; ++i)
     {
-        init_arenas[i] = tjei_arena_spawn(&jpeg_arena, memory_for_encoder);
+        init_arenas[i] = arena_spawn(&jpeg_arena, memory_for_encoder);
         tje_init(&init_arenas[i], &state[i]);
         // Inherit the rest of the memory to run_arenas
-        run_arenas[i] = tjei_arena_spawn(&init_arenas[i],
+        run_arenas[i] = arena_spawn(&init_arenas[i],
                                          init_arenas[i].size - init_arenas[i].count);
     }
 
@@ -198,7 +214,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             {
                 state[i].qt_luma = g_quantization_tables[table_id];
                 state[i].qt_chroma = g_quantization_tables[table_id];
-                ThreadArgs* args = tjei_arena_alloc_elem(&run_arenas[i], ThreadArgs);
+                ThreadArgs* args = arena_alloc_elem(&run_arenas[i], ThreadArgs);
                 {
                     args->thread_arena = &run_arenas[i];
                     args->state = &state[i];
@@ -224,7 +240,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
             // Cleanup
             for (int i = 0; i < NUM_ENCODERS && table_id < NUM_TABLES; ++i)
             {
-                tjei_arena_reset(&run_arenas[i]);
+                arena_reset(&run_arenas[i]);
                 state[i].mse = 0;
             }
         }
@@ -302,8 +318,8 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
         state.qt_chroma = g_quantization_tables[win_index];
 
         // Reuse one of the arenas from the evolution looop.
-        tjei_arena_reset(&init_arenas[0]);
-        tjei_arena_reset(&run_arenas[0]);
+        arena_reset(&init_arenas[0]);
+        arena_reset(&run_arenas[0]);
 
         tje_init(&init_arenas[0], &state);
 
@@ -320,6 +336,7 @@ int evolve_main(void* big_chunk_of_memory, size_t size)
 
     // Reference
     tje_encode_to_file(data, width, height, num_components, "out_default.jpg");
+    stbi_write_bmp("out_ref.bmp", width, height, num_components, data);
 
     int w,h,n;
 

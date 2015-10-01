@@ -90,8 +90,8 @@
 \usepackage{babel}
 \spanishdecimal{.}
 
-\PassOptionsToPackage{square,numbers}{natbib}
-\usepackage{natbib}
+% \PassOptionsToPackage{square,numbers}{natbib}
+% \usepackage{natbib}
 
 \renewcommand{\bibname}{Referencias}
 \renewcommand{\tablename}{Tabla}
@@ -185,8 +185,8 @@
 % (translate the options to any language you use)
 % ********************************************************************
 \newcommand{\backrefnotcitedstring}{\relax}%(Not cited.)
-\newcommand{\backrefcitedsinglestring}[1]{(Cited on page~#1.)}
-\newcommand{\backrefcitedmultistring}[1]{(Cited on pages~#1.)}
+\newcommand{\backrefcitedsinglestring}[1]{(Citado en página~#1.)}
+\newcommand{\backrefcitedmultistring}[1]{(Citado en páginas~#1.)}
 \ifthenelse{\boolean{enable-backrefs}}%
 {%
   \PassOptionsToPackage{hyperpageref}{backref}

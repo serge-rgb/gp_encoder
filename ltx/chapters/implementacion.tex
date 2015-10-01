@@ -1,23 +1,56 @@
-
-
 \chapter{Imlementación JPEG}\label{ch:implementacion}
+
+Se implementó un codificador JPEG, lanzado al dominio público en github bajo el
+nombre de TinyJPEG \cite{tiny_jpeg}. La ubicación permanente de esta biblioteca
+está en \begin{alltt}https://github.com/serge-rgb/TinyJPEG \end{alltt}
+
+En paralelo con TinyJPEG, se desarrolló un proyecto que extiende TinyJPEG para
+incluír el algoritmo evolutivo \cite{gp_encoder}, localizado en
+\begin{alltt}https://github.com/serge-rgb/gp_encoder\end{alltt} Entre otras
+cosas, se desarrolló una implementación paralela de JPEG que utiliza el GPU
+para calcular \emph{DCT}, con el objetivo de hacer una comparación de
+desempeño.
+
+Se van a usar los términos \emph{debugging} y \emph{profiling} por su ubiquidad en la literatura. \emph{debugging} se traduce como depurar y se define como el proceso de encontrar y arreglar defectos de código. \emph{profiling} es el proceso de encontrar los puntos en los que un programa puede ser modificado para mejorar el desempeño.
 
 % ============================================================
 \section{Lenguajes}
 % ============================================================
 
-FOOBAR BLABLA
+La elección de lenguaje para TinyJPEG fue C, en particular C99 \cite{c99}.
+TinyJPEG fue lanzado con el objetivo de ser una biblioteca reutilizable por
+otras personas, y ha encontrado cierto grado de éxito gracias en parte a
+integrar una biblioteca de un sólo archivo escrita en C es muy simple para casi
+cualquier proyecto. C es un lenguaje ideal para escribir cosas como
+codificadores. El lenguaje permite mantener el nivel bajo de abstracción que se
+necesita y las herramientas de \emph{debugging} son mejores para C y C++ que
+para casi cualquier otro lenguaje.
+
+Escogí CUDA para la implementación de GPGPU. La máquina en la que se desarrolló
+tiene una tarjete de video Nvidia, y el soporte de OpenCL en Nvidia deja mucho
+que desear en el tiempo en el que se está escribiendo esto. Nvidia proporciona
+herramientas excelentes para hacer \emph{debugging} y para \emph{profiling},
+que es de particular importancia para un trabajo en el cual el análisis de
+desempeño es una parte muy importante.
 
 % ============================================================
 \section{Arquitectura}
 % ============================================================
 
-aasdfasfd
-
 % ============================================================
 \section{Algoritmo DCT}
 % ============================================================
 
+
+\verb+tiny_jpeg+ contiene dos implementaciones de \emph{DCT}, la que se deriva directamente de la ecuación \ref{eq:dct} y que se describe en \ref{alg:dct}
+muestra arriba, y una más rápida, desarrollada por \cite{ahmed_dct}.
+
+Los algoritmos rápidos para calcular la \emph{DCT} están basados en la
+observación de que la ecuación \ref{eq:dct} es lineal, y por lo tanto el
+cálculo \emph{DCT} se puede ver como una multiplicación de dos matrices de
+$8\times8$. La matriz de la derecha es el bloque con los valores de la imagen y
+la matriz de la izquierda es la representación como matriz de la ecuación
+\ref{eq:dct}.
 
 % ============================================================
 \section{Manejo de memoria}

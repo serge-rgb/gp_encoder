@@ -10,11 +10,12 @@ BCOR=5mm,paper=a4,fontsize=11pt,%11pt,a4paper,%
 ngerman,american,%
 ]{scrreprt}
 
+\usepackage{alltt}
 \usepackage{xcolor}
-\definecolor{Green}{RGB}{100,175,88}
+\definecolor{Green}{RGB}{100,175,88} % listings gives error for color 'Green' on Windows
 \usepackage{listings}
 
-\lstnewenvironment{code}[1][]%
+\lstnewenvironment{code}[1][] % Code snippet without page break.
 {
    \noindent
    \minipage{\linewidth}
@@ -23,6 +24,9 @@ ngerman,american,%
 {\endminipage}
 
 \input{classicthesis-config}
+
+\usepackage[fixlanguage]{babelbib}
+\selectbiblanguage{spanish}
 
 \newcommand{\titulo}[1]{\def\eltitulo{#1}}
 \newcommand{\carrera}[1]{\def\lacarrera{#1}}
@@ -45,7 +49,7 @@ ngerman,american,%
 \raggedbottom
 \selectlanguage{spanish}
 % \renewcommand*{\bibname}{new name}
-% \setbibpreamble{}
+\setbibpreamble{}
 \pagenumbering{roman}
 \pagestyle{plain}
 
@@ -123,6 +127,7 @@ ngerman,american,%
 \addtocontents{toc}{\protect\vspace{\beforebibskip}} % to have the bib a bit from the rest in the toc
 \addcontentsline{toc}{chapter}{\tocEntry{\bibname}}
 \bibliographystyle{apalike}
+
 % \label{app:Bibliography}
 \bibliography{Bibliography}
 \end{document}

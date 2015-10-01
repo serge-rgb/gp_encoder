@@ -102,7 +102,9 @@ completo.
 
 El codificador implementado en este trabajo es el \emph{Baseline JPEG}, al que
 también se le refiere como \emph{DCT-Based Coding}, traducido aquí como
-\emph{Codificación DCT}.
+\emph{Codificación DCT}. Para el resto del documento, a menos que sea
+necesario, se usará el término \emph{JPEG} para referirse a lo mismo que
+\emph{Baseline JPEG}.
 
 La codificación DCT divide a la imágen en bloques de $8\times8$ píxeles. Cada
 bloque de $8\times8$ pasa por una serie de transformaciones y salen
@@ -149,17 +151,82 @@ individuales, pero las palabras siempre van de izquierda a derecha.
 Procesadores ARM después de la versión 3 son \emph{bi-endian}; pueden
 seleccionar su \emph{endianness} desde software.
 
+En ensamblador con sintaxis de Intel o en el API de Windows, se utiliza
+\verb+BYTE+ para denotar 8 bits, \verb+WORD+ para 16 bits, \verb+DWORD+ para 32
+bits y \verb+QWORD+ para 64 bits. Esta convención viene de cuando los
+procesadores eran de 16 bits, y no cambió ni en la transición a 32 bits en los
+90's ni en la transición a 64 bits en los 00's
+
 El codificador JPEG que escribimos asume que la máquina en la que se está
 corriendo es \emph{little endian}.
 
 
 \subsection{La DCT}
 
-La transformada discreta de coseno, \emph{DCT} por sus siglas en Inglés, puede representar $N$ puntos como una suma con pesos de funciones cosenoidales de diferentes frecuencias. Es popular en compresión porque las señales que comprimimos tienden a tener una representación con bajas frecuencias predominantes. Es más común una imágen de un cielo azul que ruido blanco en todos los colores.
+La transformada discreta de coseno, \emph{DCT} por sus siglas en Inglés, puede
+representar $N$ puntos como una suma con pesos de funciones cosenoidales de
+diferentes frecuencias. Es popular en compresión porque las señales que
+comprimimos tienden a tener una representación con bajas frecuencias
+predominantes. Por ejemplo, es más común una imagen de un cielo azul que ruido
+blanco en todos los colores. Una imagen de un cielo azul tiene muy poca
+variación, que al aplicar \emph{DCT} resulta en un peso alto para frecuencias
+bajas y pesos más cercanos a cero para frecuencias más altas.
 
-\begin{figure}[hb] % h quiere decir "here". Queremos mostrar la imagen despues de explicar lo que es... %
-\includegraphics{DCT-8x8}
-\caption{Visualización de las funciones para el DCT de 8x8 usado en JPEG}
+En JPEG, se divide la imagen en bloques de $8\times8$ y se utiliza una \emph{DCT} de $8\times8$:
+\begin{equation}\label{eq:dct}
+F(u, v) = \frac{1}{4} C(u)C(v) \sum_{x=0}^{7}\sum_{y=0}^{7}
+f(x,y)*\cos{\frac{(2x+1)u\pi}{16}}\cos{\frac{(2y+1)v\pi}{16}}
+\end{equation}
+donde \[C(u), C(v) = \begin{cases}
+        \frac{1}{\sqrt{2}} & \quad \text{para } u,v = 0\\
+        1                  & \quad \text{para } u,v \neq 0\\
+\end{cases} \]
+\begin{eqnarray*}
+    f(u, v) \text{ es un punto del bloque de } 8\times8 \text{ de la imagen }\\
+    F(u, v) \text{ es la DCT para el punto } u,v\\
+\end{eqnarray*}
+
+De la ecuación \ref{eq:dct} se puede derivar directamente un algoritmo para la
+\emph{DCT}:
+
+\label{alg:dct}
+\begin{code}[language=C][h]
+    float DCT[64];
+    for (int v = 0; v < 8; ++v) {
+        for (int u = 0; u < 8; ++u) {
+            DCT[v*8 + u] = F(u, v);
+            // F es la traducción directa de definición DCT
+    }
+\end{code}
+
+
+La implementación de JPEG que escribí se llama \verb+tiny_jpeg+
+\citep{tiny_jpeg} y contiene dos implementaciones de \emph{DCT}, la que se
+muestra arriba, y una más rápida, desarrollada por \citep{ahmed_dct}.
+
+Los algoritmos rápidos para calcular la \emph{DCT} están basados en la
+observación de que la ecuación \ref{eq:dct} es lineal, y por lo tanto el
+cálculo \emph{DCT} se puede ver como una multiplicación de dos matrices de
+$8\times8$. La matriz de la derecha es el bloque con los valores de la imagen y
+la matriz de la izquierda es la representación como matriz de la ecuación
+\ref{eq:dct}.
+
+\subsection{YUV}\label{sub:yuv}
+
+Para generar los bloques que van a ser procesados por \emph{DCT}, la imagen se separa en tres componentes. JPEG no usa el espacio de color \verb+RGB+, usa \verb+YUV+, también denominado \verb+YCrCb+
+
+\begin{figure}
+    \includegraphics{yuv}
+    \caption{Descomposición de una imagen a un canal de Luma y dos de Chroma}
+\end{figure}
+
+
+\verb+Y+ corresponde a Luminancia o Luma
+
+
+\begin{figure}[hb] % h quiere decir "here". Queremos mostrar la imagen despues de explicar lo que es...
+    \includegraphics{DCT-8x8}
+    \caption{Visualización de las funciones para el DCT de 8x8 usado en JPEG. Esquina superior izquierda: menor frecuencia. Inferior derecha: mayor frecuencia.}
 \end{figure}
 
 %%% Local Variables:

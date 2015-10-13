@@ -41,6 +41,18 @@ desempeño es una parte muy importante.
 \section{Algoritmo DCT}
 % ============================================================
 
+A partir de la ecuacion \ref{eq:dct} se puede derivar directamente un algoritmo simple para la \emph{DCT}:
+
+\label{alg:dct}
+\begin{code}[language=C][h]
+    float DCT[64];
+    for (int v = 0; v < 8; ++v) {
+        for (int u = 0; u < 8; ++u) {
+            DCT[v*8 + u] = F(u, v);
+            // F es la traducción directa de definición DCT
+    }
+\end{code}
+
 
 \verb+tiny_jpeg+ contiene dos implementaciones de \emph{DCT}, la que se deriva directamente de la ecuación \ref{eq:dct} y que se describe en \ref{alg:dct}
 muestra arriba, y una más rápida, desarrollada por \cite{ahmed_dct}.

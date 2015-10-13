@@ -187,39 +187,68 @@ donde \[C(u), C(v) = \begin{cases}
 \end{eqnarray*}
 
 De la ecuación \ref{eq:dct} se puede derivar directamente un algoritmo para la
-\emph{DCT}:
+\emph{DCT}, visto más a detalle en el capítulo \ref{ch:implementacion}.
 
-\label{alg:dct}
-\begin{code}[language=C][h]
-    float DCT[64];
-    for (int v = 0; v < 8; ++v) {
-        for (int u = 0; u < 8; ++u) {
-            DCT[v*8 + u] = F(u, v);
-            // F es la traducción directa de definición DCT
-    }
-\end{code}
 
-En el capítulo \ref{ch:implementacion} se discute a más detalle el algoritmo \emph{DCT}
+
+\subsection{La vida de un bloque}\label{sub:vida}
+
+
+
+JPEG trabaja dividiendo a la imagen en bloques cuadrados de 8 píxeles de ancho y alto. Si el tamaño de la imagen no es un múltiplo de ocho, se redondea al siguiente número que sí lo es y es el trabajo del decodificador ignorar los píxeles sobrantes. Cada bloque es independiente de los demás y por lo tanto el algoritmo es altamente paralelizable. Es una buena coincidencia que las arquitecturas de GPU de hoy en día trabajan con grupos de 64 \emph{threads}.
+
+Cada bloque pasa por varias etapas antes de ser escrito a memoria como bits comprimidos de JPEG.
+
 
 \subsection{YUV}\label{sub:yuv}
 
-Para generar los bloques que van a ser procesados por \emph{DCT}, la imagen se
-separa en tres componentes. JPEG no usa el espacio de color \verb+RGB+, usa
-\verb+YUV+, también denominado \verb+YCrCb+
+Cada bloque crudo de la imágen se convierte en tres nuevos bloques, cada uno correspondiente a un componente del modelo de color \verb+YUV+, también denominado \verb+YCbCr+
+
+Un modelo de color es una manera abstracta de representar colores. \verb+RGB+ representa colores como combinaciones de tres colores primarios. \verb+YUV+ los representa en tres componentes, uno para Luminancia y dos de Crominancia.
+
+Luminancia, también llamado Luma o \verb+Y+, es la intensidad de la imagen. La Crominancia, también llamada Chroma describe el color de la imagen y se codifica con dos componentes \verb+U+ o \verb+Cb+ y \verb+V+ o \verb+Cr+, donde $U = Azul - Luminancia$ y $V = Rojo - Luminancia$.
+
+El modelo de color \verb+YUV+ se inventó con la invención de la televisión a color. La luminancia no es otra cosa que la imagen en blanco y negro. La transición al color se hizo gradualmente transmitiendo la información de la misma manera que antes, pero usando dos nuevos canales, \verb+U+ y \verb+V+. De esta manera, el nuevo formato era compatible con televisiones en blanco y negro, que sólo necesitaban la información de uno de los canales.
+
+\begin{figure}[hb]
+\includegraphics{yuv_cable}
+    \caption{La siguiente generación no va a saber para que eran estos cables}
+\end{figure}
+
+Los cables RCA empezaron transmitiendo los tres componentes de \verb+YUV+. Más tarde, cuando todos tenían color, se migró a usar un cable para \verb+YUV+, llamado "video compuesto" y los otros dos para sonido estéreo.
 
 \begin{figure}
     \includegraphics{yuv}
     \caption{Descomposición de una imagen a un canal de Luma y dos de Chroma}
 \end{figure}
 
+\verb+YUV+ tiene ventajas para comprimir imágenes. El sistema de visión humano es mucho más sensible a cambios de intensidad en la imagen que a cambios de color. Esto se aprovechaba en los días de la televisión analógica para utilizar más ancho de banda en Luma que en Chroma, y el mismo principio se utiliza en JPEG, cuya especificación incluye la opción de usar resoluciones más bajas para los canales de chroma que el de luma. La implementación de \verb+tiny_jpeg+ usa la misma resolución para los tres canales.
 
-\verb+Y+ corresponde a Luminancia o Luma
+Los tres bloques correspondientes a \verb+Y+, \verb+U+, y \verb+V+ son escritos al archivo en ese orden después de ser transformados independientemente.
 
 
-\begin{figure}[hb] % h quiere decir "here". Queremos mostrar la imagen despues de explicar lo que es...
+\subsection{Aplicación de DCT y Cuantización}
+
+\begin{figure}[hb]
     \includegraphics{DCT-8x8}
     \caption{Visualización de las funciones para el DCT de 8x8 usado en JPEG. Esquina superior izquierda: menor frecuencia. Inferior derecha: mayor frecuencia.}
+    \label{fig:dct}
 \end{figure}
+
+
+
+Al bloque se le aplica la Transformada Discreta de Coseno de $8\times8$. El resultado son 64 coeficientes para las 64 funciones base. Como se muestra en la figura \ref{fig:dct}, la frecuencia se incrementa hacia la derecha y abajo. Por eso a partir de este momento se itera el bloque en un patrón de zig-zag \ref{fig:zigzag}. Empezando en la esquina superior izquierda y acabando en la inferior derecha.
+
+\begin{figure}[h]
+    \includegraphics{zigzag}
+    \caption{El patrón zig-zag con el que se itera por los bloques.}
+    \label{fig:zigzag}
+\end{figure}
+
+El corazón de JPEG es en el proceso de cuantización. Para cada codificador, usualmente elegido por heurísticas \emph{ a priori }, le corresponde al menos dos tablas de cuantización de 64 elementos. El propósito de estas tablas es decidir cuanta información queremos perder para diferentes frecuencias.
+
+
+
 
 %%% Local Variables:
 %%% mode: latex

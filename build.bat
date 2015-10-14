@@ -1,17 +1,19 @@
 @echo off
 
-set warnings=/WX /W4 /wd4100 /wd4310 /wd4189 /wd4505 /wd4244
-:: warning 4189 is useful for polisihing code, but it's a pain while developing.
-set warnings_release=%warnings% /wd4189
+REM 4100 Unreferenced func param (cleanup)
+REM 4820 struct padding
+REM 4255 () != (void)
+REM 4668 Macro not defined. Subst w/0
+REM 4710 Func not inlined
+REM 4711 Auto inline
+REM 4189 Init. Not ref
+set comment_for_cleanup=/wd4100 /wd4189
+set suppressed=%comment_for_cleanup% /wd4820 /wd4255 /wd4668 /wd4710 /wd4711
 
-set compiler_flags=/D_CRT_SECURE_NO_WARNINGS /FC /Zi /I ../src /I ../ /I ../src/tiny_jpeg /I ../src/libserg
-set compiler_flags_debug=%compiler_flags% %warnings% /DTJE_DEBUG /O2 /Oi /fp:fast
-set compiler_flags_release=%compiler_flags% %warnings_release% /O2
-:: set linker_flags= /opt:ref
+set defines=-D_CRT_SECURE_NO_WARNINGS -DTJE_DEBUG
+set includes=/I ../src /I ../src/tiny_jpeg /I ../src/libserg
 
 IF NOT EXIST build mkdir build
 pushd build
-cl /nologo /MP %warnings% %defines% %compiler_flags_debug% ..\src\jpeg_test.c
-::cl /nologo /MP %warnings% %defines% %compiler_flags_debug% ..\src\win_evolve.cpp
-::cl /nologo /MP %warnings% %defines% %compiler_flags_release% ..\src\evolve.cc
+cl /nologo /Wall /WX /Zi /Od /fp:fast %includes% %defines% %suppressed% ..\src\jpeg_test.c
 popd

@@ -14,6 +14,7 @@ ngerman,american,%
 \usepackage{xcolor}
 \definecolor{Green}{RGB}{100,175,88} % listings gives error for color 'Green' on Windows
 \usepackage{listings}
+\usepackage{amssymb}
 
 \lstnewenvironment{code}[1][] % Code snippet without page break.
 {
@@ -62,7 +63,7 @@ ngerman,american,%
 \include{FrontBackmatter/Titlepage}
 %\include{FrontBackmatter/DirtyTitlepage}
 \include{FrontBackmatter/Titleback}
-% \cleardoublepage\include{FrontBackmatter/Dedication}
+\cleardoublepage\include{FrontBackmatter/Dedication}
 % \cleardoublepage\include{FrontBackmatter/Abstract}
 % \cleardoublepage\include{FrontBackmatter/Acknowledgments}
 \pagestyle{scrheadings}

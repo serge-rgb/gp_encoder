@@ -77,7 +77,7 @@ mientras se descarga.
 \item \emph{Sin pérdida}
 
 La compresión sin pérdida fue agregada a JPEG ``por que tenían que'' y no hubo
-un análisis riguroso para su diseño \cite{JPEGSTD}. Aunque la compresión JPEG
+un análisis riguroso para su diseño \cite{JPEGSPEC}. Aunque la compresión JPEG
 sin pérdida no es mala, formatos como PNG son altamente más populares y
 efectivos. Mucho software simplemente no soporta JPEG con compresión sin
 pérdida.
@@ -123,6 +123,8 @@ representar RGB. \verb+RGBA+ es análogo a \verb+RGB+. Le corresponden los 4
 bytes \verb+RRGGBBAA+, donde el último byte se usa para el valor \emph{alpha}.
 
 \subsection{Endianness}
+
+% Nota para edicion: DWORD es usado por intel & MS. No introducir nuestra propia pinche notación...
 
 Cabe notar que diferentes plataformas tienen diferentes convenciones para
 guardar colores en memoria. Windows espera que le mandemos píxeles en órden
@@ -190,9 +192,7 @@ De la ecuación \ref{eq:dct} se puede derivar directamente un algoritmo para la
 \emph{DCT}, visto más a detalle en el capítulo \ref{ch:implementacion}.
 
 
-
 \subsection{La vida de un bloque}\label{sub:vida}
-
 
 
 JPEG trabaja dividiendo a la imagen en bloques cuadrados de 8 píxeles de ancho y alto. Si el tamaño de la imagen no es un múltiplo de ocho, se redondea al siguiente número que sí lo es y es el trabajo del decodificador ignorar los píxeles sobrantes. Cada bloque es independiente de los demás y por lo tanto el algoritmo es altamente paralelizable. Es una buena coincidencia que las arquitecturas de GPU de hoy en día trabajan con grupos de 64 \emph{threads}.
@@ -227,7 +227,7 @@ Los cables RCA empezaron transmitiendo los tres componentes de \verb+YUV+. Más 
 Los tres bloques correspondientes a \verb+Y+, \verb+U+, y \verb+V+ son escritos al archivo en ese orden después de ser transformados independientemente.
 
 
-\subsection{Aplicación de DCT y Cuantización}
+\subsection{Aplicación de DCT y Cuantificación}
 
 \begin{figure}[hb]
     \includegraphics{DCT-8x8}
@@ -245,10 +245,43 @@ Al bloque se le aplica la Transformada Discreta de Coseno de $8\times8$. El resu
     \label{fig:zigzag}
 \end{figure}
 
-El corazón de JPEG es en el proceso de cuantización. Para cada codificador, usualmente elegido por heurísticas \emph{ a priori }, le corresponde al menos dos tablas de cuantización de 64 elementos. El propósito de estas tablas es decidir cuanta información queremos perder para diferentes frecuencias.
+El corazón de JPEG es el proceso de cuantificación. Para cada codificador, usualmente elegido por heurísticas \emph{ a priori }, le corresponde al menos dos tablas de cuantificación de 64 elementos. El propósito de estas tablas es decidir cuanta información queremos perder para diferentes frecuencias. \emph{Cuantificación} es el proceso de convertir un conjunto de valores a otro conjunto más pequeño. Para JPEG, usamos división entera para cuantificar los elementos de cada bloque. El concepto se puede explicar con un ejemplo:
 
+Supongamos que tenemos el conjunto de valores $ \{ 1, 5, 103, 128, 242 \} $ que
+queremos cuantificar usando división entera: Todos los elementos $e_i$ se
+reducen a $ n_i \text{ tal que } e_i = n_i * c + r \text{ con } n \in ℕ \text{
+y } c \text{ la constante de cuantificación }$. Para nuestro ejemplo, escogemos
+$ c = 100 $. Con esta constante, el conjunto se cuantifica a $ \{ 0, 1, 2 \}$ .
 
+\begin{eqnarray*}
+    1 = 0 * 100 + 1 \\
+    5 = 0 * 100 + 5 \\
+    103 = 1 * 100 + 3 \\
+    128 = 1 * 100 + 28. \\
+    242 = 2 * 100 + 42.
+\end{eqnarray*}
 
+Se puede observar que mientras más grande sea la constante de cuantificación, más elementos van a reducirse. También se puede ver que una constante de cuantificación $1$ resulta en el mismo conjunto de elementos.
+
+En JPEG, asociamos una constante de cuantificación a cada frecuencia de la DCT. De esta manera se controla la \emph{pérdida} de información. Cuando el usuario desea obtener la calidad máxima de imagen, se utilizan tablas de cuantificación cuyas constantes son todas 1, de esta manera la única pérdida de información resulta de la conversión de punto flotante a entero.
+
+En la práctica, se utiliza el hecho de que el sistema de visión humano es menos sensible a cambios pequeños en frecuencias altas para escoger constantes grandes para frecuencias altas y constantes pequeña para frecuencias bajas. Sigue un ejemplo dado en \cite{JPEG_paper} para una tabla de cuantificación típica:
+
+\begin{equation}
+    \begin{matrix}
+        16 & 11 & 10 & 16 & 24 & 40 & 51 & 61 \\
+        12 & 12 & 14 & 19 & 26  & 58  & 60  & 55 \\
+        14 & 13 & 16 & 24 & 40  & 57  & 69  & 56 \\
+        14 & 17 & 22 & 29 & 61  & 87  & 80  & 62 \\
+        18 & 22 & 37 & 56 & 68  & 109 & 103 & 77 \\
+        24 & 35 & 55 & 65 & 81  & 103 & 113 & 92 \\
+        49 & 64 & 78 & 87 & 103 & 121 & 120 & 101 \\
+        72 & 92 & 95 & 98 & 112 & 100 & 103 & 99
+    \end{matrix}
+\end{equation}
+\label{eq:cuantificacion}
+
+Una manera de conseguir distintos niveles de calidad es dividir cada elemento de la tabla de cuantificación por una constante. La tabla \ref{eq:cuantificacion} se usa en la implementación de JPEG que desarrollé, con una constante para controlar la calidad.
 
 %%% Local Variables:
 %%% mode: latex

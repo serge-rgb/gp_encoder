@@ -14,13 +14,15 @@ static void CL_CALLBACK gpui_context_notify(const char* errinfo, const void* db,
 
 b32 gpu_init(GPUInfo* gpu_info)
 {
-    b32 ok = true;
 #define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; goto end; }
+    b32 ok = true;
     cl_int err = CL_SUCCESS;
 
     cl_uint num_platforms = 0;
-    err = clGetPlatformIDs(0, NULL, &num_platforms);
-    ERR_CHECK;
+    if ( clGetPlatformIDs(0, NULL, &num_platforms) != CL_SUCCESS ) {
+        gpu_panic();
+    }
+
     cl_platform_id*   platforms   = sgl_calloc(sizeof(cl_platform_id), num_platforms);
     clGetPlatformIDs(num_platforms, platforms, NULL);
 

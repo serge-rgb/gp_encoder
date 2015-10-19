@@ -1,4 +1,7 @@
 
+#define LIBSERG_IMPLEMENTATION
+#include "libserg/libserg.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
 
@@ -9,8 +12,13 @@
 
 int main()
 {
+    //size_t memsz = 1L * 1024 * 1024 * 1024;
+
+
+
     int w, h, ncomp;
     unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
+    //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
     if ( !data ) {
         puts("Could not load file");
         return EXIT_FAILURE;

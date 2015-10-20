@@ -11,10 +11,10 @@ REM 4189 Init. Not ref
 set comment_for_cleanup=/wd4100 /wd4189
 set suppressed=%comment_for_cleanup% /wd4820 /wd4255 /wd4668 /wd4710 /wd4711 /wd4204
 
-set defines=-D_CRT_SECURE_NO_WARNINGS -DTJE_DEBUG
+set defines=-D_CRT_SECURE_NO_WARNINGS -DNDEBUG
 set includes=/I ../src /I ../src/tiny_jpeg /I ../src/libserg /I ../third_party
 
 IF NOT EXIST build mkdir build
 pushd build
-cl /nologo /FC /Wall /WX /Zi /Od /fp:fast %includes% %defines% %suppressed% ..\src\parallel_jpeg.c OpenCL.lib
+cl /nologo /FC /Wall /WX /Zi /O2 /fp:fast %includes% %defines% %suppressed% ..\src\evolve_CPU.c OpenCL.lib
 popd

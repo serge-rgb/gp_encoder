@@ -1,37 +1,153 @@
-#define LIBSERG_IMPLEMENTATION
-#include <libserg/libserg.h>
+/**
+ * tiny_jpeg.h
+ *
+ * Tiny JPEG Encoder
+ *  - Sergio Gonzalez
+ *
+ * This is a readable and simple single-header JPEG encoder.
+ *
+ * Features
+ *  - Implements Baseline DCT JPEG compression.
+ *  - No dynamic allocations.
+ *
+ * This library is coded in the spirit of the stb libraries and mostly follows
+ * the stb guidelines.
+ *
+ * It is written in C99. And depends on the C standard library.
+ *
+ * Other requirements
+ *  - Assumes little endian machine.
+ *
+ * Tested on:
+ *  Linux x64 (clang)
+ *  Windows
+ *  OSX
+ *
+ * TODO:
+ *  - error messages
+ *
+ * This software is in the public domain. Where that dedication is not
+ * recognized, you are granted a perpetual, irrevocable license to copy
+ * and modify this file as you see fit.*
+ */
+
+// ============================================================
+// Usage
+// ============================================================
+// Include "tiny_jpeg.h" to and use the public interface defined below.
+//
+// You *must* do:
+//
+//      #define DJE_IMPLEMENTATION
+//      #include "tiny_jpeg.h"
+//
+// in exactly one of your C files to actually compile the implementation.
+
+
+// Here is an example program that loads a bmp with stb_image and writes it
+// with Tiny JPEG
+
+/*
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.h>
+#include "stb_image.h"
 
-typedef int32_t b32;
-#define true 1
-#define false 0
 
-#include "gpu.h"
+#define DJE_IMPLEMENTATION
+#include "tiny_jpeg.h"
 
-int pje_encode_to_file_at_quality(const char* dest_path,
+
+int main()
+{
+    int width, height, num_components;
+    unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
+    if ( !data ) {
+        puts("Could not find file");
+        return EXIT_FAILURE;
+    }
+
+    if ( !dje_encode_to_file("out.jpg", width, height, num_components, data) ) {
+        fprintf(stderr, "Could not write JPEG\n");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+*/
+
+
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+
+// ============================================================9
+// Public interface:
+// ============================================================
+
+
+// - dje_encode_to_file -
+//
+// Usage:
+//  Takes bitmap data and writes a JPEG-encoded image to disk.
+//
+//  PARAMETERS
+//      dest_path:          filename to which we will write. e.g. "out.jpg"
+//      width, height:      image size in pixels
+//      num_components:     3 is RGB. 4 is RGBA. Those are the only supported values
+//      src_data:           pointer to the pixel data.
+//
+//  RETURN:
+//      0 on error. 1 on success.
+
+int dje_encode_to_file(const char* dest_path,
+                       const int width,
+                       const int height,
+                       const int num_components,
+                       const unsigned char* src_data);
+
+// - dje_encode_to_file_at_quality -
+//
+// Usage:
+//  Takes bitmap data and writes a JPEG-encoded image to disk.
+//
+//  PARAMETERS
+//      dest_path:          filename to which we will write. e.g. "out.jpg"
+//      quality:            3: Highest. Compression varies wildly (between 1/3 and 1/20).
+//                          2: Very good quality. About 1/2 the size of 3.
+//                          1: Noticeable. About 1/6 the size of 3, or 1/3 the size of 2.
+//      width, height:      image size in pixels
+//      num_components:     3 is RGB. 4 is RGBA. Those are the only supported values
+//      src_data:           pointer to the pixel data.
+//
+//  RETURN:
+//      0 on error. 1 on success.
+
+int dje_encode_to_file_at_quality(const char* dest_path,
                                   const int quality,
                                   const int width,
                                   const int height,
                                   const int num_components,
-                                  const unsigned char* src_data,
-                                  void* memory, size_t size);
-/**********************************************************
- *  Parallel JPEG encoder.
- *  Encode JPEG files with the GPU.
- *  Mostly a transformation of "TinyJPEG"
-**********************************************************/
+                                  const unsigned char* src_data);
+
+// ============================================================
+// Internal
+// ============================================================
+#ifdef DJE_IMPLEMENTATION
+
 
 #if defined(_MSC_VER)
-#define PJEI_FORCE_INLINE __forceinline
-// #define PJEI_FORCE_INLINE __declspec(noinline)  // For profiling
+#define DJEI_FORCE_INLINE __forceinline
+// #define DJEI_FORCE_INLINE __declspec(noinline)  // For profiling
 #else
-#define PJEI_FORCE_INLINE static // TODO: equivalent for gcc & clang
+#define DJEI_FORCE_INLINE static // TODO: equivalent for gcc & clang
 #endif
 
 // Only use zero for debugging and/or inspection.
-#define PJE_USE_FAST_DCT 1
+#define DJE_USE_FAST_DCT 1
 
 // C std lib
 #include <assert.h>
@@ -41,33 +157,33 @@ int pje_encode_to_file_at_quality(const char* dest_path,
 #include <string.h> // memcpy
 
 
-#ifndef pje_malloc
+#ifndef dje_malloc
 #if defined(_WIN32) || defined(__linux__)
 #include <malloc.h>
 #elif defined(__MACH__)
 #include <malloc/malloc.h>
 #endif
-#define pje_malloc malloc
+#define dje_malloc malloc
 #endif
 
-#ifndef pje_free
+#ifndef dje_free
 #if defined(_WIN32) || defined(__linux__)
 #include <malloc.h>
 #elif defined(__MACH__)
 #include <malloc/malloc.h>
 #endif
-#define pje_free(x) free((x)); x = 0;
+#define dje_free(x) free((x)); x = 0;
 #endif
 
 
-#if !defined(pje_write)
+#if !defined(dje_write)
 
-#define PJEI_BUFFER_SIZE 1024
-#define pje_write pjei_fwrite
+#define DJEI_BUFFER_SIZE 1024
+#define dje_write djei_write
 
-// Buffer PJE_BUFFER_SIZE in memory and flush when ready
-static size_t pjei_g_output_buffer_count;
-static uint8_t pjei_g_output_buffer[PJEI_BUFFER_SIZE];
+// Buffer DJE_BUFFER_SIZE in memory and flush when ready
+static size_t djei_g_output_buffer_count;
+static uint8_t djei_g_output_buffer[DJEI_BUFFER_SIZE];
 
 #endif
 
@@ -84,20 +200,21 @@ static uint8_t pjei_g_output_buffer[PJEI_BUFFER_SIZE];
 #ifndef NDEBUG
 
 #ifdef _WIN32
-#define pje_log(msg) OutputDebugStringA(msg)
+#define dje_log(msg) OutputDebugStringA(msg)
 #elif defined(__linux__) || defined(__MACH__)
-#define pje_log(msg) puts(msg)
+#define dje_log(msg) puts(msg)
 #endif
 
 #else  // NDEBUG
-#define pje_log(msg)
+#define dje_log(msg)
 #endif  // NDEBUG
 
-typedef struct PJEBlock_s {
-    float d[64];
-} PJEBlock;
 
-typedef struct PJEState_s {
+typedef struct DJEBlock_s {
+    float d[64];
+} DJEBlock;
+
+typedef struct DJEState_s {
     uint8_t     ehuffsize[4][257];
     uint16_t    ehuffcode[4][256];
 
@@ -107,18 +224,15 @@ typedef struct PJEState_s {
     uint8_t     qt_luma[64];
     uint8_t     qt_chroma[64];
 
-    FILE*       fd;
-
-    // Arena contents:
-    //  - Stored MCUs to send to the CL kernel.
-    //  - Buffers to store compressed data from GPU to CPu
     Arena*      arena;
-} PJEState;
+
+    uint32_t    bit_count;  // Instead of writing, we increase this value.
+} DJEState;
 
 // ============================================================
 // Table definitions.
 //
-// The spec defines pjei_default reasonably good quantization matrices and huffman
+// The spec defines djei_default reasonably good quantization matrices and huffman
 // specification tables.
 //
 //
@@ -130,7 +244,7 @@ typedef struct PJEState_s {
 
 
 // K.1 - suggested luminance QT
-static uint8_t pjei_default_qt_luma_from_spec[] = {
+static uint8_t djei_default_qt_luma_from_spec[] = {
    16,11,10,16, 24, 40, 51, 61,
    12,12,14,19, 26, 58, 60, 55,
    14,13,16,24, 40, 57, 69, 56,
@@ -141,7 +255,7 @@ static uint8_t pjei_default_qt_luma_from_spec[] = {
    72,92,95,98,112,100,103, 99,
 };
 
-static uint8_t pjei_default_qt_chroma_from_spec[] = {
+static uint8_t djei_default_qt_chroma_from_spec[] = {
     // K.1 - suggested chrominance QT
    17,18,24,47,99,99,99,99,
    18,21,26,66,99,99,99,99,
@@ -153,7 +267,7 @@ static uint8_t pjei_default_qt_chroma_from_spec[] = {
    99,99,99,99,99,99,99,99,
 };
 
-static uint8_t pjei_default_qt_chroma_from_paper[] = {
+static uint8_t djei_default_qt_chroma_from_paper[] = {
     // Example QT from JPEG paper
    16,  12, 14,  14, 18, 24,  49,  72,
    11,  10, 16,  24, 40, 51,  61,  12,
@@ -168,28 +282,28 @@ static uint8_t pjei_default_qt_chroma_from_paper[] = {
 // == Procedure to 'deflate' the huffman tree: JPEG spec, C.2
 
 // Number of 16 bit values for every code length. (K.3.3.1)
-static uint8_t pjei_default_ht_luma_dc_len[16] = {
+static uint8_t djei_default_ht_luma_dc_len[16] = {
     0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0
 };
 // values
-static uint8_t pjei_default_ht_luma_dc[12] = {
+static uint8_t djei_default_ht_luma_dc[12] = {
     0,1,2,3,4,5,6,7,8,9,10,11
 };
 
 // Number of 16 bit values for every code length. (K.3.3.1)
-static uint8_t pjei_default_ht_chroma_dc_len[16] = {
+static uint8_t djei_default_ht_chroma_dc_len[16] = {
     0,3,1,1,1,1,1,1,1,1,1,0,0,0,0,0
 };
 // values
-static uint8_t pjei_default_ht_chroma_dc[12] = {
+static uint8_t djei_default_ht_chroma_dc[12] = {
     0,1,2,3,4,5,6,7,8,9,10,11
 };
 
 // Same as above, but AC coefficients.
-static uint8_t pjei_default_ht_luma_ac_len[16] = {
+static uint8_t djei_default_ht_luma_ac_len[16] = {
     0,2,1,3,3,2,4,3,5,5,4,4,0,0,1,0x7d
 };
-static uint8_t pjei_default_ht_luma_ac[] = {
+static uint8_t djei_default_ht_luma_ac[] = {
     0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
     0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0,
     0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x25, 0x26, 0x27, 0x28,
@@ -203,10 +317,10 @@ static uint8_t pjei_default_ht_luma_ac[] = {
     0xF9, 0xFA
 };
 
-static uint8_t pjei_default_ht_chroma_ac_len[16] = {
+static uint8_t djei_default_ht_chroma_ac_len[16] = {
     0,2,1,2,4,4,3,4,7,5,4,4,0,1,2,0x77
 };
-static uint8_t pjei_default_ht_chroma_ac[] = {
+static uint8_t djei_default_ht_chroma_ac[] = {
     0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
     0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xA1, 0xB1, 0xC1, 0x09, 0x23, 0x33, 0x52, 0xF0,
     0x15, 0x62, 0x72, 0xD1, 0x0A, 0x16, 0x24, 0x34, 0xE1, 0x25, 0xF1, 0x17, 0x18, 0x19, 0x1A, 0x26,
@@ -226,7 +340,7 @@ static uint8_t pjei_default_ht_chroma_ac[] = {
 // ============================================================
 
 // Zig-zag order:
-static uint8_t pjei_zig_zag[64] = {
+static uint8_t djei_zig_zag[64] = {
    0,   1,  5,  6, 14, 15, 27, 28,
    2,   4,  7, 13, 16, 26, 29, 42,
    3,   8, 12, 17, 25, 30, 41, 43,
@@ -238,7 +352,7 @@ static uint8_t pjei_zig_zag[64] = {
 };
 
 // Memory order as big endian. 0xhilo -> 0xlohi which looks as 0xhilo in memory.
-static uint16_t pjei_be_word(const uint16_t le_word)
+static uint16_t djei_be_word(const uint16_t le_word)
 {
     uint8_t lo = (uint8_t)(le_word & 0x00ff);
     uint8_t hi = (uint8_t)((le_word & 0xff00) >> 8);
@@ -252,13 +366,13 @@ static uint16_t pjei_be_word(const uint16_t le_word)
 // while developing.
 // ============================================================
 
-static const uint8_t pjeik_jfif_id[] = "JFIF";
-static const uint8_t pjeik_com_str[] = "Created by Tiny JPEG Encoder";
+static const uint8_t djeik_jfif_id[] = "JFIF";
+static const uint8_t djeik_com_str[] = "Created by Tiny JPEG Encoder";
 
 // TODO: Get rid of packed structs!
 #pragma pack(push)
 #pragma pack(1)
-typedef struct PJEJPEGHeader_s {
+typedef struct DJEJPEGHeader_s {
     uint16_t SOI;
     // JFIF header.
     uint16_t APP0;
@@ -273,90 +387,70 @@ typedef struct PJEJPEGHeader_s {
     // Our signature
     uint16_t com;
     uint16_t com_len;
-    char     com_str[sizeof(pjeik_com_str) - 1];
-} PJEJPEGHeader;
+    char     com_str[sizeof(djeik_com_str) - 1];
+} DJEJPEGHeader;
 
-// Helper struct for PJEFrameHeader (below).
-typedef struct PJEComponentSpec_s {
+// Helper struct for DJEFrameHeader (below).
+typedef struct DJEComponentSpec_s {
     uint8_t  component_id;
     uint8_t  sampling_factors;    // most significant 4 bits: horizontal. 4 LSB: vertical (A.1.1)
     uint8_t  qt;                  // Quantization table selector.
-} PJEComponentSpec;
+} DJEComponentSpec;
 
-typedef struct PJEFrameHeader_s {
+typedef struct DJEFrameHeader_s {
     uint16_t         SOF;
     uint16_t         len;                   // 8 + 3 * frame.num_components
     uint8_t          precision;             // Sample precision (bits per sample).
     uint16_t         height;
     uint16_t         width;
     uint8_t          num_components;        // For this implementation, will be equal to 3.
-    PJEComponentSpec component_spec[3];
-} PJEFrameHeader;
+    DJEComponentSpec component_spec[3];
+} DJEFrameHeader;
 
-typedef struct PJEFrameComponentSpec_s {
-    uint8_t component_id;                 // Just as with PJEComponentSpec
+typedef struct DJEFrameComponentSpec_s {
+    uint8_t component_id;                 // Just as with DJEComponentSpec
     uint8_t dc_ac;                        // (dc|ac)
-} PJEFrameComponentSpec;
+} DJEFrameComponentSpec;
 
-typedef struct PJEScanHeader_s {
+typedef struct DJEScanHeader_s {
     uint16_t              SOS;
     uint16_t              len;
     uint8_t               num_components;  // 3.
-    PJEFrameComponentSpec component_spec[3];
+    DJEFrameComponentSpec component_spec[3];
     uint8_t               first;  // 0
     uint8_t               last;  // 63
     uint8_t               ah_al;  // o
-} PJEScanHeader;
+} DJEScanHeader;
 #pragma pack(pop)
 
 
-void pjei_fwrite(PJEState* state, void* data, size_t num_bytes, size_t num_elements)
+void djei_write(DJEState* state, void* data, uint32_t num_bytes, size_t num_elements)
 {
-    size_t to_write = num_bytes * num_elements;
-
-    // Cap to the buffer available size and copy memory.
-    size_t capped_count = min(to_write, PJEI_BUFFER_SIZE - 1 - pjei_g_output_buffer_count);
-
-    memcpy(pjei_g_output_buffer + pjei_g_output_buffer_count, data, capped_count);
-    pjei_g_output_buffer_count += capped_count;
-
-    assert (pjei_g_output_buffer_count <= PJEI_BUFFER_SIZE - 1);
-
-    // Flush the buffer.
-    if ( pjei_g_output_buffer_count == PJEI_BUFFER_SIZE - 1 ) {
-        //fwrite(data, num_bytes, num_elements, state->fd);
-        fwrite(pjei_g_output_buffer, pjei_g_output_buffer_count, 1, state->fd);
-        pjei_g_output_buffer_count = 0;
-    }
-
-    // Recursively calling ourselves with the rest of the buffer.
-    if (capped_count < to_write) {
-        pjei_fwrite(state, (uint8_t*)data+capped_count, to_write - capped_count, 1);
-    }
+    state->bit_count += num_bytes * 8;
 }
 
-static void pjei_write_DQT(PJEState* state, uint8_t* matrix, uint8_t id)
+static void djei_write_DQT(DJEState* state, uint8_t* matrix, uint8_t id)
 {
-    int16_t DQT = pjei_be_word(0xffdb);
-    pje_write(state, &DQT, sizeof(int16_t), 1);
-    int16_t len = pjei_be_word(0x0043); // 2(len) + 1(id) + 64(matrix) = 67 = 0x43
-    pje_write(state, &len, sizeof(int16_t), 1);
+    int16_t DQT = djei_be_word(0xffdb);
+    dje_write(state, &DQT, sizeof(int16_t), 1);
+    int16_t len = djei_be_word(0x0043); // 2(len) + 1(id) + 64(matrix) = 67 = 0x43
+    dje_write(state, &len, sizeof(int16_t), 1);
     assert(id < 4);
     uint8_t precision_and_id = id;  // 0x0000 8 bits | 0x00id
-    pje_write(state, &precision_and_id, sizeof(uint8_t), 1);
+    dje_write(state, &precision_and_id, sizeof(uint8_t), 1);
     // Write matrix
-    pje_write(state, matrix, 64*sizeof(uint8_t), 1);
+    dje_write(state, matrix, 64*sizeof(uint8_t), 1);
 }
 
 typedef enum {
     DC = 0,
     AC = 1
-} PJEHuffmanTableClass;
+} DJEHuffmanTableClass;
 
-static void pjei_write_DHT(PJEState* state,
+static void djei_write_DHT(DJEState* state,
                            uint8_t* matrix_len,
                            uint8_t* matrix_val,
-                           PJEHuffmanTableClass ht_class,
+                           DJEHuffmanTableClass ht_class,
                            uint8_t id)
 {
     int num_values = 0;
@@ -365,24 +459,24 @@ static void pjei_write_DHT(PJEState* state,
     }
     assert(num_values <= 0xffff);
 
-    int16_t DHT = pjei_be_word(0xffc4);
+    int16_t DHT = djei_be_word(0xffc4);
     // 2(len) + 1(Tc|th) + 16 (num lengths) + ?? (num values)
-    uint16_t len = pjei_be_word(2 + 1 + 16 + (uint16_t)num_values);
+    uint16_t len = djei_be_word(2 + 1 + 16 + (uint16_t)num_values);
     assert(id < 4);
     uint8_t tc_th = ((((uint8_t)ht_class) << 4) | id);
 
-    pje_write(state, &DHT, sizeof(uint16_t), 1);
-    pje_write(state, &len, sizeof(uint16_t), 1);
-    pje_write(state, &tc_th, sizeof(uint8_t), 1);
-    pje_write(state, matrix_len, sizeof(uint8_t), 16);
-    pje_write(state, matrix_val, sizeof(uint8_t), num_values);
+    dje_write(state, &DHT, sizeof(uint16_t), 1);
+    dje_write(state, &len, sizeof(uint16_t), 1);
+    dje_write(state, &tc_th, sizeof(uint8_t), 1);
+    dje_write(state, matrix_len, sizeof(uint8_t), 16);
+    dje_write(state, matrix_val, sizeof(uint8_t), num_values);
 }
 // ============================================================
 //  Huffman deflation code.
 // ============================================================
 
 // Returns all code sizes from the BITS specification (JPEG C.3)
-static uint8_t* pjei_huff_get_code_lengths(uint8_t huffsize[/*256*/], uint8_t* bits)
+static uint8_t* djei_huff_get_code_lengths(uint8_t huffsize[/*256*/], uint8_t* bits)
 {
     int k = 0;
     for ( int i = 0; i < 16; ++i ) {
@@ -395,7 +489,7 @@ static uint8_t* pjei_huff_get_code_lengths(uint8_t huffsize[/*256*/], uint8_t* b
 }
 
 // Fills out the prefixes for each code.
-static uint16_t* pjei_huff_get_codes(uint16_t codes[], uint8_t* huffsize, int64_t count)
+static uint16_t* djei_huff_get_codes(uint16_t codes[], uint8_t* huffsize, int64_t count)
 {
     uint16_t code = 0;
     int k = 0;
@@ -415,7 +509,7 @@ static uint16_t* pjei_huff_get_codes(uint16_t codes[], uint8_t* huffsize, int64_
     }
 }
 
-static void pjei_huff_get_extended(uint8_t* out_ehuffsize,
+static void djei_huff_get_extended(uint8_t* out_ehuffsize,
                                    uint16_t* out_ehuffcode,
                                    uint8_t* huffval,
                                    uint8_t* huffsize,
@@ -434,7 +528,7 @@ static void pjei_huff_get_extended(uint8_t* out_ehuffsize,
 // Returns:
 //  out[1] : number of bits
 //  out[0] : bits
-PJEI_FORCE_INLINE void pjei_calculate_variable_length_int(int value, uint16_t out[2])
+DJEI_FORCE_INLINE void djei_calculate_variable_length_int(int value, uint16_t out[2])
 {
     int abs_val = value;
     if ( value < 0 ) {
@@ -449,36 +543,10 @@ PJEI_FORCE_INLINE void pjei_calculate_variable_length_int(int value, uint16_t ou
 }
 
 // Write bits to file.
-PJEI_FORCE_INLINE void pjei_write_bits(PJEState* state,
-                                       uint32_t* bitbuffer, uint32_t* location,
-                                       uint16_t num_bits, uint16_t bits)
+#define djei_write_bits(s, bf, l, n, bt) djei_write_bits_impl(s, n)
+DJEI_FORCE_INLINE void djei_write_bits_impl(DJEState* state, uint16_t num_bits)
 {
-    //   v-- location
-    //  [                     ]   <-- bit buffer
-    // 32                     0
-    //
-    // This call pushes to the bitbuffer and saves the location. Data is pushed
-    // from most significant to less significant.
-    // When we can write a full byte, we write a byte and shift.
-
-    // Push the stack.
-    uint32_t nloc = *location + num_bits;
-    *bitbuffer |= (bits << (32 - nloc));
-    *location = nloc;
-    while ( *location >= 8 ) {
-        // Grab the most significant byte.
-        uint8_t c = (uint8_t)((*bitbuffer) >> 24);
-        // Write it to file.
-        pje_write(state, &c, 1, 1);
-        if ( c == 0xff )  {
-            // Special case: tell JPEG this is not a marker.
-            char z = 0;
-            pje_write(state, &z, 1, 1);
-        }
-        // Pop the stack.
-        *bitbuffer <<= 8;
-        *location -= 8;
-    }
+    state->bit_count += num_bits;
 }
 
 // DCT implementation by Thomas G. Lane.
@@ -621,9 +689,9 @@ float slow_fdct(int u, int v, float* data)
 
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
-static void pjei_encode_and_write_DU(PJEState* state,
+static void djei_encode_and_write_DU(DJEState* state,
                                      float* mcu,
-#if PJE_USE_FAST_DCT
+#if DJE_USE_FAST_DCT
                                      float* qt,  // Pre-processed quantization matrix.
 #else
                                      uint8_t* qt,
@@ -639,7 +707,7 @@ static void pjei_encode_and_write_DU(PJEState* state,
     float dct_mcu[64];
     memcpy(dct_mcu, mcu, 64 * sizeof(float));
 
-#if PJE_USE_FAST_DCT
+#if DJE_USE_FAST_DCT
     fdct(dct_mcu);
     for ( int i = 0; i < 64; ++i ) {
         float fval = dct_mcu[i];
@@ -651,7 +719,7 @@ static void pjei_encode_and_write_DU(PJEState* state,
         fval -= 1024;
 #endif
         int val = (int)fval;
-        du[pjei_zig_zag[i]] = val;
+        du[djei_zig_zag[i]] = val;
     }
 #else
     for ( int v = 0; v < 8; ++v ) {
@@ -662,24 +730,26 @@ static void pjei_encode_and_write_DU(PJEState* state,
     for ( int i = 0; i < 64; ++i ) {
         float fval = dct_mcu[i] / (qt[i]);
         int val = (int)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
-        du[pjei_zig_zag[i]] = val;
+        du[djei_zig_zag[i]] = val;
     }
 #endif
 
     uint16_t vli[2];
 
+#if 0
     // Encode DC coefficient.
     int diff = du[0] - *pred;
     *pred = du[0];
     if ( diff != 0 ) {
-        pjei_calculate_variable_length_int(diff, vli);
+        djei_calculate_variable_length_int(diff, vli);
         // Write number of bits with Huffman coding
-        pjei_write_bits(state, bitbuffer, location, huff_dc_len[vli[1]], huff_dc_code[vli[1]]);
+        djei_write_bits(state, bitbuffer, location, huff_dc_len[vli[1]], huff_dc_code[vli[1]]);
         // Write the bits.
-        pjei_write_bits(state, bitbuffer, location, vli[1], vli[0]);
+        djei_write_bits(state, bitbuffer, location, vli[1], vli[0]);
     } else {
-        pjei_write_bits(state, bitbuffer, location, huff_dc_len[0], huff_dc_code[0]);
+        djei_write_bits(state, bitbuffer, location, huff_dc_len[0], huff_dc_code[0]);
     }
+#endif
 
     // ==== Encode AC coefficients ====
 
@@ -693,7 +763,7 @@ static void pjei_encode_and_write_DU(PJEState* state,
         }
     }
 
-    for ( int i = 1; i <= last_non_zero_i; ++i ) {
+    for ( int i = 0; i <= last_non_zero_i; ++i ) {
         // If zero, increase count. If >=15, encode (FF,00)
         int zero_count = 0;
         while ( du[i] == 0 ) {
@@ -701,11 +771,11 @@ static void pjei_encode_and_write_DU(PJEState* state,
             ++i;
             if (zero_count == 16) {
                 // encode (ff,00) == 0xf0
-                pjei_write_bits(state, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
+                djei_write_bits(state, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
                 zero_count = 0;
             }
         }
-        pjei_calculate_variable_length_int(du[i], vli);
+        djei_calculate_variable_length_int(du[i], vli);
 
         assert(zero_count < 0x10);
         assert(vli[1] <= 10);
@@ -715,14 +785,14 @@ static void pjei_encode_and_write_DU(PJEState* state,
         assert(huff_ac_len[sym1] != 0);
 
         // Write symbol 1  --- (RUNLENGTH, SIZE)
-        pjei_write_bits(state, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
+        djei_write_bits(state, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
         // Write symbol 2  --- (AMPLITUDE)
-        pjei_write_bits(state, bitbuffer, location, vli[1], vli[0]);
+        djei_write_bits(state, bitbuffer, location, vli[1], vli[0]);
     }
 
     if (last_non_zero_i != 63) {
         // write EOB HUFF(00,00)
-        pjei_write_bits(state, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
+        djei_write_bits(state, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
     }
     return;
 }
@@ -734,27 +804,27 @@ enum {
     CHROMA_AC,
 };
 
-#if PJE_USE_FAST_DCT
-struct PJEProcessedQT {
+#if DJE_USE_FAST_DCT
+struct DJEProcessedQT {
     float chroma[64];
     float luma[64];
 };
 #endif
 
 // Set up huffman tables in state.
-static void pjei_huff_expand (PJEState* state)
+static void djei_huff_expand (DJEState* state)
 {
     assert(state);
 
-    state->ht_bits[LUMA_DC]   = pjei_default_ht_luma_dc_len;
-    state->ht_bits[LUMA_AC]   = pjei_default_ht_luma_ac_len;
-    state->ht_bits[CHROMA_DC] = pjei_default_ht_chroma_dc_len;
-    state->ht_bits[CHROMA_AC] = pjei_default_ht_chroma_ac_len;
+    state->ht_bits[LUMA_DC]   = djei_default_ht_luma_dc_len;
+    state->ht_bits[LUMA_AC]   = djei_default_ht_luma_ac_len;
+    state->ht_bits[CHROMA_DC] = djei_default_ht_chroma_dc_len;
+    state->ht_bits[CHROMA_AC] = djei_default_ht_chroma_ac_len;
 
-    state->ht_vals[LUMA_DC]   = pjei_default_ht_luma_dc;
-    state->ht_vals[LUMA_AC]   = pjei_default_ht_luma_ac;
-    state->ht_vals[CHROMA_DC] = pjei_default_ht_chroma_dc;
-    state->ht_vals[CHROMA_AC] = pjei_default_ht_chroma_ac;
+    state->ht_vals[LUMA_DC]   = djei_default_ht_luma_dc;
+    state->ht_vals[LUMA_AC]   = djei_default_ht_luma_ac;
+    state->ht_vals[CHROMA_DC] = djei_default_ht_chroma_dc;
+    state->ht_vals[CHROMA_AC] = djei_default_ht_chroma_ac;
 
     // How many codes in total for each of LUMA_(DC|AC) and CHROMA_(DC|AC)
     int32_t spec_tables_len[4] = { 0 };
@@ -770,12 +840,12 @@ static void pjei_huff_expand (PJEState* state)
     uint16_t huffcode[4][256];
     for ( int i = 0; i < 4; ++i ) {
         assert (256 >= spec_tables_len[i]);
-        pjei_huff_get_code_lengths(huffsize[i], state->ht_bits[i]);
-        pjei_huff_get_codes(huffcode[i], huffsize[i], spec_tables_len[i]);
+        djei_huff_get_code_lengths(huffsize[i], state->ht_bits[i]);
+        djei_huff_get_codes(huffcode[i], huffsize[i], spec_tables_len[i]);
     }
     for ( int i = 0; i < 4; ++i ) {
         int64_t count = spec_tables_len[i];
-        pjei_huff_get_extended(state->ehuffsize[i],
+        djei_huff_get_extended(state->ehuffsize[i],
                                state->ehuffcode[i],
                                state->ht_vals[i],
                                &huffsize[i][0],
@@ -783,7 +853,7 @@ static void pjei_huff_expand (PJEState* state)
     }
 }
 
-static int pjei_encode_main(PJEState* state,
+static int djei_encode_main(DJEState* state,
                             const unsigned char* src_data,
                             const int width,
                             const int height,
@@ -797,8 +867,8 @@ static int pjei_encode_main(PJEState* state,
         return 0;
     }
 
-#if PJE_USE_FAST_DCT
-    struct PJEProcessedQT pqt;
+#if DJE_USE_FAST_DCT
+    struct DJEProcessedQT pqt;
     // Again, taken from classic japanese implementation.
     //
     /* For float AA&N IDCT method, divisors are equal to quantization
@@ -818,55 +888,55 @@ static int pjei_encode_main(PJEState* state,
     for(int y=0; y<8; y++) {
         for(int x=0; x<8; x++) {
             int i = y*8 + x;
-            pqt.luma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_luma[pjei_zig_zag[i]]);
-            pqt.chroma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_chroma[pjei_zig_zag[i]]);
+            pqt.luma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_luma[djei_zig_zag[i]]);
+            pqt.chroma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_chroma[djei_zig_zag[i]]);
         }
     }
 #endif
 
     { // Write header
-        PJEJPEGHeader header;
+        DJEJPEGHeader header;
         // JFIF header.
-        header.SOI = pjei_be_word(0xffd8);  // Sequential DCT
-        header.APP0 = pjei_be_word(0xffe0);
-        header.jfif_len = pjei_be_word(0x0016);
-        memcpy(header.jfif_id, (void*)pjeik_jfif_id, 5);
-        header.version = pjei_be_word(0x0102);
+        header.SOI = djei_be_word(0xffd8);  // Sequential DCT
+        header.APP0 = djei_be_word(0xffe0);
+        header.jfif_len = djei_be_word(0x0016);
+        memcpy(header.jfif_id, (void*)djeik_jfif_id, 5);
+        header.version = djei_be_word(0x0102);
         //header.units = 0x01;
-        //header.x_density = pjei_be_word(0x0060);  // 96 DPI
-        //header.y_density = pjei_be_word(0x0060);  // 96 DPI
+        //header.x_density = djei_be_word(0x0060);  // 96 DPI
+        //header.y_density = djei_be_word(0x0060);  // 96 DPI
         header.units = 0x00;
-        header.x_density = pjei_be_word(0x0000);
-        header.y_density = pjei_be_word(0x0000);
+        header.x_density = djei_be_word(0x0000);
+        header.y_density = djei_be_word(0x0000);
         header.thumb_size = 0;
         /* // Comment */
-        header.com = pjei_be_word(0xfffe);
-        header.com_len = 16 + sizeof(pjeik_com_str) - 1;
-        memcpy(header.com_str, (void*)pjeik_com_str, sizeof(pjeik_com_str) - 1); // Skip the 0-bit
-        pje_write(state, &header, sizeof(PJEJPEGHeader), 1);
+        header.com = djei_be_word(0xfffe);
+        header.com_len = 16 + sizeof(djeik_com_str) - 1;
+        memcpy(header.com_str, (void*)djeik_com_str, sizeof(djeik_com_str) - 1); // Skip the 0-bit
+        dje_write(state, &header, sizeof(DJEJPEGHeader), 1);
     }
 
     // Write quantization tables.
-    pjei_write_DQT(state, state->qt_luma, 0x00);
-    pjei_write_DQT(state, state->qt_chroma, 0x01);
+    djei_write_DQT(state, state->qt_luma, 0x00);
+    djei_write_DQT(state, state->qt_chroma, 0x01);
 
     {  // Write the frame marker.
-        PJEFrameHeader header;
-        header.SOF = pjei_be_word(0xffc0);
-        header.len = pjei_be_word(8 + 3 * 3);
+        DJEFrameHeader header;
+        header.SOF = djei_be_word(0xffc0);
+        header.len = djei_be_word(8 + 3 * 3);
         header.precision = 8;
         assert(width <= 0xffff);
         assert(height <= 0xffff);
-        header.width = pjei_be_word((uint16_t)width);
-        header.height = pjei_be_word((uint16_t)height);
+        header.width = djei_be_word((uint16_t)width);
+        header.height = djei_be_word((uint16_t)height);
         header.num_components = 3;
         uint8_t tables[3] = {
-            0,  // Luma component gets luma table (see pjei_write_DQT call above.)
+            0,  // Luma component gets luma table (see djei_write_DQT call above.)
             1,  // Chroma component gets chroma table
             1,  // Chroma component gets chroma table
         };
         for (int i = 0; i < 3; ++i) {
-            PJEComponentSpec spec;
+            DJEComponentSpec spec;
             spec.component_id = (uint8_t)(i + 1);  // No particular reason. Just 1, 2, 3.
             spec.sampling_factors = (uint8_t)0x11;
             spec.qt = tables[i];
@@ -874,19 +944,19 @@ static int pjei_encode_main(PJEState* state,
             header.component_spec[i] = spec;
         }
         // Write to file.
-        pje_write(state, &header, sizeof(PJEFrameHeader), 1);
+        dje_write(state, &header, sizeof(DJEFrameHeader), 1);
     }
 
-    pjei_write_DHT(state, state->ht_bits[LUMA_DC], state->ht_vals[LUMA_DC], DC, 0);
-    pjei_write_DHT(state, state->ht_bits[LUMA_AC], state->ht_vals[LUMA_AC], AC, 0);
-    pjei_write_DHT(state, state->ht_bits[CHROMA_DC], state->ht_vals[CHROMA_DC], DC, 1);
-    pjei_write_DHT(state, state->ht_bits[CHROMA_AC], state->ht_vals[CHROMA_AC], AC, 1);
+    djei_write_DHT(state, state->ht_bits[LUMA_DC], state->ht_vals[LUMA_DC], DC, 0);
+    djei_write_DHT(state, state->ht_bits[LUMA_AC], state->ht_vals[LUMA_AC], AC, 0);
+    djei_write_DHT(state, state->ht_bits[CHROMA_DC], state->ht_vals[CHROMA_DC], DC, 1);
+    djei_write_DHT(state, state->ht_bits[CHROMA_AC], state->ht_vals[CHROMA_AC], AC, 1);
 
     // Write start of scan
     {
-        PJEScanHeader header;
-        header.SOS = pjei_be_word(0xffda);
-        header.len = pjei_be_word((uint16_t)(6 + (2 * 3)));
+        DJEScanHeader header;
+        header.SOS = djei_be_word(0xffda);
+        header.len = djei_be_word((uint16_t)(6 + (2 * 3)));
         header.num_components = 3;
 
         uint8_t tables[3] = {
@@ -895,7 +965,7 @@ static int pjei_encode_main(PJEState* state,
             0x11,
         };
         for (int i = 0; i < 3; ++i) {
-            PJEFrameComponentSpec cs;
+            DJEFrameComponentSpec cs;
             // Must be equal to component_id from frame header above.
             cs.component_id = (uint8_t)(i + 1);
             cs.dc_ac = (uint8_t)tables[i];
@@ -905,30 +975,22 @@ static int pjei_encode_main(PJEState* state,
         header.first = 0;
         header.last  = 63;
         header.ah_al = 0;
-        pje_write(state, &header, sizeof(PJEScanHeader), 1);
+        dje_write(state, &header, sizeof(DJEScanHeader), 1);
 
     }
     // Write compressed data.
-
-    // Set diff to 0.
-    int pred_y = 0;
-    int pred_b = 0;
-    int pred_r = 0;
 
     // Bit stack
     uint32_t bitbuffer = 0;
     uint32_t location = 0;
 
-
-    // Number of blocks.
-
     int w_cap = (width % 8 == 0) ? width : (width + (8 - width % 8));
     int h_cap = (height % 8 == 0) ? height : (height + (8 - height % 8));
     int num_blocks = src_num_components * w_cap * h_cap / 64;
 
-    PJEBlock* y_blocks = arena_alloc_array(state->arena, num_blocks/3, PJEBlock);
-    PJEBlock* u_blocks = arena_alloc_array(state->arena, num_blocks/3, PJEBlock);
-    PJEBlock* v_blocks = arena_alloc_array(state->arena, num_blocks/3, PJEBlock);
+    DJEBlock* y_blocks = arena_alloc_array(state->arena, num_blocks/3, DJEBlock);
+    DJEBlock* u_blocks = arena_alloc_array(state->arena, num_blocks/3, DJEBlock);
+    DJEBlock* v_blocks = arena_alloc_array(state->arena, num_blocks/3, DJEBlock);
 
     uint32_t block_i = 0;
     for ( int y = 0; y < height; y += 8 ) {
@@ -969,21 +1031,28 @@ static int pjei_encode_main(PJEState* state,
         }
     }
 
+    // Set diff to 0.
+    int pred_y = 0;
+    int pred_b = 0;
+    int pred_r = 0;
+
+
+
     for ( int bi = 0; bi < num_blocks / 3; ++bi ) {
         float* y_block = y_blocks[bi].d;
         float* u_block = u_blocks[bi].d;
         float* v_block = v_blocks[bi].d;
-        pjei_encode_and_write_DU(state, y_block,
+        djei_encode_and_write_DU(state, y_block,
                                  pqt.luma,
                                  state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                                  state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
                                  &pred_y, &bitbuffer, &location);
-        pjei_encode_and_write_DU(state, u_block,
+        djei_encode_and_write_DU(state, u_block,
                                  pqt.chroma,
                                  state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                                  state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                                  &pred_b, &bitbuffer, &location);
-        pjei_encode_and_write_DU(state, v_block,
+        djei_encode_and_write_DU(state, v_block,
                                  pqt.chroma,
                                  state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                                  state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
@@ -993,164 +1062,43 @@ static int pjei_encode_main(PJEState* state,
     // Finish the image.
     { // Flush
         while (location != 0) {
-            pjei_write_bits(state, &bitbuffer, &location, (uint16_t)(8 - location), 0xff);
+            djei_write_bits(state, &bitbuffer, &location, (uint16_t)(8 - location), 0xff);
         }
     }
-    uint16_t EOI = pjei_be_word(0xffd9);
-    pje_write(state, &EOI, sizeof(uint16_t), 1);
+    uint16_t EOI = djei_be_word(0xffd9);
+    dje_write(state, &EOI, sizeof(uint16_t), 1);
 
     // If compiled with buffered IO
-#if defined(PJEI_BUFFER_SIZE)
-    if (pjei_g_output_buffer_count) {
-        fwrite(pjei_g_output_buffer, pjei_g_output_buffer_count, 1, state->fd);
-    }
-#endif
 
     return 1;
 }
 
-int pje_encode_to_file(const char* dest_path,
-                       const int width,
-                       const int height,
-                       const int num_components,
-                       const unsigned char* src_data,
-                       void* memory, size_t size)
-{
-    int res = pje_encode_to_file_at_quality(dest_path, 3, width, height, num_components, src_data, memory, size);
-    return res;
-}
-
 // Define public interface.
-int pje_encode_to_file_at_quality(const char* dest_path,
-                                  const int quality,
-                                  const int width,
-                                  const int height,
-                                  const int num_components,
-                                  const unsigned char* src_data,
-                                  void* memory, size_t size)
+
+DJEState dje_dummy_encode(Arena* arena,
+                          uint8_t* qt,
+                          int width,
+                          int height,
+                          int num_components,
+                          unsigned char* src_data)
 {
-    FILE* fd = fopen(dest_path, "wb");
-    if (!fd) {
-        pje_log("Could not open file for writing.");
-        return 0;
-    }
+    DJEState state = { 0 };
 
-    if (quality < 1 || quality > 3) {
-        pje_log("[ERROR] -- Valid 'quality' values are 1 (lowest), 2, or 3 (highest)\n");
-        return 0;
-    }
+    state.arena = arena;
 
-    PJEState state = { 0 };
+    memcpy(state.qt_luma, qt, 64);
+    memcpy(state.qt_chroma, qt, 64);
 
-    state.fd = fd;
+    djei_huff_expand(&state);
 
-    uint8_t qt_factor = 1;
-    switch(quality) {
-    case 3:
-        for (int i = 0; i < 64; ++ i) {
-            state.qt_luma[i]   = 1;
-            state.qt_chroma[i] = 1;
-        }
-        break;
-    case 2:
-        qt_factor = 10;
-        // don't break. fall through.
-    case 1:
-        for ( int i = 0; i < 64; ++i ) {
-            state.qt_luma[i]   = pjei_default_qt_luma_from_spec[i] / qt_factor;
-            if (state.qt_luma[i] == 0) {
-                state.qt_luma[i] = 1;
-            }
-            state.qt_chroma[i] = pjei_default_qt_chroma_from_paper[i] / qt_factor;
-            if (state.qt_chroma[i] == 0) {
-                state.qt_chroma[i] = 1;
-            }
-        }
-        break;
-    default:
-        assert(!"invalid code path");
-        break;
-    }
+    int result = djei_encode_main(&state, src_data, width, height, num_components);
 
-
-    pjei_huff_expand(&state);
-
-
-    // Setup the arena.
-    Arena encoder_arena = arena_init(memory, size);
-    state.arena = &encoder_arena;
-
-
-    int result = pjei_encode_main(&state, src_data, width, height, num_components);
-
-    result |= 0 == fclose(fd);
-
-    return result;
+    return state;
 }
+// ============================================================
+#endif // DJE_IMPLEMENTATION
+// ============================================================
 
-#include "gpu.c"
-
-int main()
-{
-    GPUInfo gpu_info;
-    if ( !gpu_init(&gpu_info)) {
-        sgl_log("Could not init GPGPU.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    size_t memsz = 1L * 1024 * 1024 * 1024;
-    Arena root_arena = arena_init(sgl_calloc(memsz, 1), memsz);
-
-    if ( !root_arena.ptr ) {
-        sgl_log("Can't allocate memory. Exiting\n");
-        exit(EXIT_FAILURE);
-    }
-
-
-    int w, h, ncomp;
-    //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
-
-    unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
-    if ( !data ) {
-        puts("Could not load file");
-        return EXIT_FAILURE;
-    }
-
-
-    size_t size = (size_t)2 * 1024 * 1024 * 1024;
-    void* memory = sgl_calloc(size, 1);
-    if ( !memory ) {
-        sgl_log("Could not allocate enough memory for the parallel encoder.n");
-        return EXIT_FAILURE;
-    }
-
-    // Highest quality by default.
-    if ( !pje_encode_to_file("parallel_out.jpg", w, h, ncomp, data, memory, size) ) {
-        return EXIT_FAILURE;
-    }
-/*
-    data = stbi_load("out.jpg", &w, &h, &ncomp, 0);
-    if (!data) {
-        return EXIT_FAILURE;
-    }
-
-    // Q3 -- Highest quality
-    if ( 0 == tje_encode_to_file_at_quality("out_q3.jpg", 3, w, h, ncomp, data) ) {
-        return EXIT_FAILURE;
-    }
-
-    // Q2 -- Almost as good as 3, about twice as much compression.
-    if ( 0 == tje_encode_to_file_at_quality("out_q2.jpg", 2, w, h, ncomp, data) ) {
-        return EXIT_FAILURE;
-    }
-
-    // Q1 -- About 3 times smaller than Q2. Noticeable artifacts.
-    if ( 0 == tje_encode_to_file_at_quality("out_q1.jpg", 1, w, h, ncomp, data) ) {
-        return EXIT_FAILURE;
-    }
-    */
-    stbi_image_free(data);
-
-    return EXIT_SUCCESS;
-}
-
+#ifdef __cplusplus
+}  // extern C
+#endif

@@ -8,6 +8,12 @@
 #include "dummy_jpeg.h"
 
 typedef uint32_t b32;
+#ifndef true
+#define true 1
+#endif  // true
+#ifndef false
+#define false 0
+#endif  // false
 
 #include "gpu.h"
 
@@ -45,8 +51,8 @@ int main()
 
 
     int w, h, ncomp;
-    unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
-    //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
+    //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
+    unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
 
     if ( !data ) {
         puts("Could not load file");
@@ -63,7 +69,21 @@ int main()
     // Highest quality by default.
     DJEState state = dje_dummy_encode(&root_arena, optimal_table, w, h, ncomp, data);
 
-    sgl_log("The resulting image would have been %d bytes\n", state.bit_count/8);
+    uint32_t base_bit_count = state.bit_count / 8;
+
+    arena_reset(&root_arena);
+    DJEState other_state = dje_dummy_encode(&root_arena, djei_default_qt_chroma_from_paper, w, h, ncomp, data);
+
+
+    uint32_t other_bit_count = other_state.bit_count / 8;
+
+    float compression_ratio = (float)other_bit_count / (float)base_bit_count;
+
+
+    sgl_log("First image size: %d\n"
+            "Second image size: %d\n"
+            "Normalized compression ratio: %f\n",
+            base_bit_count, other_bit_count, compression_ratio);
 
     stbi_image_free(data);
 

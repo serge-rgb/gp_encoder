@@ -1,137 +1,59 @@
 /**
- * tiny_jpeg.h
- *
- * Tiny JPEG Encoder
+ * dummy_jpeg.h
  *  - Sergio Gonzalez
  *
- * This is a readable and simple single-header JPEG encoder.
+ *  This is a modification of tiny_jpeg so that:
+ *      - Data is transformed in a GPU-friendly way.
+ *      - Nothing gets written. It does only the necessary work to calculate the size and error of the JPEG that would result.
  *
- * Features
- *  - Implements Baseline DCT JPEG compression.
- *  - No dynamic allocations.
- *
- * This library is coded in the spirit of the stb libraries and mostly follows
- * the stb guidelines.
- *
- * It is written in C99. And depends on the C standard library.
- *
- * Other requirements
- *  - Assumes little endian machine.
- *
- * Tested on:
- *  Linux x64 (clang)
- *  Windows
- *  OSX
- *
- * TODO:
- *  - error messages
- *
- * This software is in the public domain. Where that dedication is not
- * recognized, you are granted a perpetual, irrevocable license to copy
- * and modify this file as you see fit.*
  */
 
 // ============================================================
 // Usage
 // ============================================================
-// Include "tiny_jpeg.h" to and use the public interface defined below.
-//
-// You *must* do:
 //
 //      #define DJE_IMPLEMENTATION
-//      #include "tiny_jpeg.h"
+//      #include "dummy_jpeg.h"
 //
-// in exactly one of your C files to actually compile the implementation.
-
-
-// Here is an example program that loads a bmp with stb_image and writes it
-// with Tiny JPEG
-
-/*
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
-
-#define DJE_IMPLEMENTATION
-#include "tiny_jpeg.h"
-
-
-int main()
-{
-    int width, height, num_components;
-    unsigned char* data = stbi_load("in.bmp", &width, &height, &num_components, 0);
-    if ( !data ) {
-        puts("Could not find file");
-        return EXIT_FAILURE;
-    }
-
-    if ( !dje_encode_to_file("out.jpg", width, height, num_components, data) ) {
-        fprintf(stderr, "Could not write JPEG\n");
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
-}
-
-*/
 
 
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
+typedef struct Arena_s Arena;
+
+typedef struct DJEState_s {
+    uint8_t     ehuffsize[4][257];
+    uint16_t    ehuffcode[4][256];
+
+    uint8_t*    ht_bits[4];
+    uint8_t*    ht_vals[4];
+
+    uint8_t     qt_luma[64];
+    uint8_t     qt_chroma[64];
+
+    // width and height rounded up to next multiple of 8
+    int w_cap;
+    int h_cap;
+
+    Arena*      arena;
+
+    // Useful stuff:
+    uint32_t    bit_count;  // Instead of writing, we increase this value.
+
+} DJEState;
 
 
-// ============================================================9
-// Public interface:
-// ============================================================
-
-
-// - dje_encode_to_file -
+// - dje_dummy_encode
 //
-// Usage:
-//  Takes bitmap data and writes a JPEG-encoded image to disk.
+// Arena will allocate about a factor of 3 of the memory that the original image takes.
+// Returns a DJEState, which will contain `num_bits` and `MSE`, aka "minimum square error".
 //
-//  PARAMETERS
-//      dest_path:          filename to which we will write. e.g. "out.jpg"
-//      width, height:      image size in pixels
-//      num_components:     3 is RGB. 4 is RGBA. Those are the only supported values
-//      src_data:           pointer to the pixel data.
 //
-//  RETURN:
-//      0 on error. 1 on success.
-
-int dje_encode_to_file(const char* dest_path,
-                       const int width,
-                       const int height,
-                       const int num_components,
-                       const unsigned char* src_data);
-
-// - dje_encode_to_file_at_quality -
-//
-// Usage:
-//  Takes bitmap data and writes a JPEG-encoded image to disk.
-//
-//  PARAMETERS
-//      dest_path:          filename to which we will write. e.g. "out.jpg"
-//      quality:            3: Highest. Compression varies wildly (between 1/3 and 1/20).
-//                          2: Very good quality. About 1/2 the size of 3.
-//                          1: Noticeable. About 1/6 the size of 3, or 1/3 the size of 2.
-//      width, height:      image size in pixels
-//      num_components:     3 is RGB. 4 is RGBA. Those are the only supported values
-//      src_data:           pointer to the pixel data.
-//
-//  RETURN:
-//      0 on error. 1 on success.
-
-int dje_encode_to_file_at_quality(const char* dest_path,
-                                  const int quality,
-                                  const int width,
-                                  const int height,
-                                  const int num_components,
-                                  const unsigned char* src_data);
+DJEState dje_dummy_encode(Arena* arena,
+                          uint8_t* qt,
+                          int width,
+                          int height,
+                          int num_components,
+                          unsigned char* src_data);
 
 // ============================================================
 // Internal
@@ -155,25 +77,6 @@ int dje_encode_to_file_at_quality(const char* dest_path,
 #include <math.h>   // floorf, ceilf
 #include <stdio.h>  // FILE, puts
 #include <string.h> // memcpy
-
-
-#ifndef dje_malloc
-#if defined(_WIN32) || defined(__linux__)
-#include <malloc.h>
-#elif defined(__MACH__)
-#include <malloc/malloc.h>
-#endif
-#define dje_malloc malloc
-#endif
-
-#ifndef dje_free
-#if defined(_WIN32) || defined(__linux__)
-#include <malloc.h>
-#elif defined(__MACH__)
-#include <malloc/malloc.h>
-#endif
-#define dje_free(x) free((x)); x = 0;
-#endif
 
 
 #if !defined(dje_write)
@@ -213,21 +116,6 @@ static uint8_t djei_g_output_buffer[DJEI_BUFFER_SIZE];
 typedef struct DJEBlock_s {
     float d[64];
 } DJEBlock;
-
-typedef struct DJEState_s {
-    uint8_t     ehuffsize[4][257];
-    uint16_t    ehuffcode[4][256];
-
-    uint8_t*    ht_bits[4];
-    uint8_t*    ht_vals[4];
-
-    uint8_t     qt_luma[64];
-    uint8_t     qt_chroma[64];
-
-    Arena*      arena;
-
-    uint32_t    bit_count;  // Instead of writing, we increase this value.
-} DJEState;
 
 // ============================================================
 // Table definitions.
@@ -687,9 +575,131 @@ float slow_fdct(int u, int v, float* data)
 #undef kPI
 }
 
+/////////////////////
+//  IDCT from stb_image.h (public domain).
+//  which in turn gets it from IJG who take it from:
+//      C. Loeffler, A. Ligtenberg and G. Moschytz, "Practical Fast 1-D DCT
+//      Algorithms with 11 Multiplications", Proc. Int'l. Conf. on Acoustics,
+//      Speech, and Signal Processing 1989 (ICASSP '89), pp. 988-991.
+//  /////////////////
+
+// take a -128..127 value and stbi__clamp it and convert to 0..255
+static uint8_t clamp(int x)
+{
+   // trick to use a single test to catch both cases
+   if ((unsigned int) x > 255) {
+      if (x < 0) return 0;
+      if (x > 255) return 255;
+   }
+   return (stbi_uc) x;
+}
+
+#define stbi__f2f(x)  ((int) (((x) * 4096 + 0.5)))
+#define stbi__fsh(x)  ((x) << 12)
+
+// derived from jidctint -- DCT_ISLOW
+#define STBI__IDCT_1D(s0,s1,s2,s3,s4,s5,s6,s7) \
+   int t0,t1,t2,t3,p1,p2,p3,p4,p5,x0,x1,x2,x3; \
+   p2 = s2;                                    \
+   p3 = s6;                                    \
+   p1 = (p2+p3) * stbi__f2f(0.5411961f);       \
+   t2 = p1 + p3*stbi__f2f(-1.847759065f);      \
+   t3 = p1 + p2*stbi__f2f( 0.765366865f);      \
+   p2 = s0;                                    \
+   p3 = s4;                                    \
+   t0 = stbi__fsh(p2+p3);                      \
+   t1 = stbi__fsh(p2-p3);                      \
+   x0 = t0+t3;                                 \
+   x3 = t0-t3;                                 \
+   x1 = t1+t2;                                 \
+   x2 = t1-t2;                                 \
+   t0 = s7;                                    \
+   t1 = s5;                                    \
+   t2 = s3;                                    \
+   t3 = s1;                                    \
+   p3 = t0+t2;                                 \
+   p4 = t1+t3;                                 \
+   p1 = t0+t3;                                 \
+   p2 = t1+t2;                                 \
+   p5 = (p3+p4)*stbi__f2f( 1.175875602f);      \
+   t0 = t0*stbi__f2f( 0.298631336f);           \
+   t1 = t1*stbi__f2f( 2.053119869f);           \
+   t2 = t2*stbi__f2f( 3.072711026f);           \
+   t3 = t3*stbi__f2f( 1.501321110f);           \
+   p1 = p5 + p1*stbi__f2f(-0.899976223f);      \
+   p2 = p5 + p2*stbi__f2f(-2.562915447f);      \
+   p3 = p3*stbi__f2f(-1.961570560f);           \
+   p4 = p4*stbi__f2f(-0.390180644f);           \
+   t3 += p1+p4;                                \
+   t2 += p2+p3;                                \
+   t1 += p2+p4;                                \
+   t0 += p1+p3;
+
+static void idct_block(uint8_t *out, int out_stride, short data[64])
+{
+    int i,val[64],*v=val;
+    stbi_uc *o;
+    short *d = data;
+
+    // columns
+    for (i=0; i < 8; ++i,++d, ++v) {
+        // if all zeroes, shortcut -- this avoids dequantizing 0s and IDCTing
+        if (d[ 8]==0 && d[16]==0 && d[24]==0 && d[32]==0
+            && d[40]==0 && d[48]==0 && d[56]==0) {
+            //    no shortcut                 0     seconds
+            //    (1|2|3|4|5|6|7)==0          0     seconds
+            //    all separate               -0.047 seconds
+            //    1 && 2|3 && 4|5 && 6|7:    -0.047 seconds
+            int dcterm = d[0] << 2;
+            v[0] = v[8] = v[16] = v[24] = v[32] = v[40] = v[48] = v[56] = dcterm;
+        } else {
+            STBI__IDCT_1D(d[ 0],d[ 8],d[16],d[24],d[32],d[40],d[48],d[56])
+                    // constants scaled things up by 1<<12; let's bring them back
+                    // down, but keep 2 extra bits of precision
+                    x0 += 512; x1 += 512; x2 += 512; x3 += 512;
+            v[ 0] = (x0+t3) >> 10;
+            v[56] = (x0-t3) >> 10;
+            v[ 8] = (x1+t2) >> 10;
+            v[48] = (x1-t2) >> 10;
+            v[16] = (x2+t1) >> 10;
+            v[40] = (x2-t1) >> 10;
+            v[24] = (x3+t0) >> 10;
+            v[32] = (x3-t0) >> 10;
+        }
+    }
+
+    for (i=0, v=val, o=out;
+         i < 8;
+         ++i,v+=8,o+=out_stride) {
+        // no fast case since the first 1D IDCT spread components out
+        STBI__IDCT_1D(v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7])
+                // constants scaled things up by 1<<12, plus we had 1<<2 from first
+                // loop, plus horizontal and vertical each scale by sqrt(8) so together
+                // we've got an extra 1<<3, so 1<<17 total we need to remove.
+                // so we want to round that, which means adding 0.5 * 1<<17,
+                // aka 65536. Also, we'll end up with -128 to 127 that we want
+                // to encode as 0..255 by adding 128, so we'll add that before the shift
+                x0 += 65536 + (128<<17);
+        x1 += 65536 + (128<<17);
+        x2 += 65536 + (128<<17);
+        x3 += 65536 + (128<<17);
+        // tried computing the shifts into temps, or'ing the temps to see
+        // if any were out of range, but that was slower
+        o[0] = stbi__clamp((x0+t3) >> 17);
+        o[7] = stbi__clamp((x0-t3) >> 17);
+        o[1] = stbi__clamp((x1+t2) >> 17);
+        o[6] = stbi__clamp((x1-t2) >> 17);
+        o[2] = stbi__clamp((x2+t1) >> 17);
+        o[5] = stbi__clamp((x2-t1) >> 17);
+        o[3] = stbi__clamp((x3+t0) >> 17);
+        o[4] = stbi__clamp((x3-t0) >> 17);
+    }
+}
+
+
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
-static void djei_encode_and_write_DU(DJEState* state,
+static void djei_encode_and_write_MCU(DJEState* state,
                                      float* mcu,
 #if DJE_USE_FAST_DCT
                                      float* qt,  // Pre-processed quantization matrix.
@@ -702,7 +712,7 @@ static void djei_encode_and_write_DU(DJEState* state,
                                      uint32_t* bitbuffer,  // Bitstack.
                                      uint32_t* location)
 {
-    int du[64];  // Data unit in zig-zag order
+    int16_t du[64];  // Data unit in zig-zag order
 
     float dct_mcu[64];
     memcpy(dct_mcu, mcu, 64 * sizeof(float));
@@ -712,13 +722,14 @@ static void djei_encode_and_write_DU(DJEState* state,
     for ( int i = 0; i < 64; ++i ) {
         float fval = dct_mcu[i];
         fval *= qt[i];
+        assert(fval >= -1024 && fval < 1024.0f);
 #if 0
         fval = (fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f);
 #else
         fval = floorf(fval + 1024 + 0.5f);
         fval -= 1024;
 #endif
-        int val = (int)fval;
+        int16_t val = (int16_t)fval;
         du[djei_zig_zag[i]] = val;
     }
 #else
@@ -733,6 +744,14 @@ static void djei_encode_and_write_DU(DJEState* state,
         du[djei_zig_zag[i]] = val;
     }
 #endif
+
+    uint8_t decomp[64];
+    float re[64];  // Reconstructed image =)
+
+    // Note: stb uses w_cap as out_stride..
+    idct_block(decomp, 8, du);
+    for ( int id = 0; id < 64; ++id )
+        re[id] = (float)decomp[id] - 128;
 
     uint16_t vli[2];
 
@@ -749,6 +768,18 @@ static void djei_encode_and_write_DU(DJEState* state,
     } else {
         djei_write_bits(state, bitbuffer, location, huff_dc_len[0], huff_dc_code[0]);
     }
+#else
+    // By ignoring the DC coefficient, we are removing a data dependency between blocks.
+    //
+    // As a result, there will be an under-reporting error in the result, and
+    // the evolution will be blind to this.  That said, the mean square error
+    // reporting will still be accurate, so it might not be a problem.
+    //
+    // An alternative approach is to treat the DC coefficient as an AC
+    // coefficient, but there is a problem: there might not be a valid huffman
+    // code. For now, we will ignore the coefficient and hope that the
+    // file-size under-reporting is not a problem, given that the Error
+    // calculation is still correct.
 #endif
 
     // ==== Encode AC coefficients ====
@@ -756,14 +787,17 @@ static void djei_encode_and_write_DU(DJEState* state,
     int last_non_zero_i = 0;
     // Find the last non-zero element.
     for ( int i = 63; i > 0; --i ) {
-        if (du[i] != 0)
-        {
+        if (du[i] != 0) {
             last_non_zero_i = i;
             break;
         }
     }
 
-    for ( int i = 0; i <= last_non_zero_i; ++i ) {
+    // We are starting from zero, because delta-encoding the DC coefficient
+    // introduces a data dependency.
+    // We would rather have an algorithm that is no longer JPEG but that is
+    // data parallel and that will help us generate a good table.
+    for ( int i = 1; i <= last_non_zero_i; ++i ) {
         // If zero, increase count. If >=15, encode (FF,00)
         int zero_count = 0;
         while ( du[i] == 0 ) {
@@ -775,7 +809,14 @@ static void djei_encode_and_write_DU(DJEState* state,
                 zero_count = 0;
             }
         }
+
+
         djei_calculate_variable_length_int(du[i], vli);
+
+        if ( i == 0 && vli[1] >= 10) {
+            // There is no code for this coefficient. ignore.
+            continue;
+        }
 
         assert(zero_count < 0x10);
         assert(vli[1] <= 10);
@@ -986,6 +1027,9 @@ static int djei_encode_main(DJEState* state,
 
     int w_cap = (width % 8 == 0) ? width : (width + (8 - width % 8));
     int h_cap = (height % 8 == 0) ? height : (height + (8 - height % 8));
+
+    state->w_cap = w_cap;
+    state->h_cap = h_cap;
     int num_blocks = src_num_components * w_cap * h_cap / 64;
 
     DJEBlock* y_blocks = arena_alloc_array(state->arena, num_blocks/3, DJEBlock);
@@ -1036,31 +1080,36 @@ static int djei_encode_main(DJEState* state,
     int pred_b = 0;
     int pred_r = 0;
 
-
+    // TODO: This is the kernel: Set up the blocks and huffman data. Pass the
+    // quantization table as an argument and return errors an lengths. Then we
+    // sum them up for the final result, in a map-reduce style.
 
     for ( int bi = 0; bi < num_blocks / 3; ++bi ) {
         float* y_block = y_blocks[bi].d;
         float* u_block = u_blocks[bi].d;
         float* v_block = v_blocks[bi].d;
-        djei_encode_and_write_DU(state, y_block,
-                                 pqt.luma,
-                                 state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
-                                 state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
-                                 &pred_y, &bitbuffer, &location);
-        djei_encode_and_write_DU(state, u_block,
-                                 pqt.chroma,
-                                 state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
-                                 state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
-                                 &pred_b, &bitbuffer, &location);
-        djei_encode_and_write_DU(state, v_block,
-                                 pqt.chroma,
-                                 state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
-                                 state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
-                                 &pred_r, &bitbuffer, &location);
+
+
+        djei_encode_and_write_MCU(state, y_block,
+                                  pqt.luma,
+                                  state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
+                                  state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
+                                  &pred_y, &bitbuffer, &location);
+
+        djei_encode_and_write_MCU(state, u_block,
+                                  pqt.chroma,
+                                  state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
+                                  state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
+                                  &pred_b, &bitbuffer, &location);
+        djei_encode_and_write_MCU(state, v_block,
+                                  pqt.chroma,
+                                  state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
+                                  state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
+                                  &pred_r, &bitbuffer, &location);
     }
 
     // Finish the image.
-    { // Flush
+    {
         while (location != 0) {
             djei_write_bits(state, &bitbuffer, &location, (uint16_t)(8 - location), 0xff);
         }
@@ -1069,6 +1118,7 @@ static int djei_encode_main(DJEState* state,
     dje_write(state, &EOI, sizeof(uint16_t), 1);
 
     // If compiled with buffered IO
+    djei_g_output_buffer_count = 0;
 
     return 1;
 }
@@ -1099,6 +1149,3 @@ DJEState dje_dummy_encode(Arena* arena,
 #endif // DJE_IMPLEMENTATION
 // ============================================================
 
-#ifdef __cplusplus
-}  // extern C
-#endif

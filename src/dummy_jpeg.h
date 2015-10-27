@@ -38,6 +38,7 @@ typedef struct DJEState_s {
 
     // Useful stuff:
     uint32_t    bit_count;  // Instead of writing, we increase this value.
+    uint32_t    mse;        // Mean square error.
 
 } DJEState;
 
@@ -699,19 +700,19 @@ static void idct_block(uint8_t *out, int out_stride, short data[64])
 
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
-static void djei_encode_and_write_MCU(DJEState* state,
-                                     float* mcu,
+static void djei_encode_and_write_MCU(int block_i,
+                                      DJEBlock* mcu_array,
+                                      uint32_t* bitcount_array,
+                                      uint32_t* out_mse,
 #if DJE_USE_FAST_DCT
-                                     float* qt,  // Pre-processed quantization matrix.
+                                      float* qt,  // Pre-processed quantization matrix.
 #else
-                                     uint8_t* qt,
+                                      uint8_t* qt,
 #endif
-                                     uint8_t* huff_dc_len, uint16_t* huff_dc_code, // Huffman tables
-                                     uint8_t* huff_ac_len, uint16_t* huff_ac_code,
-                                     int* pred,  // Previous DC coefficient
-                                     uint32_t* bitbuffer,  // Bitstack.
-                                     uint32_t* location)
+                                      uint8_t* huff_dc_len, uint16_t* huff_dc_code, // Huffman tables
+                                      uint8_t* huff_ac_len, uint16_t* huff_ac_code)
 {
+    float* mcu = mcu_array[block_i].d;
     int16_t du[64];  // Data unit in zig-zag order
 
     float dct_mcu[64];
@@ -752,6 +753,20 @@ static void djei_encode_and_write_MCU(DJEState* state,
     idct_block(decomp, 8, du);
     for ( int id = 0; id < 64; ++id )
         re[id] = (float)decomp[id] - 128;
+
+    uint32_t MSE = 0;
+
+    for ( int i = 0; i < 64; ++i ) {
+        int32_t precision = 10000;  // Decimal-points of precision.
+        int32_t re_i = (int32_t)(re[i] * precision);
+        int32_t mcu_i = (int32_t)(mcu[i] * precision);
+        int32_t sqerr = (re_i - mcu_i);
+        sqerr *= sqerr;
+        MSE += sqerr;
+    }
+
+    out_mse[block_i] = MSE;
+
 
     uint16_t vli[2];
 
@@ -805,7 +820,8 @@ static void djei_encode_and_write_MCU(DJEState* state,
             ++i;
             if (zero_count == 16) {
                 // encode (ff,00) == 0xf0
-                djei_write_bits(state, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
+                //djei_write_bits(state, bitbuffer, location, huff_ac_len[0xf0], huff_ac_code[0xf0]);
+                bitcount_array[block_i] += huff_ac_len[0xf0];
                 zero_count = 0;
             }
         }
@@ -826,14 +842,17 @@ static void djei_encode_and_write_MCU(DJEState* state,
         assert(huff_ac_len[sym1] != 0);
 
         // Write symbol 1  --- (RUNLENGTH, SIZE)
-        djei_write_bits(state, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
+        //djei_write_bits(state, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
+        bitcount_array[block_i] += huff_ac_len[sym1];
         // Write symbol 2  --- (AMPLITUDE)
-        djei_write_bits(state, bitbuffer, location, vli[1], vli[0]);
+        //djei_write_bits(state, bitbuffer, location, vli[1], vli[0]);
+        bitcount_array[block_i] += vli[1];
     }
 
     if (last_non_zero_i != 63) {
         // write EOB HUFF(00,00)
-        djei_write_bits(state, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
+        //djei_write_bits(state, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
+        bitcount_array[block_i] += huff_ac_len[0];
     }
     return;
 }
@@ -1030,11 +1049,13 @@ static int djei_encode_main(DJEState* state,
 
     state->w_cap = w_cap;
     state->h_cap = h_cap;
-    int num_blocks = src_num_components * w_cap * h_cap / 64;
+    int num_blocks = w_cap * h_cap / 64;
 
-    DJEBlock* y_blocks = arena_alloc_array(state->arena, num_blocks/3, DJEBlock);
-    DJEBlock* u_blocks = arena_alloc_array(state->arena, num_blocks/3, DJEBlock);
-    DJEBlock* v_blocks = arena_alloc_array(state->arena, num_blocks/3, DJEBlock);
+    DJEBlock* y_blocks = arena_alloc_array(state->arena, num_blocks, DJEBlock);
+#if 0
+    DJEBlock* u_blocks = arena_alloc_array(state->arena, num_blocks, DJEBlock);
+    DJEBlock* v_blocks = arena_alloc_array(state->arena, num_blocks, DJEBlock);
+#endif
 
     uint32_t block_i = 0;
     for ( int y = 0; y < height; y += 8 ) {
@@ -1067,34 +1088,33 @@ static int djei_encode_main(DJEState* state,
 
                     // TODO: measure. This could result in many cache misses in the name of parallelization.
                     y_blocks[block_i].d[block_index] = luma;
+#if 0
                     u_blocks[block_i].d[block_index] = cb;
                     v_blocks[block_i].d[block_index] = cr;
+#endif
                 }
             }
             block_i++;
         }
     }
 
-    // Set diff to 0.
-    int pred_y = 0;
-    int pred_b = 0;
-    int pred_r = 0;
-
-    // TODO: This is the kernel: Set up the blocks and huffman data. Pass the
-    // quantization table as an argument and return errors an lengths. Then we
-    // sum them up for the final result, in a map-reduce style.
-
-    for ( int bi = 0; bi < num_blocks / 3; ++bi ) {
-        float* y_block = y_blocks[bi].d;
-        float* u_block = u_blocks[bi].d;
-        float* v_block = v_blocks[bi].d;
+    uint32_t* mse            = arena_alloc_array(state->arena, num_blocks, uint32_t);
+    uint32_t* bitcount_array = arena_alloc_array(state->arena, num_blocks, uint32_t);
 
 
-        djei_encode_and_write_MCU(state, y_block,
+    // This loop is ready to be substituted by a single OpenCL kernel call
+    for ( int bi = 0; bi < num_blocks; ++bi ) {
+        djei_encode_and_write_MCU(bi, y_blocks, bitcount_array, mse,
                                   pqt.luma,
                                   state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
-                                  state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC],
-                                  &pred_y, &bitbuffer, &location);
+                                  state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC]);
+
+
+        // We only care about luma for the dummy encoding. This reduces the
+        // reported size but should not be meaningful for the error calculation
+#if 0
+        float* u_block = u_blocks[bi].d;
+        float* v_block = v_blocks[bi].d;
 
         djei_encode_and_write_MCU(state, u_block,
                                   pqt.chroma,
@@ -1106,12 +1126,29 @@ static int djei_encode_main(DJEState* state,
                                   state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
                                   state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                                   &pred_r, &bitbuffer, &location);
+#endif
+        mse[bi] /= num_blocks;
     }
+
+    // "Reduce" step
+    uint32_t mse_sum = 0;
+    uint32_t overflow_check = 0;
+    for ( int bi = 0; bi < num_blocks; ++bi ) {
+        mse_sum += mse[bi];
+        if ( mse_sum < overflow_check ) {
+            assert(!"MSE sum overflowed");
+        }
+        overflow_check = mse_sum;
+
+        state->bit_count += bitcount_array[bi];
+    }
+
+    state->mse = mse_sum;
 
     // Finish the image.
     {
         while (location != 0) {
-            djei_write_bits(state, &bitbuffer, &location, (uint16_t)(8 - location), 0xff);
+            djei_write_bits(state, &bitbuffer, &location, (uint16_t)(8 - location), 0);
         }
     }
     uint16_t EOI = djei_be_word(0xffd9);

@@ -43,7 +43,6 @@ int main()
 
     size_t memsz = 1L * 1024 * 1024 * 1024;
     Arena root_arena = arena_init(sgl_calloc(memsz, 1), memsz);
-
     if ( !root_arena.ptr ) {
         sgl_log("Can't allocate memory. Exiting\n");
         exit(EXIT_FAILURE);
@@ -52,7 +51,8 @@ int main()
 
     int w, h, ncomp;
     //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
-    unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
+    //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
+    unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
 
     if ( !data ) {
         puts("Could not load file");
@@ -79,11 +79,16 @@ int main()
 
     float compression_ratio = (float)other_bit_count / (float)base_bit_count;
 
-
-    sgl_log("First image size: %d\n"
+    sgl_log("====\n"
+            "First image size: %d\n"
             "Second image size: %d\n"
-            "Normalized compression ratio: %f\n",
-            base_bit_count, other_bit_count, compression_ratio);
+            "Normalized compression ratio: %f\n"
+            "====\n"
+            "First image error %d\n"
+            "Second image error %d\n"
+            "Normalized image error ratio %f\n",
+            base_bit_count, other_bit_count, compression_ratio,
+            state.mse, other_state.mse, (float)state.mse/other_state.mse);
 
     stbi_image_free(data);
 

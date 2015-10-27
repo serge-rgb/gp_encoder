@@ -19,6 +19,12 @@
 
 
 typedef struct Arena_s Arena;
+typedef struct DJEProcessedQT_s DJEProcessedQT;
+
+
+typedef struct DJEBlock_s {
+    float d[64];
+} DJEBlock;
 
 typedef struct DJEState_s {
     uint8_t     ehuffsize[4][257];
@@ -34,7 +40,11 @@ typedef struct DJEState_s {
     int w_cap;
     int h_cap;
 
-    Arena*      arena;
+
+    Arena*          arena;
+    DJEProcessedQT* pqt;
+    DJEBlock*       y_blocks;
+    int             num_blocks;
 
     // Useful stuff:
     uint32_t    bit_count;  // Instead of writing, we increase this value.
@@ -112,11 +122,6 @@ static uint8_t djei_g_output_buffer[DJEI_BUFFER_SIZE];
 #else  // NDEBUG
 #define dje_log(msg)
 #endif  // NDEBUG
-
-
-typedef struct DJEBlock_s {
-    float d[64];
-} DJEBlock;
 
 // ============================================================
 // Table definitions.
@@ -865,10 +870,10 @@ enum {
 };
 
 #if DJE_USE_FAST_DCT
-struct DJEProcessedQT {
+typedef struct DJEProcessedQT_s {
     float chroma[64];
     float luma[64];
-};
+} DJEProcessedQT;
 #endif
 
 // Set up huffman tables in state.
@@ -913,11 +918,11 @@ static void djei_huff_expand (DJEState* state)
     }
 }
 
-static int djei_encode_main(DJEState* state,
-                            const unsigned char* src_data,
-                            const int width,
-                            const int height,
-                            const int src_num_components)
+static int djei_encode_prelude(DJEState* state,
+                               const unsigned char* src_data,
+                               const int width,
+                               const int height,
+                               const int src_num_components)
 {
     if (src_num_components != 3 && src_num_components != 4) {
         return 0;
@@ -928,7 +933,7 @@ static int djei_encode_main(DJEState* state,
     }
 
 #if DJE_USE_FAST_DCT
-    struct DJEProcessedQT pqt;
+    DJEProcessedQT pqt;
     // Again, taken from classic japanese implementation.
     //
     /* For float AA&N IDCT method, divisors are equal to quantization
@@ -952,6 +957,11 @@ static int djei_encode_main(DJEState* state,
             pqt.chroma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_chroma[djei_zig_zag[i]]);
         }
     }
+
+    DJEProcessedQT* a_pqt = arena_alloc_elem(state->arena, DJEProcessedQT);
+    memcpy(a_pqt, &pqt, sizeof(DJEProcessedQT));
+    state->pqt = a_pqt;
+
 #endif
 
     { // Write header
@@ -1040,16 +1050,13 @@ static int djei_encode_main(DJEState* state,
     }
     // Write compressed data.
 
-    // Bit stack
-    uint32_t bitbuffer = 0;
-    uint32_t location = 0;
-
     int w_cap = (width % 8 == 0) ? width : (width + (8 - width % 8));
     int h_cap = (height % 8 == 0) ? height : (height + (8 - height % 8));
 
     state->w_cap = w_cap;
     state->h_cap = h_cap;
     int num_blocks = w_cap * h_cap / 64;
+    state->num_blocks = num_blocks;
 
     DJEBlock* y_blocks = arena_alloc_array(state->arena, num_blocks, DJEBlock);
 #if 0
@@ -1097,6 +1104,14 @@ static int djei_encode_main(DJEState* state,
             block_i++;
         }
     }
+    state->y_blocks = y_blocks;
+    return 1;
+}
+
+static int djei_encode_main(DJEState* state)
+{
+    int num_blocks = state->num_blocks;
+    DJEBlock* y_blocks = state->y_blocks;
 
     uint32_t* mse            = arena_alloc_array(state->arena, num_blocks, uint32_t);
     uint32_t* bitcount_array = arena_alloc_array(state->arena, num_blocks, uint32_t);
@@ -1105,7 +1120,7 @@ static int djei_encode_main(DJEState* state,
     // This loop is ready to be substituted by a single OpenCL kernel call
     for ( int bi = 0; bi < num_blocks; ++bi ) {
         djei_encode_and_write_MCU(bi, y_blocks, bitcount_array, mse,
-                                  pqt.luma,
+                                  state->pqt->luma,
                                   state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                                   state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC]);
 
@@ -1145,12 +1160,6 @@ static int djei_encode_main(DJEState* state,
 
     state->mse = mse_sum;
 
-    // Finish the image.
-    {
-        while (location != 0) {
-            djei_write_bits(state, &bitbuffer, &location, (uint16_t)(8 - location), 0);
-        }
-    }
     uint16_t EOI = djei_be_word(0xffd9);
     dje_write(state, &EOI, sizeof(uint16_t), 1);
 
@@ -1162,13 +1171,14 @@ static int djei_encode_main(DJEState* state,
 
 // Define public interface.
 
-DJEState dje_dummy_encode(Arena* arena,
-                          uint8_t* qt,
-                          int width,
-                          int height,
-                          int num_components,
-                          unsigned char* src_data)
+DJEState dje_init(Arena* arena,
+                  uint8_t* qt,
+                  int width,
+                  int height,
+                  int num_components,
+                  unsigned char* src_data)
 {
+    int res = 0;
     DJEState state = { 0 };
 
     state.arena = arena;
@@ -1178,7 +1188,14 @@ DJEState dje_dummy_encode(Arena* arena,
 
     djei_huff_expand(&state);
 
-    int result = djei_encode_main(&state, src_data, width, height, num_components);
+    res = djei_encode_prelude(&state, src_data, width, height, num_components);
+    if ( !res ) {
+        assert (!"prelude failed");
+    }
+    res = djei_encode_main(&state);
+    if ( !res ) {
+        assert (!"encode failed");
+    }
 
     return state;
 }

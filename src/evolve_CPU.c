@@ -66,13 +66,16 @@ int main()
         return EXIT_FAILURE;
     }
 
+    DJEState state = dje_init(&root_arena, optimal_table, w, h, ncomp, data);
+
     // Highest quality by default.
-    DJEState state = dje_dummy_encode(&root_arena, optimal_table, w, h, ncomp, data);
+    //DJEState state = dje_dummy_encode(&root_arena, optimal_table, w, h, ncomp, data);
 
     uint32_t base_bit_count = state.bit_count / 8;
 
     arena_reset(&root_arena);
-    DJEState other_state = dje_dummy_encode(&root_arena, djei_default_qt_chroma_from_paper, w, h, ncomp, data);
+    //DJEState other_state = dje_dummy_encode(&root_arena, djei_default_qt_chroma_from_paper, w, h, ncomp, data);
+    DJEState other_state = dje_init(&root_arena, djei_default_qt_chroma_from_paper, w, h, ncomp, data);
 
 
     uint32_t other_bit_count = other_state.bit_count / 8;

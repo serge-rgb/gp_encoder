@@ -17,7 +17,6 @@
 //
 
 
-
 typedef struct Arena_s Arena;
 typedef struct DJEProcessedQT_s DJEProcessedQT;
 
@@ -36,35 +35,17 @@ typedef struct DJEState_s {
     uint8_t     qt_luma[64];
     uint8_t     qt_chroma[64];
 
-    // width and height rounded up to next multiple of 8
-    int w_cap;
-    int h_cap;
-
-
+    // Stuff that persists accross multiple calls.
     Arena*          arena;
     DJEProcessedQT* pqt;
     DJEBlock*       y_blocks;
     int             num_blocks;
 
-    // Useful stuff:
+    // Result stuff
     uint32_t    bit_count;  // Instead of writing, we increase this value.
     uint32_t    mse;        // Mean square error.
-
 } DJEState;
 
-
-// - dje_dummy_encode
-//
-// Arena will allocate about a factor of 3 of the memory that the original image takes.
-// Returns a DJEState, which will contain `num_bits` and `MSE`, aka "minimum square error".
-//
-//
-DJEState dje_dummy_encode(Arena* arena,
-                          uint8_t* qt,
-                          int width,
-                          int height,
-                          int num_components,
-                          unsigned char* src_data);
 
 // ============================================================
 // Internal
@@ -932,38 +913,6 @@ static int djei_encode_prelude(DJEState* state,
         return 0;
     }
 
-#if DJE_USE_FAST_DCT
-    DJEProcessedQT pqt;
-    // Again, taken from classic japanese implementation.
-    //
-    /* For float AA&N IDCT method, divisors are equal to quantization
-     * coefficients scaled by scalefactor[row]*scalefactor[col], where
-     *   scalefactor[0] = 1
-     *   scalefactor[k] = cos(k*PI/16) * sqrt(2)    for k=1..7
-     * We apply a further scale factor of 8.
-     * What's actually stored is 1/divisor so that the inner loop can
-     * use a multiplication rather than a division.
-     */
-    static const float aan_scales[] = {
-        1.0f, 1.387039845f, 1.306562965f, 1.175875602f,
-        1.0f, 0.785694958f, 0.541196100f, 0.275899379f
-    };
-
-    // build (de)quantization tables
-    for(int y=0; y<8; y++) {
-        for(int x=0; x<8; x++) {
-            int i = y*8 + x;
-            pqt.luma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_luma[djei_zig_zag[i]]);
-            pqt.chroma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_chroma[djei_zig_zag[i]]);
-        }
-    }
-
-    DJEProcessedQT* a_pqt = arena_alloc_elem(state->arena, DJEProcessedQT);
-    memcpy(a_pqt, &pqt, sizeof(DJEProcessedQT));
-    state->pqt = a_pqt;
-
-#endif
-
     { // Write header
         DJEJPEGHeader header;
         // JFIF header.
@@ -987,6 +936,14 @@ static int djei_encode_prelude(DJEState* state,
     }
 
     // Write quantization tables.
+    //
+    // NOTE: !!!
+    //
+    // At this point, there is garbage stored in qt_luma and qt_chroma. For
+    // dummy_jpeg it doesn't matter. The reason that it is garbage is that we
+    // don't want to change the data order from the real jpeg encoder but we
+    // don't want to define a qt table yet. The qt tables will be defined on a
+    // per-call basis by dje_encode_main.
     djei_write_DQT(state, state->qt_luma, 0x00);
     djei_write_DQT(state, state->qt_chroma, 0x01);
 
@@ -1053,8 +1010,6 @@ static int djei_encode_prelude(DJEState* state,
     int w_cap = (width % 8 == 0) ? width : (width + (8 - width % 8));
     int h_cap = (height % 8 == 0) ? height : (height + (8 - height % 8));
 
-    state->w_cap = w_cap;
-    state->h_cap = h_cap;
     int num_blocks = w_cap * h_cap / 64;
     state->num_blocks = num_blocks;
 
@@ -1108,8 +1063,43 @@ static int djei_encode_prelude(DJEState* state,
     return 1;
 }
 
-static int djei_encode_main(DJEState* state)
+static int dje_encode_main(DJEState* state, uint8_t* qt)
 {
+    memcpy(state->qt_luma, qt, 64);
+    memcpy(state->qt_chroma, qt, 64);
+
+#if DJE_USE_FAST_DCT
+    DJEProcessedQT pqt;
+    // Again, taken from classic japanese implementation.
+    //
+    /* For float AA&N IDCT method, divisors are equal to quantization
+     * coefficients scaled by scalefactor[row]*scalefactor[col], where
+     *   scalefactor[0] = 1
+     *   scalefactor[k] = cos(k*PI/16) * sqrt(2)    for k=1..7
+     * We apply a further scale factor of 8.
+     * What's actually stored is 1/divisor so that the inner loop can
+     * use a multiplication rather than a division.
+     */
+    static const float aan_scales[] = {
+        1.0f, 1.387039845f, 1.306562965f, 1.175875602f,
+        1.0f, 0.785694958f, 0.541196100f, 0.275899379f
+    };
+
+    // build (de)quantization tables
+    for(int y=0; y<8; y++) {
+        for(int x=0; x<8; x++) {
+            int i = y*8 + x;
+            pqt.luma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_luma[djei_zig_zag[i]]);
+            pqt.chroma[y*8+x] = 1.0f / (8 * aan_scales[x] * aan_scales[y] * state->qt_chroma[djei_zig_zag[i]]);
+        }
+    }
+
+    DJEProcessedQT* a_pqt = arena_alloc_elem(state->arena, DJEProcessedQT);
+    memcpy(a_pqt, &pqt, sizeof(DJEProcessedQT));
+    state->pqt = a_pqt;
+
+#endif
+
     int num_blocks = state->num_blocks;
     DJEBlock* y_blocks = state->y_blocks;
 
@@ -1172,7 +1162,6 @@ static int djei_encode_main(DJEState* state)
 // Define public interface.
 
 DJEState dje_init(Arena* arena,
-                  uint8_t* qt,
                   int width,
                   int height,
                   int num_components,
@@ -1183,20 +1172,12 @@ DJEState dje_init(Arena* arena,
 
     state.arena = arena;
 
-    memcpy(state.qt_luma, qt, 64);
-    memcpy(state.qt_chroma, qt, 64);
-
     djei_huff_expand(&state);
 
     res = djei_encode_prelude(&state, src_data, width, height, num_components);
     if ( !res ) {
         assert (!"prelude failed");
     }
-    res = djei_encode_main(&state);
-    if ( !res ) {
-        assert (!"encode failed");
-    }
-
     return state;
 }
 // ============================================================

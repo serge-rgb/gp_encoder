@@ -34,6 +34,23 @@ uint8_t optimal_table[64] = {
 
 #define NUM_TABLES_PER_GENERATION 10
 
+typedef struct {
+    uint8_t*    table;
+    float       fitness;
+} PopulationElement;
+
+int pe_comp(const void* va, const void* vb)
+{
+    PopulationElement* a = (PopulationElement*)va;
+    PopulationElement* b = (PopulationElement*)vb;
+
+    float precision = 100000.0f;
+
+    int c = (int)(a->fitness*precision - b->fitness*precision);
+    return c;
+}
+
+
 int main()
 {
     // Uncomment when doing the actual port to opencl
@@ -88,43 +105,105 @@ int main()
         }
     }
 
+
+    // Fill initial population.
+    PopulationElement* population = arena_alloc_array(&root_arena, NUM_TABLES_PER_GENERATION, PopulationElement);
+    for (int i = 0; i < NUM_TABLES_PER_GENERATION; ++i) {
+        population[i] = (PopulationElement) {
+            .table = tables[i],
+            .fitness = FLT_MAX,
+        };
+    }
+
+
     Arena iter_arena = arena_push(&root_arena, arena_available_space(&root_arena));
-    // Highest quality by default.
-    //DJEState state = dje_dummy_encode(&root_arena, optimal_table, w, h, ncomp, data);
 
     uint32_t base_bit_count = optimal_state.bit_count / 8;
     float base_mse = (float)optimal_state.mse;
 
-    for ( int table_i = 0; table_i < NUM_TABLES_PER_GENERATION; ++table_i ) {
-        arena_reset(&iter_arena);
-        DJEState state = base_state;
-        state.arena = &iter_arena;
-        dje_encode_main(&state, tables[table_i]);
+    int num_generations = 20;
+    for (int gen_i = 0; gen_i < num_generations; ++gen_i) {
+        // Determine fitness.
 
-        uint32_t other_bit_count = state.bit_count / 8;
+        for ( int table_i = 0; table_i < NUM_TABLES_PER_GENERATION; ++table_i ) {
+            arena_reset(&iter_arena);
+            DJEState state = base_state;
+            state.arena = &iter_arena;
+            dje_encode_main(&state, population[table_i].table);
 
-        float compression_ratio = (float)other_bit_count / (float)base_bit_count;
-        // Casting to float. Integers smaller than |2^128| should get rounded.
-        // See wiki page on IEEE754
-        float error_ratio       = (float)(state.mse) / optimal_state.mse;
+            uint32_t other_bit_count = state.bit_count / 8;
 
-        float fitness = error_ratio * compression_ratio;
+            float compression_ratio = (float)other_bit_count / (float)base_bit_count;
+            // Casting to float. Integers smaller than |2^128| should get rounded.
+            // See wiki page on IEEE754
+            float error_ratio       = (float)(state.mse) / optimal_state.mse;
 
-        sgl_log("====\n"
-                "QT1 image size: %d\n"
-                "Second image size: %d\n"
-                "Normalized compression ratio: %f\n"
-                "====\n"
-                "QT1 image error %" PRIu64 "\n"
-                "Second image error %" PRIu64 "\n"
-                "Normalized image error ratio %f\n"
-                "Fitness: %f\n\n",
-                base_bit_count, other_bit_count, compression_ratio,
-                optimal_state.mse, state.mse, error_ratio,
-                fitness);
+            float fitness = error_ratio * compression_ratio;
+
+            population[table_i].fitness = fitness;
+
+            sgl_log("====\n"
+                    "QT1 image size: %d\n"
+                    "Second image size: %d\n"
+                    "Normalized compression ratio: %f\n"
+                    "====\n"
+                    "QT1 image error %" PRIu64 "\n"
+                    "Second image error %" PRIu64 "\n"
+                    "Normalized image error ratio %f\n"
+                    "Fitness: %f\n\n",
+                    base_bit_count, other_bit_count, compression_ratio,
+                    optimal_state.mse, state.mse, error_ratio,
+                    fitness);
+        }
+
+        // Sort by fitness.
+        qsort(population, NUM_TABLES_PER_GENERATION, sizeof(PopulationElement), pe_comp);
+
+        // Select two survivors.
+        PopulationElement survivors[2] = {
+            population[0], population[1],
+        };
+
+        int num_mutated = (NUM_TABLES_PER_GENERATION - 2) / 2;
+        // Note: NUM_TABLES_PER_GENERATION = 2 + num_mutated + num_crossed
+        int num_crossed = NUM_TABLES_PER_GENERATION - 2 - num_mutated;
+
+        int population_index = 2;
+        int mutation_wiggle = 4;
+
+        for (int i = 0; i < num_mutated; ++i) {
+            uint8_t* table = population[population_index++].table;
+            uint8_t* parent = (rand() % 2) ? population[0].table : population[1].table;
+            for (int ei = 0; ei < 64; ++ei) {
+                table[ei] = parent[ei];
+                int dice = (rand() % 64) == 0;
+                if ( dice ) {
+                    table[ei] += (uint8_t)((rand() % (2*mutation_wiggle)) - mutation_wiggle);
+                }
+            }
+        }
+
+        for (int i = 0; i < num_crossed; ++i) {
+            uint8_t* table = population[population_index++].table;
+
+            for ( int ei = 0; ei < 64; ++ei ) {
+                int dice = rand() % 2;
+                table[ei] = survivors[dice].table[ei];
+            }
+        }
+
+        // Safety. No invalid tables because JPEG is fragile.
+        for (int i = 0; i < population_index; ++i) {
+            for (int ei = 0; ei < 64; ++ei) {
+                if (population[i].table[ei] <= 0) {
+                    population[i].table[ei] = (uint8_t)(1 + (rand() % mutation_wiggle));
+                }
+            }
+        }
     }
 
     stbi_image_free(data);
+    sgl_free(root_arena.ptr);
 
     return EXIT_SUCCESS;
 }

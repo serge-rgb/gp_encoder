@@ -32,6 +32,7 @@ uint8_t optimal_table[64] = {
     1,1,1,1,1,1,1,1,
 };
 
+#define NUM_TABLES_PER_GENERATION 10
 
 int main()
 {
@@ -68,34 +69,60 @@ int main()
 
     DJEState base_state = dje_init(&root_arena, w, h, ncomp, data);
 
-    DJEState state = base_state;
-    dje_encode_main(&state, optimal_table);
+    // Optimal state -- The result obtained from using a 1-table. Minimum
+    // compression. Maximum quality. The best quality possible for baseline
+    // JPEG.
+     DJEState optimal_state = base_state;
+    dje_encode_main(&optimal_state, optimal_table);
 
+
+    uint8_t tables[NUM_TABLES_PER_GENERATION][64];
+
+    memcpy(tables[0], optimal_table, 64 * sizeof(uint8_t));
+    // Starting from 1 because tables[0] gets filled with ones.
+    for (int i = 1; i < NUM_TABLES_PER_GENERATION; ++i) {
+        uint8_t* table = tables[i];
+        for ( int ti = 0; ti < 64; ++ti ) {
+            table[ti] = 1 + (uint8_t)(63.0f * (rand() / (float)RAND_MAX));
+        }
+    }
+
+    Arena iter_arena = arena_push(&root_arena, arena_available_space(&root_arena));
     // Highest quality by default.
     //DJEState state = dje_dummy_encode(&root_arena, optimal_table, w, h, ncomp, data);
 
-    uint32_t base_bit_count = state.bit_count / 8;
+    uint32_t base_bit_count = optimal_state.bit_count / 8;
+    float base_mse = (float)optimal_state.mse;
 
-    //arena_reset(&root_arena);
-    //DJEState other_state = dje_dummy_encode(&root_arena, djei_default_qt_chroma_from_paper, w, h, ncomp, data);
-    DJEState other_state = base_state;
-    dje_encode_main(&other_state, djei_default_qt_chroma_from_paper);
+    for ( int table_i = 0; table_i < NUM_TABLES_PER_GENERATION; ++table_i ) {
+        arena_reset(&iter_arena);
+        DJEState state = base_state;
+        state.arena = &iter_arena;
+        dje_encode_main(&state, tables[table_i]);
 
+        uint32_t other_bit_count = state.bit_count / 8;
 
-    uint32_t other_bit_count = other_state.bit_count / 8;
+        float compression_ratio = (float)other_bit_count / (float)base_bit_count;
+        // Casting to float. Integers smaller than |2^128| should get rounded.
+        // See wiki page on IEEE754
+        float error_ratio       = (float)(state.mse) / optimal_state.mse;
 
-    float compression_ratio = (float)other_bit_count / (float)base_bit_count;
+        float fitness = error_ratio * compression_ratio;
 
-    sgl_log("====\n"
-            "First image size: %d\n"
-            "Second image size: %d\n"
-            "Normalized compression ratio: %f\n"
-            "====\n"
-            "First image error %d\n"
-            "Second image error %d\n"
-            "Normalized image error ratio %f\n",
-            base_bit_count, other_bit_count, compression_ratio,
-            state.mse, other_state.mse, (float)state.mse/other_state.mse);
+        sgl_log("====\n"
+                "QT1 image size: %d\n"
+                "Second image size: %d\n"
+                "Normalized compression ratio: %f\n"
+                "====\n"
+                "QT1 image error %" PRIu64 "\n"
+                "Second image error %" PRIu64 "\n"
+                "Normalized image error ratio %f\n"
+                "Fitness: %f\n\n",
+                base_bit_count, other_bit_count, compression_ratio,
+                optimal_state.mse, state.mse, error_ratio,
+                fitness);
+    }
+
 
     stbi_image_free(data);
 

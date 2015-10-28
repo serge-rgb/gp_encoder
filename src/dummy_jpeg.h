@@ -18,8 +18,11 @@
 
 
 typedef struct Arena_s Arena;
-typedef struct DJEProcessedQT_s DJEProcessedQT;
 
+typedef struct DJEProcessedQT_s {
+    float chroma[64];
+    float luma[64];
+} DJEProcessedQT;
 
 typedef struct DJEBlock_s {
     float d[64];
@@ -37,13 +40,13 @@ typedef struct DJEState_s {
 
     // Stuff that persists accross multiple calls.
     Arena*          arena;
-    DJEProcessedQT* pqt;
+    DJEProcessedQT  pqt;
     DJEBlock*       y_blocks;
     int             num_blocks;
 
     // Result stuff
     uint32_t    bit_count;  // Instead of writing, we increase this value.
-    uint32_t    mse;        // Mean square error.
+    uint64_t    mse;        // Mean square error.
 } DJEState;
 
 
@@ -689,7 +692,7 @@ static void idct_block(uint8_t *out, int out_stride, short data[64])
 static void djei_encode_and_write_MCU(int block_i,
                                       DJEBlock* mcu_array,
                                       uint32_t* bitcount_array,
-                                      uint32_t* out_mse,
+                                      uint64_t* out_mse,
 #if DJE_USE_FAST_DCT
                                       float* qt,  // Pre-processed quantization matrix.
 #else
@@ -727,7 +730,7 @@ static void djei_encode_and_write_MCU(int block_i,
     }
     for ( int i = 0; i < 64; ++i ) {
         float fval = dct_mcu[i] / (qt[i]);
-        int val = (int)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
+        int16_t val = (int16_t)((fval > 0) ? floorf(fval + 0.5f) : ceilf(fval - 0.5f));
         du[djei_zig_zag[i]] = val;
     }
 #endif
@@ -740,7 +743,7 @@ static void djei_encode_and_write_MCU(int block_i,
     for ( int id = 0; id < 64; ++id )
         re[id] = (float)decomp[id] - 128;
 
-    uint32_t MSE = 0;
+    uint64_t MSE = 0;
 
     for ( int i = 0; i < 64; ++i ) {
         int32_t precision = 10000;  // Decimal-points of precision.
@@ -849,13 +852,6 @@ enum {
     CHROMA_DC,
     CHROMA_AC,
 };
-
-#if DJE_USE_FAST_DCT
-typedef struct DJEProcessedQT_s {
-    float chroma[64];
-    float luma[64];
-} DJEProcessedQT;
-#endif
 
 // Set up huffman tables in state.
 static void djei_huff_expand (DJEState* state)
@@ -1094,23 +1090,26 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
         }
     }
 
-    DJEProcessedQT* a_pqt = arena_alloc_elem(state->arena, DJEProcessedQT);
-    memcpy(a_pqt, &pqt, sizeof(DJEProcessedQT));
-    state->pqt = a_pqt;
+    state->pqt = pqt;
 
 #endif
 
-    int num_blocks = state->num_blocks;
-    DJEBlock* y_blocks = state->y_blocks;
+    // These will be the kernel parameters
 
-    uint32_t* mse            = arena_alloc_array(state->arena, num_blocks, uint32_t);
+    int num_blocks           = state->num_blocks;
+    DJEBlock* y_blocks       = state->y_blocks;
+    uint64_t* mse            = arena_alloc_array(state->arena, num_blocks, uint64_t);
     uint32_t* bitcount_array = arena_alloc_array(state->arena, num_blocks, uint32_t);
 
 
     // This loop is ready to be substituted by a single OpenCL kernel call
     for ( int bi = 0; bi < num_blocks; ++bi ) {
         djei_encode_and_write_MCU(bi, y_blocks, bitcount_array, mse,
-                                  state->pqt->luma,
+#if DJE_USE_FAST_DCT
+                                  state->pqt.luma,
+#else
+                                  state->qt_luma,
+#endif
                                   state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                                   state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC]);
 
@@ -1136,14 +1135,9 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
     }
 
     // "Reduce" step
-    uint32_t mse_sum = 0;
-    uint32_t overflow_check = 0;
+    uint64_t mse_sum = 0;
     for ( int bi = 0; bi < num_blocks; ++bi ) {
         mse_sum += mse[bi];
-        if ( mse_sum < overflow_check ) {
-            assert(!"MSE sum overflowed");
-        }
-        overflow_check = mse_sum;
 
         state->bit_count += bitcount_array[bi];
     }

@@ -14,8 +14,8 @@ int main()
 {
     int w, h, ncomp;
     //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
-    //unsigned char* data = stbi_load("saruman.jpg", &w, &h, &ncomp, 0);
-    unsigned char* data = stbi_load("t2.jpg", &w, &h, &ncomp, 0);
+    //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
+    unsigned char* data = stbi_load("bug.jpg", &w, &h, &ncomp, 0);
     if ( !data ) {
         puts("Could not load file");
         return EXIT_FAILURE;

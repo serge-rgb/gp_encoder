@@ -36,11 +36,13 @@ uint8_t optimal_table[64] = {
 
 int main()
 {
-    GPUInfo gpu_info;
-    if ( !gpu_init(&gpu_info)) {
-        sgl_log("Could not init GPGPU.\n");
-        exit(EXIT_FAILURE);
-    }
+    // Uncomment when doing the actual port to opencl
+
+    /* GPUInfo gpu_info; */
+    /* if ( !gpu_init(&gpu_info)) { */
+    /*     sgl_log("Could not init GPGPU.\n"); */
+    /*     exit(EXIT_FAILURE); */
+    /* } */
 
     size_t memsz = 1L * 1024 * 1024 * 1024;
     Arena root_arena = arena_init(sgl_calloc(memsz, 1), memsz);
@@ -74,7 +76,6 @@ int main()
     // JPEG.
      DJEState optimal_state = base_state;
     dje_encode_main(&optimal_state, optimal_table);
-
 
     uint8_t tables[NUM_TABLES_PER_GENERATION][64];
 
@@ -122,7 +123,6 @@ int main()
                 optimal_state.mse, state.mse, error_ratio,
                 fitness);
     }
-
 
     stbi_image_free(data);
 

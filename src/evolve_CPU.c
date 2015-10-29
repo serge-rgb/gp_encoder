@@ -34,7 +34,7 @@ uint8_t optimal_table[64] = {
     1,1,1,1,1,1,1,1,
 };
 
-#define NUM_TABLES_PER_GENERATION 10
+#define NUM_TABLES_PER_GENERATION 32
 
 typedef struct {
     uint8_t*    table;
@@ -73,8 +73,8 @@ int main()
 
     int w, h, ncomp;
     //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
-    unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
-    //unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
+    //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
+    unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
 
     if ( !data ) {
         puts("Could not load file");
@@ -124,7 +124,8 @@ int main()
     float base_mse = (float)optimal_state.mse;
     float last_winner_fitness = FLT_MAX;
 
-    int num_generations = 50;
+    int num_generations = 100;
+
     for (int gen_i = 0; gen_i < num_generations; ++gen_i) {
         // Determine fitness.
 
@@ -137,11 +138,17 @@ int main()
             uint32_t other_bit_count = state.bit_count / 8;
 
             float compression_ratio = (float)other_bit_count / (float)base_bit_count;
-            // Casting to float. Integers smaller than |2^128| should get rounded.
-            // See wiki page on IEEE754
             float error_ratio       = (float)(state.mse) / optimal_state.mse;
+            //float error_weight = 0.23f;
+            float error_weight = 0.30f;
 
-            float fitness = error_ratio;// + 0.4f*(1 + compression_ratio);
+            // ----
+            //
+            float fitness = error_ratio + 2.00f*(1+compression_ratio);
+            if (error_ratio < 1.0f) {
+                fitness += 1000;
+            }
+
 
             population[table_i].fitness = fitness;
 
@@ -183,7 +190,9 @@ int main()
                 table[ei] = parent[ei];
                 int dice = (rand() % 32) == 0;
                 if ( dice ) {
-                    table[ei] += (uint8_t)((rand() % (2*mutation_wiggle)) - mutation_wiggle);
+                    int new_val = table[ei] + ((rand() % (2*mutation_wiggle)) - mutation_wiggle);
+                    new_val = max(new_val, 0);
+                    table[ei] = (uint8_t)new_val;
                 }
             }
         }
@@ -197,18 +206,8 @@ int main()
             }
         }
         float winner_fitness = population[0].fitness;
-        // Avoid stagnation. If fitness didn't change. Replace the worst table
-        // with the winner with every element cut in half
-        if ( winner_fitness == last_winner_fitness ) {
-            uint8_t* loser  = population[population_index-1].table;
-            uint8_t* winner = population[0].table;
-            for (int ei = 0; ei < 64; ++ei) {
-                uint8_t new_value = winner[ei];
-                new_value = (uint8_t)min(new_value, new_value - (uint8_t)(rand() % mutation_wiggle));
-                loser[ei] = new_value;
-            }
-        }
 
+        assert (population_index == NUM_TABLES_PER_GENERATION);
         // Safety. No invalid tables because JPEG is fragile.
         for (int i = 0; i < population_index; ++i) {
             for (int ei = 0; ei < 64; ++ei) {

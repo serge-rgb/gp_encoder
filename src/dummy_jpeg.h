@@ -741,17 +741,16 @@ static void djei_encode_and_write_MCU(int block_i,
     // Note: stb uses w_cap as out_stride..
     idct_block(decomp, 8, du);
     for ( int id = 0; id < 64; ++id )
-        re[id] = (float)decomp[id] - 128;
+        re[id] = (float)decomp[id];
 
     uint64_t MSE = 0;
 
     for ( int i = 0; i < 64; ++i ) {
-        int32_t precision = 10000;  // Decimal-points of precision.
-        int32_t re_i = (int32_t)(re[i] * precision);
-        int32_t mcu_i = (int32_t)(mcu[i] * precision);
-        int32_t sqerr = (re_i - mcu_i);
-        sqerr *= sqerr;
-        MSE += sqerr;
+        int32_t precision = 10;  // Decimal-points of precision.
+        int32_t re_i = (int32_t)(re[i]);
+        int32_t mcu_i = (int32_t)(mcu[i] + 128);
+        int32_t err = ABS(re_i - mcu_i);
+        MSE += err;
     }
 
     out_mse[block_i] = MSE;
@@ -1131,16 +1130,22 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
                                   state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
                                   &pred_r, &bitbuffer, &location);
 #endif
-        mse[bi] /= num_blocks;
     }
 
     // "Reduce" step
-    uint64_t mse_sum = 0;
+    uint64_t mse_accum = 0;
+    uint64_t mse_sum  = 0;
     for ( int bi = 0; bi < num_blocks; ++bi ) {
-        mse_sum += mse[bi];
+        mse_accum += mse[bi];
+
+        if ( mse_accum >= (uint64_t)num_blocks ) {
+            mse_accum -= (uint64_t)num_blocks;
+            mse_sum += num_blocks;
+        }
 
         state->bit_count += bitcount_array[bi];
     }
+    mse_sum += mse_accum;
 
     state->mse = mse_sum;
 

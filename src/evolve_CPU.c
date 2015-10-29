@@ -7,6 +7,8 @@
 #define DJE_IMPLEMENTATION
 #include "dummy_jpeg.h"
 
+#include "extended_jpeg.h"
+
 typedef uint32_t b32;
 #ifndef true
 #define true 1
@@ -71,8 +73,8 @@ int main()
 
     int w, h, ncomp;
     //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
-    //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
-    unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
+    unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
+    //unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
 
     if ( !data ) {
         puts("Could not load file");
@@ -120,8 +122,9 @@ int main()
 
     uint32_t base_bit_count = optimal_state.bit_count / 8;
     float base_mse = (float)optimal_state.mse;
+    float last_winner_fitness = FLT_MAX;
 
-    int num_generations = 20;
+    int num_generations = 50;
     for (int gen_i = 0; gen_i < num_generations; ++gen_i) {
         // Determine fitness.
 
@@ -138,10 +141,11 @@ int main()
             // See wiki page on IEEE754
             float error_ratio       = (float)(state.mse) / optimal_state.mse;
 
-            float fitness = error_ratio * compression_ratio;
+            float fitness = error_ratio;// + 0.4f*(1 + compression_ratio);
 
             population[table_i].fitness = fitness;
 
+#if 0
             sgl_log("====\n"
                     "QT1 image size: %d\n"
                     "Second image size: %d\n"
@@ -154,6 +158,7 @@ int main()
                     base_bit_count, other_bit_count, compression_ratio,
                     optimal_state.mse, state.mse, error_ratio,
                     fitness);
+#endif
         }
 
         // Sort by fitness.
@@ -176,7 +181,7 @@ int main()
             uint8_t* parent = (rand() % 2) ? population[0].table : population[1].table;
             for (int ei = 0; ei < 64; ++ei) {
                 table[ei] = parent[ei];
-                int dice = (rand() % 64) == 0;
+                int dice = (rand() % 32) == 0;
                 if ( dice ) {
                     table[ei] += (uint8_t)((rand() % (2*mutation_wiggle)) - mutation_wiggle);
                 }
@@ -191,6 +196,18 @@ int main()
                 table[ei] = survivors[dice].table[ei];
             }
         }
+        float winner_fitness = population[0].fitness;
+        // Avoid stagnation. If fitness didn't change. Replace the worst table
+        // with the winner with every element cut in half
+        if ( winner_fitness == last_winner_fitness ) {
+            uint8_t* loser  = population[population_index-1].table;
+            uint8_t* winner = population[0].table;
+            for (int ei = 0; ei < 64; ++ei) {
+                uint8_t new_value = winner[ei];
+                new_value = (uint8_t)min(new_value, new_value - (uint8_t)(rand() % mutation_wiggle));
+                loser[ei] = new_value;
+            }
+        }
 
         // Safety. No invalid tables because JPEG is fragile.
         for (int i = 0; i < population_index; ++i) {
@@ -200,7 +217,18 @@ int main()
                 }
             }
         }
+
+
+        last_winner_fitness = winner_fitness;
+        // Output best and worst.
+        sgl_log("Gen %d \nBest: %f\nWorst: %f\n",
+                gen_i+1, population[0].fitness, population[population_index-1].fitness);
     }
+
+    // Sort by fitness.
+    qsort(population, NUM_TABLES_PER_GENERATION, sizeof(PopulationElement), pe_comp);
+
+    tje_encode_to_file_with_qt("out_evolved.jpg", population[0].table, w, h, ncomp, data);
 
     stbi_image_free(data);
     sgl_free(root_arena.ptr);

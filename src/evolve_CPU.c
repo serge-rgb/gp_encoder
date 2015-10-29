@@ -1,8 +1,8 @@
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.h>
-
 #define LIBSERG_IMPLEMENTATION
 #include <libserg/libserg.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
 
 #define DJE_IMPLEMENTATION
 #include "dummy_jpeg.h"
@@ -74,7 +74,8 @@ int main()
     int w, h, ncomp;
     //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
     //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
-    unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
+    unsigned char* data = stbi_load("diego.bmp", &w, &h, &ncomp, 0);
+    //unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
 
     if ( !data ) {
         puts("Could not load file");
@@ -123,6 +124,9 @@ int main()
     uint32_t base_bit_count = optimal_state.bit_count / 8;
     float base_mse = (float)optimal_state.mse;
     float last_winner_fitness = FLT_MAX;
+
+    int convergence_hits = 0;
+#define CONVERGENCE_LIMIT 4  // If we are withing the convergence threshold 3 times in a row, end evolution loop.
 
     int num_generations = 100;
 
@@ -218,10 +222,27 @@ int main()
         }
 
 
-        last_winner_fitness = winner_fitness;
+        // Find worst (our horrible janky hack adds 1000 to elements with numerical errors.)
+        int last_i = population_index - 1;
+        while (population[last_i].fitness > 900) --last_i;
+
         // Output best and worst.
         sgl_log("Gen %d \nBest: %f\nWorst: %f\n",
-                gen_i+1, population[0].fitness, population[population_index-1].fitness);
+                gen_i+1, population[0].fitness, population[last_i].fitness);
+
+        float fdiff = winner_fitness - last_winner_fitness;
+        sgl_log("(Diff is %f)\n", fdiff);
+
+        // Break criterion.
+
+        if ( ABS(fdiff) < 0.001f )
+            ++convergence_hits;
+        else
+            convergence_hits = 0;
+        if ( convergence_hits == CONVERGENCE_LIMIT )
+            break;
+
+        last_winner_fitness = winner_fitness;
     }
 
     // Sort by fitness.

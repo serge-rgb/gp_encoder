@@ -72,10 +72,17 @@ int main()
 
 
     int w, h, ncomp;
-    //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
-    //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
-    unsigned char* data = stbi_load("diego.bmp", &w, &h, &ncomp, 0);
-    //unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
+    char* fname =
+            //"diego.bmp";
+            //"pluto.bmp";
+            //"in.bmp";
+            "in_klay.bmp";
+    unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
+
+    srand((unsigned int)(*data));
+
+    FILE* plot_file = fopen("evo.dat", "w");
+    assert (plot_file);
 
     if ( !data ) {
         puts("Could not load file");
@@ -94,7 +101,7 @@ int main()
     // Optimal state -- The result obtained from using a 1-table. Minimum
     // compression. Maximum quality. The best quality possible for baseline
     // JPEG.
-     DJEState optimal_state = base_state;
+    DJEState optimal_state = base_state;
     dje_encode_main(&optimal_state, optimal_table);
 
     uint8_t tables[NUM_TABLES_PER_GENERATION][64];
@@ -243,7 +250,12 @@ int main()
             break;
 
         last_winner_fitness = winner_fitness;
+
+        char buffer[1024];
+        snprintf(buffer, 1024, "%d %f %f\n", gen_i+1, population[0].fitness, population[last_i].fitness);
+        fwrite(buffer, strlen(buffer), 1, plot_file);
     }
+    fclose(plot_file);
 
     // Sort by fitness.
     qsort(population, NUM_TABLES_PER_GENERATION, sizeof(PopulationElement), pe_comp);

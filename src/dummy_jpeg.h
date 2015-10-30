@@ -16,6 +16,8 @@
 //      #include "dummy_jpeg.h"
 //
 
+#define DJE_MULTITHREADED 1
+
 
 typedef struct Arena_s Arena;
 
@@ -1058,6 +1060,37 @@ static int djei_encode_prelude(DJEState* state,
     return 1;
 }
 
+static SglMutex* work_queue_mutex;
+static volatile int32_t work_done;
+
+struct global_work_data {
+    uint64_t* mse;
+    DJEBlock* y_blocks;
+    uint32_t* bitcount_array;
+    DJEState* state;
+    uint32_t  num_blocks;
+};
+static struct global_work_data* gwd;
+
+void dje_worker_thread(void* data)
+{
+    for(;;) {
+        sgl_mutex_lock(work_queue_mutex);
+        volatile uint32_t bi =  work_done++;
+        sgl_mutex_unlock(work_queue_mutex);
+        if (bi < gwd->num_blocks) {
+            djei_encode_and_write_MCU(bi, gwd->y_blocks, gwd->bitcount_array, gwd->mse,
+#if DJE_USE_FAST_DCT
+                                      gwd->state->pqt.luma,
+#else
+                                      gwd->state->qt_luma,
+#endif
+                                      gwd->state->ehuffsize[LUMA_DC], gwd->state->ehuffcode[LUMA_DC],
+                                      gwd->state->ehuffsize[LUMA_AC], gwd->state->ehuffcode[LUMA_AC]);
+        }
+    }
+}
+
 static int dje_encode_main(DJEState* state, uint8_t* qt)
 {
     memcpy(state->qt_luma, qt, 64);
@@ -1100,7 +1133,33 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
     uint64_t* mse            = arena_alloc_array(state->arena, num_blocks, uint64_t);
     uint32_t* bitcount_array = arena_alloc_array(state->arena, num_blocks, uint32_t);
 
+#if DJE_MULTITHREADED
+    // Fill work to do and unlock queue
+    gwd->mse = mse;
+    gwd->y_blocks = y_blocks;
+    gwd->state = state;
+    gwd->bitcount_array = bitcount_array;
+    gwd->num_blocks = num_blocks;
+    work_done = 0;
 
+    MemoryBarrier();
+
+    sgl_mutex_unlock(work_queue_mutex);
+
+    int completed = 0;
+    for (;;) {
+        sgl_mutex_lock(work_queue_mutex);
+        if (work_done >= num_blocks) {
+            break;
+        } else {
+            sgl_mutex_unlock(work_queue_mutex);
+        }
+    }
+    sgl_usleep(500);
+
+    gwd->num_blocks = 0;
+
+#else
     // This loop is ready to be substituted by a single OpenCL kernel call
     for ( int bi = 0; bi < num_blocks; ++bi ) {
         djei_encode_and_write_MCU(bi, y_blocks, bitcount_array, mse,
@@ -1111,26 +1170,8 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
 #endif
                                   state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                                   state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC]);
-
-
-        // We only care about luma for the dummy encoding. This reduces the
-        // reported size but should not be meaningful for the error calculation
-#if 0
-        float* u_block = u_blocks[bi].d;
-        float* v_block = v_blocks[bi].d;
-
-        djei_encode_and_write_MCU(state, u_block,
-                                  pqt.chroma,
-                                  state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
-                                  state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
-                                  &pred_b, &bitbuffer, &location);
-        djei_encode_and_write_MCU(state, v_block,
-                                  pqt.chroma,
-                                  state->ehuffsize[CHROMA_DC], state->ehuffcode[CHROMA_DC],
-                                  state->ehuffsize[CHROMA_AC], state->ehuffcode[CHROMA_AC],
-                                  &pred_r, &bitbuffer, &location);
-#endif
     }
+#endif
 
     // "Reduce" step
     uint64_t mse_accum = 0;
@@ -1166,6 +1207,15 @@ DJEState dje_init(Arena* arena,
                   int num_components,
                   unsigned char* src_data)
 {
+#if DJE_MULTITHREADED
+    gwd = sgl_calloc(sizeof(struct global_work_data), 1);
+    work_queue_mutex = sgl_create_mutex();
+    sgl_mutex_lock(work_queue_mutex);
+    for (int i = 0 ; i < 8; ++i)
+        sgl_create_thread(dje_worker_thread, NULL);
+
+#endif
+
     int res = 0;
     DJEState state = { 0 };
 

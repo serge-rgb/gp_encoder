@@ -73,10 +73,10 @@ int main()
 
     int w, h, ncomp;
     char* fname =
-            //"diego.bmp";
+            "diego.bmp";
             //"pluto.bmp";
             //"in.bmp";
-            "in_klay.bmp";
+            //"in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
     srand((unsigned int)(*data));
@@ -261,6 +261,14 @@ int main()
     qsort(population, NUM_TABLES_PER_GENERATION, sizeof(PopulationElement), pe_comp);
 
     tje_encode_to_file_with_qt("out_evolved.jpg", population[0].table, w, h, ncomp, data);
+
+    // print winning table
+    uint8_t* table = population[0].table;
+    for (int j = 0; j < 8; ++j) {
+        for (int i = 0; i < 8; ++i)
+            sgl_log("%3i%s", table[j*8+i], (i<8) ? " ": "");
+        sgl_log("\n");
+    }
 
     stbi_image_free(data);
     sgl_free(root_arena.ptr);

@@ -12,9 +12,42 @@ static void CL_CALLBACK gpui_context_notify(const char* errinfo, const void* db,
     exit(EXIT_FAILURE);
 }
 
+static void handle_cl_error(cl_int err)
+{
+    switch(err) {
+    case CL_INVALID_VALUE:
+        sgl_log("%s\n", "CL_INVALID_VALUE");
+        break;
+    case CL_INVALID_DEVICE:
+        sgl_log("%s\n", "CL_INVALID_DEVICE");
+        break;
+    case CL_INVALID_BINARY:
+        sgl_log("%s\n", "CL_INVALID_BINARY");
+        break;
+    case CL_INVALID_BUILD_OPTIONS:
+        sgl_log("%s\n", "CL_INVALID_BUILD_OPTIONS");
+        break;
+    case CL_INVALID_OPERATION:
+        sgl_log("%s\n", "CL_INVALID_OPERATION");
+        break;
+    case CL_COMPILER_NOT_AVAILABLE:
+        sgl_log("%s\n", "CL_COMPILER_NOT_AVAILABLE");
+        break;
+    case CL_BUILD_PROGRAM_FAILURE:
+        sgl_log("%s\n", "CL_BUILD_PROGRAM_FAILURE");
+        break;
+    case CL_OUT_OF_RESOURCES:
+        sgl_log("%s\n", "CL_OUT_OF_RESOURCES");
+        break;
+    case CL_OUT_OF_HOST_MEMORY:
+        sgl_log("%s\n", "CL_OUT_OF_HOST_MEMORY");
+        break;
+    }
+}
+
 b32 gpu_init(GPUInfo* gpu_info)
 {
-#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; goto end; }
+#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; handle_cl_error(err); goto end; }
     b32 ok = true;
     cl_int err = CL_SUCCESS;
 
@@ -85,9 +118,64 @@ b32 gpu_init(GPUInfo* gpu_info)
                                         &err);
     ERR_CHECK;
 
+    // Compile the program.
+    int64_t file_contents_count;
+    // Assuming that we are running from the root project directory...
+    char* file_contents =  sgl_slurp_file("src/opencl_jpeg.cl", &file_contents_count);
+    if (!file_contents) {
+        goto end;
+    }
+
+    cl_program program = clCreateProgramWithSource(gpu_info->context,
+                                                   1,
+                                                   &file_contents,
+                                                   NULL,
+                                                   &err);
+
+    sgl_free(file_contents);
+
+    ERR_CHECK;
+
+    err = clBuildProgram(program, 1, &devices[0],
+                         "-cl-std=CL1.1",  // build options...
+                         NULL, // callback
+                         NULL // user data
+                        );
+
+    if (err == CL_BUILD_PROGRAM_FAILURE) {
+        size_t sz = 0;
+        clGetProgramBuildInfo(program,
+                              devices[0],
+                              CL_PROGRAM_BUILD_LOG,
+                              0,
+                              NULL,
+                              &sz);
+        char* log = sgl_malloc(sz);
+        clGetProgramBuildInfo(program,
+                              devices[0],
+                              CL_PROGRAM_BUILD_LOG,
+                              sz,
+                              log,
+                              NULL);
+        sgl_log ("%s\n", log);
+        sgl_free(log);
+    }
+
+    ERR_CHECK;
+
+
+
+
 end:
     sgl_free(platforms);
     sgl_free(devices);
     return ok;
 #undef ERR_CHECK
+}
+
+// Passes in the huffman table for luma dc buffers. 1/6th of the data that the
+// actual JPEG encoder would use, but it's the one we use.
+void gpu_setup_buffers(GPUInfo* gpu_info, uint8_t* huffsize, uint16_t* huffcode)
+{
+    // TODO: Implement.
 }

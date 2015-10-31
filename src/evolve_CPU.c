@@ -52,16 +52,18 @@ int pe_comp(const void* va, const void* vb)
     return c;
 }
 
-
 int main()
 {
+    int use_gpu = true;
     // Uncomment when doing the actual port to opencl
 
-    /* GPUInfo gpu_info; */
-    /* if ( !gpu_init(&gpu_info)) { */
-    /*     sgl_log("Could not init GPGPU.\n"); */
-    /*     exit(EXIT_FAILURE); */
-    /* } */
+    GPUInfo gpu_info = { 0 };
+    if (use_gpu) {
+        if ( !gpu_init(&gpu_info)) {
+            sgl_log("Could not init GPGPU.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     size_t memsz = 1L * 1024 * 1024 * 1024;
     Arena root_arena = arena_init(sgl_calloc(memsz, 1), memsz);
@@ -69,7 +71,6 @@ int main()
         sgl_log("Can't allocate memory. Exiting\n");
         exit(EXIT_FAILURE);
     }
-
 
     int w, h, ncomp;
     char* fname =
@@ -96,7 +97,7 @@ int main()
         return EXIT_FAILURE;
     }
 
-    DJEState base_state = dje_init(&root_arena, w, h, ncomp, data);
+    DJEState base_state = dje_init(&root_arena, use_gpu, w, h, ncomp, data);
 
     // Optimal state -- The result obtained from using a 1-table. Minimum
     // compression. Maximum quality. The best quality possible for baseline
@@ -106,7 +107,9 @@ int main()
 
     uint8_t tables[NUM_TABLES_PER_GENERATION][64];
 
+    // Add the optimal table to the initial population.
     memcpy(tables[0], optimal_table, 64 * sizeof(uint8_t));
+
     // Starting from 1 because tables[0] gets filled with ones.
     for (int i = 1; i < NUM_TABLES_PER_GENERATION; ++i) {
         uint8_t* table = tables[i];
@@ -117,7 +120,9 @@ int main()
 
 
     // Fill initial population.
-    PopulationElement* population = arena_alloc_array(&root_arena, NUM_TABLES_PER_GENERATION, PopulationElement);
+    PopulationElement* population = arena_alloc_array(&root_arena,
+                                                      NUM_TABLES_PER_GENERATION,
+                                                      PopulationElement);
     for (int i = 0; i < NUM_TABLES_PER_GENERATION; ++i) {
         population[i] = (PopulationElement) {
             .table = tables[i],
@@ -133,7 +138,7 @@ int main()
     float last_winner_fitness = FLT_MAX;
 
     int convergence_hits = 0;
-#define CONVERGENCE_LIMIT 4  // If we are withing the convergence threshold 3 times in a row, end evolution loop.
+#define CONVERGENCE_LIMIT 4  // If we are withing the convergence threshold 4 times in a row, end evolution loop.
 
     int num_generations = 100;
 

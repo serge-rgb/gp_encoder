@@ -46,6 +46,8 @@ typedef struct DJEState_s {
     DJEBlock*       y_blocks;
     int             num_blocks;
 
+    int use_gpu;
+
     // Result stuff
     uint32_t    bit_count;  // Instead of writing, we increase this value.
     uint64_t    mse;        // Mean square error.
@@ -700,7 +702,7 @@ static void djei_encode_and_write_MCU(int block_i,
 #else
                                       uint8_t* qt,
 #endif
-                                      uint8_t* huff_dc_len, uint16_t* huff_dc_code, // Huffman tables
+                                      // Huffman tables
                                       uint8_t* huff_ac_len, uint16_t* huff_ac_code)
 {
     float* mcu = mcu_array[block_i].d;
@@ -1085,7 +1087,7 @@ void dje_worker_thread(void* data)
 #else
                                       gwd->state->qt_luma,
 #endif
-                                      gwd->state->ehuffsize[LUMA_DC], gwd->state->ehuffcode[LUMA_DC],
+                                      // AC was removed from call since we are not "dummy encodeing" dc values
                                       gwd->state->ehuffsize[LUMA_AC], gwd->state->ehuffcode[LUMA_AC]);
         }
     }
@@ -1133,46 +1135,55 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
     uint64_t* mse            = arena_alloc_array(state->arena, num_blocks, uint64_t);
     uint32_t* bitcount_array = arena_alloc_array(state->arena, num_blocks, uint32_t);
 
+    if (state->use_gpu) {
+        // TODO:
+        //  1. setup kernel
+        //  2. run kernel.
+    } else {
 #if DJE_MULTITHREADED
-    // Fill work to do and unlock queue
-    gwd->mse = mse;
-    gwd->y_blocks = y_blocks;
-    gwd->state = state;
-    gwd->bitcount_array = bitcount_array;
-    gwd->num_blocks = num_blocks;
-    work_done = 0;
+        // Fill work to do and unlock queue
+        gwd->mse = mse;
+        gwd->y_blocks = y_blocks;
+        gwd->state = state;
+        gwd->bitcount_array = bitcount_array;
+        gwd->num_blocks = num_blocks;
+        work_done = 0;
 
-    MemoryBarrier();
+        sgl_memory_barrier();
 
-    sgl_mutex_unlock(work_queue_mutex);
+        sgl_mutex_unlock(work_queue_mutex);
 
-    int completed = 0;
-    for (;;) {
-        sgl_mutex_lock(work_queue_mutex);
-        if (work_done >= num_blocks) {
-            break;
-        } else {
-            sgl_mutex_unlock(work_queue_mutex);
+        int completed = 0;
+        for (;;) {
+            sgl_mutex_lock(work_queue_mutex);
+            if (work_done >= num_blocks) {
+                break;
+            } else {
+                sgl_mutex_unlock(work_queue_mutex);
+            }
         }
-    }
-    sgl_usleep(500);
+        sgl_usleep(1000);
+        // Janky... but time constrainded =( i just want to leave enough time
+        // for the trailing work to finish. I would use a semaphore but I am
+        // running into a weird thread ownership bug which I honestly don't
+        // have time to fix right now.
 
-    gwd->num_blocks = 0;
+        gwd->num_blocks = 0;
 
 #else
-    // This loop is ready to be substituted by a single OpenCL kernel call
-    for ( int bi = 0; bi < num_blocks; ++bi ) {
-        djei_encode_and_write_MCU(bi, y_blocks, bitcount_array, mse,
+        // This loop is ready to be substituted by a single OpenCL kernel call
+        for ( int bi = 0; bi < num_blocks; ++bi ) {
+            djei_encode_and_write_MCU(bi, y_blocks, bitcount_array, mse,
 #if DJE_USE_FAST_DCT
-                                  state->pqt.luma,
+                                      state->pqt.luma,
 #else
-                                  state->qt_luma,
+                                      state->qt_luma,
 #endif
-                                  state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
-                                  state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC]);
+                                      state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
+                                      state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC]);
+        }
+#endif
     }
-#endif
-
     // "Reduce" step
     uint64_t mse_accum = 0;
     uint64_t mse_sum  = 0;
@@ -1202,28 +1213,49 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
 // Define public interface.
 
 DJEState dje_init(Arena* arena,
+                  int use_gpu,
                   int width,
                   int height,
                   int num_components,
                   unsigned char* src_data)
 {
 #if DJE_MULTITHREADED
-    gwd = sgl_calloc(sizeof(struct global_work_data), 1);
-    work_queue_mutex = sgl_create_mutex();
-    sgl_mutex_lock(work_queue_mutex);
-    for (int i = 0 ; i < 8; ++i)
-        sgl_create_thread(dje_worker_thread, NULL);
-
+    if (!use_gpu) {
+        gwd = sgl_calloc(sizeof(struct global_work_data), 1);
+        work_queue_mutex = sgl_create_mutex();
+        sgl_mutex_lock(work_queue_mutex);
+        for (int i = 0 ; i < 8; ++i)
+            sgl_create_thread(dje_worker_thread, NULL);
+    }
 #endif
 
     int res = 0;
     DJEState state = { 0 };
 
+    state.use_gpu = use_gpu;
     state.arena = arena;
 
     djei_huff_expand(&state);
 
     res = djei_encode_prelude(&state, src_data, width, height, num_components);
+
+    if (use_gpu) {
+        // TODO
+        //  1. compile opencl program.
+    /*
+            per kernel results:
+            gwd->y_blocks, gwd->bitcount_array, gwd->mse,
+
+            per-kernel input:
+            gwd->state->pqt.luma, OR gwd->state->qt_luma,
+
+            never changing:
+            gwd->state->ehuffsize[LUMA_AC], gwd->state->ehuffcode[LUMA_AC]);
+    */
+        //  2. upload data that is reused
+        //      - everything but the qt tables and result buffers.
+    }
+
     if ( !res ) {
         assert (!"prelude failed");
     }

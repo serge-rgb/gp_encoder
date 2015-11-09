@@ -45,9 +45,10 @@ static void handle_cl_error(cl_int err)
     }
 }
 
-b32 gpu_init(GPUInfo* gpu_info)
+GPUInfo* gpu_init()
 {
-#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; handle_cl_error(err); goto end; }
+    GPUInfo* gpu_info = NULL;
+#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; handle_cl_error(err); goto err; }
     b32 ok = true;
     cl_int err = CL_SUCCESS;
 
@@ -109,6 +110,8 @@ b32 gpu_init(GPUInfo* gpu_info)
         CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0]),
         0,
     };
+
+    gpu_info = sgl_calloc(sizeof(GPUInfo), 1);
     gpu_info->context = clCreateContext(context_properties,
                                         num_devices,
                                         devices,
@@ -164,12 +167,13 @@ b32 gpu_init(GPUInfo* gpu_info)
     ERR_CHECK;
 
 
-
-
+    goto end;
+err:
+    sgl_free(gpu_info);
 end:
     sgl_free(platforms);
     sgl_free(devices);
-    return ok;
+    return gpu_info;
 #undef ERR_CHECK
 }
 

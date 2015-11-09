@@ -55,11 +55,11 @@ int pe_comp(const void* va, const void* vb)
 int main()
 {
     int use_gpu = true;
-    // Uncomment when doing the actual port to opencl
 
-    GPUInfo gpu_info = { 0 };
+    GPUInfo* gpu_info = NULL;
     if (use_gpu) {
-        if ( !gpu_init(&gpu_info)) {
+        gpu_info = gpu_init();
+        if (!gpu_info) {
             sgl_log("Could not init GPGPU.\n");
             exit(EXIT_FAILURE);
         }
@@ -97,13 +97,13 @@ int main()
         return EXIT_FAILURE;
     }
 
-    DJEState base_state = dje_init(&root_arena, use_gpu, w, h, ncomp, data);
+    DJEState base_state = dje_init(&root_arena, gpu_info, w, h, ncomp, data);
 
     // Optimal state -- The result obtained from using a 1-table. Minimum
     // compression. Maximum quality. The best quality possible for baseline
     // JPEG.
     DJEState optimal_state = base_state;
-    dje_encode_main(&optimal_state, optimal_table);
+    dje_encode_main(&optimal_state, gpu_info, optimal_table);
 
     uint8_t tables[NUM_TABLES_PER_GENERATION][64];
 
@@ -118,7 +118,6 @@ int main()
         }
     }
 
-
     // Fill initial population.
     PopulationElement* population = arena_alloc_array(&root_arena,
                                                       NUM_TABLES_PER_GENERATION,
@@ -129,7 +128,6 @@ int main()
             .fitness = FLT_MAX,
         };
     }
-
 
     Arena iter_arena = arena_push(&root_arena, arena_available_space(&root_arena));
 
@@ -149,7 +147,7 @@ int main()
             arena_reset(&iter_arena);
             DJEState state = base_state;
             state.arena = &iter_arena;
-            dje_encode_main(&state, population[table_i].table);
+            dje_encode_main(&state, gpu_info, population[table_i].table);
 
             uint32_t other_bit_count = state.bit_count / 8;
 
@@ -167,21 +165,6 @@ int main()
 
 
             population[table_i].fitness = fitness;
-
-#if 0
-            sgl_log("====\n"
-                    "QT1 image size: %d\n"
-                    "Second image size: %d\n"
-                    "Normalized compression ratio: %f\n"
-                    "====\n"
-                    "QT1 image error %" PRIu64 "\n"
-                    "Second image error %" PRIu64 "\n"
-                    "Normalized image error ratio %f\n"
-                    "Fitness: %f\n\n",
-                    base_bit_count, other_bit_count, compression_ratio,
-                    optimal_state.mse, state.mse, error_ratio,
-                    fitness);
-#endif
         }
 
         // Sort by fitness.
@@ -277,6 +260,7 @@ int main()
 
     stbi_image_free(data);
     sgl_free(root_arena.ptr);
+    sgl_free(gpu_info);
 
     return EXIT_SUCCESS;
 }

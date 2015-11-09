@@ -16,6 +16,8 @@
 //      #include "dummy_jpeg.h"
 //
 
+#include "gpu.h"
+
 #define DJE_MULTITHREADED 1
 
 
@@ -45,8 +47,6 @@ typedef struct DJEState_s {
     DJEProcessedQT  pqt;
     DJEBlock*       y_blocks;
     int             num_blocks;
-
-    int use_gpu;
 
     // Result stuff
     uint32_t    bit_count;  // Instead of writing, we increase this value.
@@ -1093,7 +1093,7 @@ void dje_worker_thread(void* data)
     }
 }
 
-static int dje_encode_main(DJEState* state, uint8_t* qt)
+static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
 {
     memcpy(state->qt_luma, qt, 64);
     memcpy(state->qt_chroma, qt, 64);
@@ -1135,7 +1135,7 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
     uint64_t* mse            = arena_alloc_array(state->arena, num_blocks, uint64_t);
     uint32_t* bitcount_array = arena_alloc_array(state->arena, num_blocks, uint32_t);
 
-    if (state->use_gpu) {
+    if (gpu_info) {
         // TODO:
         //  1. setup kernel
         //  2. run kernel.
@@ -1213,14 +1213,14 @@ static int dje_encode_main(DJEState* state, uint8_t* qt)
 // Define public interface.
 
 DJEState dje_init(Arena* arena,
-                  int use_gpu,
+                  GPUInfo* gpu_info,
                   int width,
                   int height,
                   int num_components,
                   unsigned char* src_data)
 {
 #if DJE_MULTITHREADED
-    if (!use_gpu) {
+    if (!gpu_info) {
         gwd = sgl_calloc(sizeof(struct global_work_data), 1);
         work_queue_mutex = sgl_create_mutex();
         sgl_mutex_lock(work_queue_mutex);
@@ -1232,16 +1232,16 @@ DJEState dje_init(Arena* arena,
     int res = 0;
     DJEState state = { 0 };
 
-    state.use_gpu = use_gpu;
     state.arena = arena;
 
     djei_huff_expand(&state);
 
     res = djei_encode_prelude(&state, src_data, width, height, num_components);
 
-    if (use_gpu) {
+    if (gpu_info) {
+        // Assuming that we have already called gpu_init()
+        gwd = sgl_calloc(sizeof(struct global_work_data), 1);
         // TODO
-        //  1. compile opencl program.
     /*
             per kernel results:
             gwd->y_blocks, gwd->bitcount_array, gwd->mse,

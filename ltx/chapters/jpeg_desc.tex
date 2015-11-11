@@ -195,49 +195,83 @@ De la ecuación \ref{eq:dct} se puede derivar directamente un algoritmo para la
 \subsection{La vida de un bloque}\label{sub:vida}
 
 
-JPEG trabaja dividiendo a la imagen en bloques cuadrados de 8 píxeles de ancho y alto. Si el tamaño de la imagen no es un múltiplo de ocho, se redondea al siguiente número que sí lo es y es el trabajo del decodificador ignorar los píxeles sobrantes. Cada bloque es independiente de los demás y por lo tanto el algoritmo es altamente paralelizable. Es una buena coincidencia que las arquitecturas de GPU de hoy en día trabajan con grupos de 64 \emph{threads}.
+JPEG trabaja dividiendo a la imagen en bloques cuadrados de 8 píxeles de ancho
+y alto. Si el tamaño de la imagen no es un múltiplo de ocho, se redondea al
+siguiente número que sí lo es y es el trabajo del decodificador ignorar los
+píxeles sobrantes. Cada bloque es independiente de los demás y por lo tanto el
+algoritmo es altamente paralelizable. Es una buena coincidencia que las
+arquitecturas de GPU de hoy en día trabajan con grupos de 64 \emph{threads}.
 
-Cada bloque pasa por varias etapas antes de ser escrito a memoria como bits comprimidos de JPEG.
+Cada bloque pasa por varias etapas antes de ser escrito a memoria como bits
+comprimidos de JPEG.
 
 
 \subsection{YUV}\label{sub:yuv}
 
-Cada bloque crudo de la imágen se convierte en tres nuevos bloques, cada uno correspondiente a un componente del modelo de color \verb+YUV+, también denominado \verb+YCbCr+
+Cada bloque crudo de la imágen se convierte en tres nuevos bloques, cada uno
+correspondiente a un componente del modelo de color \verb+YUV+, también
+denominado \verb+YCbCr+
 
-Un modelo de color es una manera abstracta de representar colores. \verb+RGB+ representa colores como combinaciones de tres colores primarios. \verb+YUV+ los representa en tres componentes, uno para Luminancia y dos de Crominancia.
+Un modelo de color es una manera abstracta de representar colores. \verb+RGB+
+representa colores como combinaciones de tres colores primarios. \verb+YUV+ los
+representa en tres componentes, uno para Luminancia y dos de Crominancia.
 
-Luminancia, también llamado Luma o \verb+Y+, es la intensidad de la imagen. La Crominancia, también llamada Chroma describe el color de la imagen y se codifica con dos componentes \verb+U+ o \verb+Cb+ y \verb+V+ o \verb+Cr+, donde $U = Azul - Luminancia$ y $V = Rojo - Luminancia$.
+Luminancia, también llamado Luma o \verb+Y+, es la intensidad de la imagen. La
+Crominancia, también llamada Chroma describe el color de la imagen y se
+codifica con dos componentes \verb+U+ o \verb+Cb+ y \verb+V+ o \verb+Cr+, donde
+$U = Azul - Luminancia$ y $V = Rojo - Luminancia$.
 
-El modelo de color \verb+YUV+ se inventó con la invención de la televisión a color. La luminancia no es otra cosa que la imagen en blanco y negro. La transición al color se hizo gradualmente transmitiendo la información de la misma manera que antes, pero usando dos nuevos canales, \verb+U+ y \verb+V+. De esta manera, el nuevo formato era compatible con televisiones en blanco y negro, que sólo necesitaban la información de uno de los canales.
+El modelo de color \verb+YUV+ se inventó con la invención de la televisión a
+color. La luminancia no es otra cosa que la imagen en blanco y negro. La
+transición al color se hizo gradualmente transmitiendo la información de la
+misma manera que antes, pero usando dos nuevos canales, \verb+U+ y \verb+V+. De
+esta manera, el nuevo formato era compatible con televisiones en blanco y
+negro, que sólo necesitaban la información de uno de los canales.
 
 \begin{figure}[hb]
 \includegraphics{yuv_cable}
     \caption{La siguiente generación no va a saber para que eran estos cables}
 \end{figure}
 
-Los cables RCA empezaron transmitiendo los tres componentes de \verb+YUV+. Más tarde, cuando todos tenían color, se migró a usar un cable para \verb+YUV+, llamado "video compuesto" y los otros dos para sonido estéreo.
+Los cables RCA empezaron transmitiendo los tres componentes de \verb+YUV+. Más
+tarde, cuando todos tenían color, se migró a usar un cable para \verb+YUV+,
+llamado "video compuesto" y los otros dos para sonido estéreo.
 
 \begin{figure}
     \includegraphics{yuv}
     \caption{Descomposición de una imagen a un canal de Luma y dos de Chroma}
 \end{figure}
 
-\verb+YUV+ tiene ventajas para comprimir imágenes. El sistema de visión humano es mucho más sensible a cambios de intensidad en la imagen que a cambios de color. Esto se aprovechaba en los días de la televisión analógica para utilizar más ancho de banda en Luma que en Chroma, y el mismo principio se utiliza en JPEG, cuya especificación incluye la opción de usar resoluciones más bajas para los canales de chroma que el de luma. La implementación de \verb+tiny_jpeg+ usa la misma resolución para los tres canales.
+\verb+YUV+ tiene ventajas para comprimir imágenes. El sistema de visión humano
+es mucho más sensible a cambios de intensidad en la imagen que a cambios de
+color. Esto se aprovechaba en los días de la televisión analógica para utilizar
+más ancho de banda en Luma que en Chroma, y el mismo principio se utiliza en
+JPEG, cuya especificación incluye la opción de usar resoluciones más bajas para
+los canales de chroma que el de luma. La implementación de \verb+tiny_jpeg+ usa
+la misma resolución para los tres canales.
 
-Los tres bloques correspondientes a \verb+Y+, \verb+U+, y \verb+V+ son escritos al archivo en ese orden después de ser transformados independientemente.
+Los tres bloques correspondientes a \verb+Y+, \verb+U+, y \verb+V+ son escritos
+al archivo en ese orden después de ser transformados independientemente.
 
 
 \subsection{Aplicación de DCT y Cuantificación}
 
 \begin{figure}[hb]
     \includegraphics{DCT-8x8}
-    \caption{Visualización de las funciones para el DCT de 8x8 usado en JPEG. Esquina superior izquierda: menor frecuencia. Inferior derecha: mayor frecuencia.}
+    \caption{Visualización de las funciones para el DCT de 8x8 usado en JPEG.
+    Esquina superior izquierda: menor frecuencia. Inferior derecha: mayor
+frecuencia.}
     \label{fig:dct}
 \end{figure}
 
 
 
-Al bloque se le aplica la Transformada Discreta de Coseno de $8\times8$. El resultado son 64 coeficientes para las 64 funciones base. Como se muestra en la figura \ref{fig:dct}, la frecuencia se incrementa hacia la derecha y abajo. Por eso a partir de este momento se itera el bloque en un patrón de zig-zag \ref{fig:zigzag}. Empezando en la esquina superior izquierda y acabando en la inferior derecha.
+Al bloque se le aplica la Transformada Discreta de Coseno de $8\times8$. El
+resultado son 64 coeficientes para las 64 funciones base. Como se muestra en la
+figura \ref{fig:dct}, la frecuencia se incrementa hacia la derecha y abajo. Por
+eso a partir de este momento se itera el bloque en un patrón de zig-zag
+\ref{fig:zigzag}. Empezando en la esquina superior izquierda y acabando en la
+inferior derecha.
 
 \begin{figure}[h]
     \includegraphics{zigzag}
@@ -245,7 +279,13 @@ Al bloque se le aplica la Transformada Discreta de Coseno de $8\times8$. El resu
     \label{fig:zigzag}
 \end{figure}
 
-El corazón de JPEG es el proceso de cuantificación. Para cada codificador, usualmente elegido por heurísticas \emph{ a priori }, le corresponde al menos dos tablas de cuantificación de 64 elementos. El propósito de estas tablas es decidir cuanta información queremos perder para diferentes frecuencias. \emph{Cuantificación} es el proceso de convertir un conjunto de valores a otro conjunto más pequeño. Para JPEG, usamos división entera para cuantificar los elementos de cada bloque. El concepto se puede explicar con un ejemplo:
+El corazón de JPEG es el proceso de cuantificación. Para cada codificador,
+usualmente elegido por heurísticas \emph{ a priori }, le corresponde al menos
+dos tablas de cuantificación de 64 elementos. El propósito de estas tablas es
+decidir cuanta información queremos perder para diferentes frecuencias.
+\emph{Cuantificación} es el proceso de convertir un conjunto de valores a otro
+conjunto más pequeño. Para JPEG, usamos división entera para cuantificar los
+elementos de cada bloque. El concepto se puede explicar con un ejemplo:
 
 Supongamos que tenemos el conjunto de valores $ \{ 1, 5, 103, 128, 242 \} $ que
 queremos cuantificar usando división entera: Todos los elementos $e_i$ se
@@ -261,11 +301,21 @@ $ c = 100 $. Con esta constante, el conjunto se cuantifica a $ \{ 0, 1, 2 \}$ .
     242 = 2 * 100 + 42.
 \end{eqnarray*}
 
-Se puede observar que mientras más grande sea la constante de cuantificación, más elementos van a reducirse. También se puede ver que una constante de cuantificación $1$ resulta en el mismo conjunto de elementos.
+Se puede observar que mientras más grande sea la constante de cuantificación,
+más elementos van a reducirse. También se puede ver que una constante de
+cuantificación $1$ resulta en el mismo conjunto de elementos.
 
-En JPEG, asociamos una constante de cuantificación a cada frecuencia de la DCT. De esta manera se controla la \emph{pérdida} de información. Cuando el usuario desea obtener la calidad máxima de imagen, se utilizan tablas de cuantificación cuyas constantes son todas 1, de esta manera la única pérdida de información resulta de la conversión de punto flotante a entero.
+En JPEG, asociamos una constante de cuantificación a cada frecuencia de la DCT.
+De esta manera se controla la \emph{pérdida} de información. Cuando el usuario
+desea obtener la calidad máxima de imagen, se utilizan tablas de cuantificación
+cuyas constantes son todas 1, de esta manera la única pérdida de información
+resulta de la conversión de punto flotante a entero.
 
-En la práctica, se utiliza el hecho de que el sistema de visión humano es menos sensible a cambios pequeños en frecuencias altas para escoger constantes grandes para frecuencias altas y constantes pequeña para frecuencias bajas. Sigue un ejemplo dado en \cite{JPEG_paper} para una tabla de cuantificación típica:
+En la práctica, se utiliza el hecho de que el sistema de visión humano es menos
+sensible a cambios pequeños en frecuencias altas para escoger constantes
+grandes para frecuencias altas y constantes pequeña para frecuencias bajas.
+Sigue un ejemplo dado en \cite{JPEG_paper} para una tabla de cuantificación
+típica:
 
 \begin{equation}
     \begin{matrix}

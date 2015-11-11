@@ -11,7 +11,11 @@ cosas, se desarrolló una implementación paralela de JPEG que utiliza el GPU
 para calcular \emph{DCT}, con el objetivo de hacer una comparación de
 desempeño.
 
-Se van a usar los términos \emph{debugging} y \emph{profiling} por su ubiquidad en la literatura. \emph{debugging} se traduce como depurar y se define como el proceso de encontrar y arreglar defectos de código. \emph{profiling} es el proceso de encontrar los puntos en los que un programa puede ser modificado para mejorar el desempeño.
+Se van a usar los términos \emph{debugging} y \emph{profiling} por su ubiquidad
+en la literatura. \emph{debugging} se traduce como depurar y se define como el
+proceso de encontrar y arreglar defectos de código. \emph{profiling} es el
+proceso de encontrar los puntos en los que un programa puede ser modificado
+para mejorar el desempeño.
 
 % ============================================================
 \section{Lenguajes}
@@ -41,7 +45,8 @@ desempeño es una parte muy importante.
 \section{Algoritmo DCT}
 % ============================================================
 
-A partir de la ecuacion \ref{eq:dct} se puede derivar directamente un algoritmo simple para la \emph{DCT}:
+A partir de la ecuacion \ref{eq:dct} se puede derivar directamente un algoritmo
+simple para la \emph{DCT}:
 
 \label{alg:dct}
 \begin{code}[language=C][h]
@@ -54,7 +59,8 @@ A partir de la ecuacion \ref{eq:dct} se puede derivar directamente un algoritmo 
 \end{code}
 
 
-\verb+tiny_jpeg+ contiene dos implementaciones de \emph{DCT}, la que se deriva directamente de la ecuación \ref{eq:dct} y que se describe en \ref{alg:dct}
+\verb+tiny_jpeg+ contiene dos implementaciones de \emph{DCT}, la que se deriva
+directamente de la ecuación \ref{eq:dct} y que se describe en \ref{alg:dct}
 muestra arriba, y una más rápida, desarrollada por \cite{ahmed_dct}.
 
 Los algoritmos rápidos para calcular la \emph{DCT} están basados en la

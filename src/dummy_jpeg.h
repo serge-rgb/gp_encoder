@@ -4,7 +4,8 @@
  *
  *  This is a modification of tiny_jpeg so that:
  *      - Data is transformed in a GPU-friendly way.
- *      - Nothing gets written. It does only the necessary work to calculate the size and error of the JPEG that would result.
+ *      - Nothing gets written. It does only the necessary work to calculate
+ *          the size and error of the JPEG that would result.
  *
  */
 

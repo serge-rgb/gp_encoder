@@ -26,10 +26,6 @@ typedef struct DJEProcessedQT_s {
     float luma[64];
 } DJEProcessedQT;
 
-typedef struct DJEBlock_s {
-    float d[64];
-} DJEBlock;
-
 typedef struct DJEState_s {
     uint8_t     ehuffsize[4][257];
     uint16_t    ehuffcode[4][256];
@@ -218,18 +214,6 @@ static uint8_t djei_default_ht_chroma_ac[] = {
 // ============================================================
 // Code
 // ============================================================
-
-// Zig-zag order:
-static uint8_t djei_zig_zag[64] = {
-   0,   1,  5,  6, 14, 15, 27, 28,
-   2,   4,  7, 13, 16, 26, 29, 42,
-   3,   8, 12, 17, 25, 30, 41, 43,
-   9,  11, 18, 24, 31, 40, 44, 53,
-   10, 19, 23, 32, 39, 45, 52, 54,
-   20, 22, 33, 38, 46, 51, 55, 60,
-   21, 34, 37, 47, 50, 56, 59, 61,
-   35, 36, 48, 49, 57, 58, 62, 63,
-};
 
 // Memory order as big endian. 0xhilo -> 0xlohi which looks as 0xhilo in memory.
 static uint16_t djei_be_word(const uint16_t le_word)
@@ -893,9 +877,31 @@ static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
     uint32_t* bitcount_array = arena_alloc_array(state->arena, num_blocks, uint32_t);
 
     if (gpu_info) {
-        // TODO:
-        //  1. setup kernel
-        //  2. run kernel.
+        cl_int err;
+
+        // Fill input buffer.
+        err = clEnqueueWriteBuffer(gpu_info->queue, gpu_info->qt_mem, /*blocking=*/CL_TRUE,
+                                   /*offset=*/0,
+                                   /*cb=*/64*sizeof(float),
+                                   /*ptr=*/pqt.luma,
+                                   /*num_in_wait_list=*/0,
+                                   /*wait_list*/NULL,
+                                   /*event*/NULL);
+
+
+        // Pass parameters to kernel
+        //   - huffman data
+        //   - quantization table
+        //
+        //   - bitcount_array
+        //   - y_blocks
+        //   - mse
+        //
+        // Enqueue kernel.
+
+        assert(err == CL_SUCCESS);
+
+        assert (!"implement this");
     } else {
 #if DJE_MULTITHREADED
         // Fill work to do and unlock queue
@@ -976,6 +982,12 @@ DJEState dje_init(Arena* arena,
                   int num_components,
                   unsigned char* src_data)
 {
+    static int called_once = true;
+    if (!called_once) {
+        assert (!"Failing because dje_init creates persistent buffers. Preventing leaks.");
+    }
+    called_once = false;
+
 #if DJE_MULTITHREADED
     if (!gpu_info) {
         gwd = sgl_calloc(sizeof(struct global_work_data), 1);
@@ -986,33 +998,26 @@ DJEState dje_init(Arena* arena,
     }
 #endif
 
-    int res = 0;
+    int res = 1;
     DJEState state = { 0 };
 
     state.arena = arena;
 
     djei_huff_expand(&state);
 
-    res = djei_encode_prelude(&state, src_data, width, height, num_components);
+    if (res) {
+        res = djei_encode_prelude(&state, src_data, width, height, num_components);
 
-    if (gpu_info) {
-        // Assuming that we have already called gpu_init()
-        gwd = sgl_calloc(sizeof(struct global_work_data), 1);
-        // TODO
-    /*
-            per kernel results:
-            gwd->y_blocks, gwd->bitcount_array, gwd->mse,
+        if (res && gpu_info) {
+            // Assuming that we have already called gpu_init()
+            gwd = sgl_calloc(sizeof(struct global_work_data), 1);
 
-            per-kernel input:
-            gwd->state->pqt.luma, OR gwd->state->qt_luma,
+            res = gpu_setup_buffers(gpu_info,
+                                    state.ehuffsize[LUMA_AC], state.ehuffcode[LUMA_AC], state.num_blocks,
+                                    state.y_blocks);
+        }
 
-            never changing:
-            gwd->state->ehuffsize[LUMA_AC], gwd->state->ehuffcode[LUMA_AC]);
-    */
-        //  2. upload data that is reused
-        //      - everything but the qt tables and result buffers.
     }
-
     if ( !res ) {
         assert (!"prelude failed");
     }

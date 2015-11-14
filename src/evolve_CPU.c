@@ -67,17 +67,17 @@ int main()
 
     size_t memsz = 1L * 1024 * 1024 * 1024;
     Arena root_arena = arena_init(sgl_calloc(memsz, 1), memsz);
-    if ( !root_arena.ptr ) {
+    if (!root_arena.ptr) {
         sgl_log("Can't allocate memory. Exiting\n");
         exit(EXIT_FAILURE);
     }
 
     int w, h, ncomp;
     char* fname =
-            "diego.bmp";
+            //"diego.bmp";
             //"pluto.bmp";
             //"in.bmp";
-            //"in_klay.bmp";
+            "in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
     srand((unsigned int)(*data));

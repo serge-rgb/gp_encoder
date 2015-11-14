@@ -2,6 +2,30 @@
 
 #pragma once
 
+#if defined(__OPENCL_VERSION__)
+#define uint8_t uchar
+#define stbi_uc uchar
+#else
+#define __private
+#define __constant
+#endif
+
+typedef struct DJEBlock_s {
+    float d[64];
+} DJEBlock;
+
+// Zig-zag order:
+__constant uint8_t djei_zig_zag[64] = {
+   0,   1,  5,  6, 14, 15, 27, 28,
+   2,   4,  7, 13, 16, 26, 29, 42,
+   3,   8, 12, 17, 25, 30, 41, 43,
+   9,  11, 18, 24, 31, 40, 44, 53,
+   10, 19, 23, 32, 39, 45, 52, 54,
+   20, 22, 33, 38, 46, 51, 55, 60,
+   21, 34, 37, 47, 50, 56, 59, 61,
+   35, 36, 48, 49, 57, 58, 62, 63,
+};
+
 // DCT implementation by Thomas G. Lane.
 // Obtained through NVIDIA
 //  http://developer.download.nvidia.com/SDK/9.5/Samples/vidimaging_samples.html#gpgpu_dct
@@ -131,7 +155,9 @@ void fdct (float * data)
 //  /////////////////
 
 // take a -128..127 value and stbi__clamp it and convert to 0..255
-static uint8_t clamp(int x)
+
+#if defined(__OPENCL_VERSION__)
+stbi_uc stbi__clamp(int x)
 {
    // trick to use a single test to catch both cases
    if ((unsigned int) x > 255) {
@@ -140,6 +166,7 @@ static uint8_t clamp(int x)
    }
    return (stbi_uc) x;
 }
+#endif
 
 #define stbi__f2f(x)  ((int) (((x) * 4096 + 0.5)))
 #define stbi__fsh(x)  ((x) << 12)
@@ -182,10 +209,14 @@ static uint8_t clamp(int x)
    t1 += p2+p4;                                \
    t0 += p1+p3;
 
+#if !defined(__OPENCL_VERSION__)
 static void idct_block(uint8_t *out, int out_stride, short data[64])
+#else
+static void idct_block(__private uint8_t* out, int out_stride, __private short* data)
+#endif
 {
     int i,val[64],*v=val;
-    stbi_uc *o;
+    __private stbi_uc *o;
     short *d = data;
 
     // columns

@@ -166,6 +166,16 @@ GPUInfo* gpu_init()
 
     ERR_CHECK;
 
+    // Create command queue.
+    // TODO: Perf win for out-of-order excecution? Prolly not much and would need more queues.
+    cl_command_queue queue = clCreateCommandQueue(gpu_info->context,
+                                                  devices[0],
+                                                  0,  //cl_command_queue_properties
+                                                  &err);
+    ERR_CHECK;
+
+    gpu_info->queue = queue;
+
 
     goto end;
 err:
@@ -177,9 +187,79 @@ end:
 #undef ERR_CHECK
 }
 
+// This function uploads data used by every kernel call that doesn't change during the program's lifetime.
+//
 // Passes in the huffman table for luma dc buffers. 1/6th of the data that the
 // actual JPEG encoder would use, but it's the one we use.
-void gpu_setup_buffers(GPUInfo* gpu_info, uint8_t* huffsize, uint16_t* huffcode)
+//
+// Returns false on error.
+int gpu_setup_buffers(GPUInfo* gpu_info,
+                      uint8_t* huffsize, uint16_t* huffcode,
+                      int num_blocks, DJEBlock* y_blocks)
 {
-    // TODO: Implement.
+    int ok = true;
+#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; handle_cl_error(err); goto err; }
+    cl_int err;
+    // NOTE: CL_MEM_COPY_HOST_PTR is an implicit "enqueue write"
+    cl_mem ehuffsize_mem = clCreateBuffer(gpu_info->context,
+                                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                          257,
+                                          huffsize,
+                                          &err);
+    ERR_CHECK;
+
+    cl_mem ehuffcode_mem = clCreateBuffer(gpu_info->context,
+                                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                          256,
+                                          huffcode,
+                                          &err);
+    ERR_CHECK;
+
+    gpu_info->huffman_memory[0] = ehuffsize_mem;
+    gpu_info->huffman_memory[1] = ehuffcode_mem;
+
+    cl_mem y_blocks_mem = clCreateBuffer(gpu_info->context,
+                                         CL_MEM_WRITE_ONLY,  // Result buffer. Only written to.
+                                         num_blocks * sizeof(DJEBlock), // Conservative estimate of result buffer. See DJEBlock
+                                         y_blocks,
+                                         &err);
+    ERR_CHECK;
+
+    gpu_info->y_blocks_mem = y_blocks_mem;
+
+    cl_mem bitcount_array = clCreateBuffer(gpu_info->context,
+                                           CL_MEM_WRITE_ONLY,  // Result buffer. Only written to.
+                                           num_blocks * sizeof(uint32_t),
+                                           NULL,
+                                           &err);
+    ERR_CHECK;
+
+    gpu_info->bitcount_array_mem = bitcount_array;
+
+    cl_mem mse = clCreateBuffer(gpu_info->context,
+                                CL_MEM_WRITE_ONLY,  // Result buffer. Only written to.
+                                num_blocks * sizeof(uint64_t),
+                                NULL,
+                                &err);
+    ERR_CHECK;
+
+    gpu_info->mse_mem = mse;
+
+    cl_mem qt = clCreateBuffer(gpu_info->context,
+                               CL_MEM_READ_ONLY,  // Result buffer. Only written to.
+                               64 * sizeof(float),
+                               NULL,
+                               &err);
+    ERR_CHECK;
+
+    gpu_info->qt_mem = qt;
+
+    goto end;
+err:
+    ok = false;
+    // Handle error case...
+    assert(!"Failed to setup buffer");
+end:
+    return ok;
+#undef ERR_CHECK
 }

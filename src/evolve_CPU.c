@@ -1,15 +1,8 @@
-#define LIBSERG_IMPLEMENTATION
-#include <libserg/libserg.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-#define DJE_IMPLEMENTATION
-#include "dummy_jpeg.h"
 
-#include "extended_jpeg.h"
-
-typedef uint32_t b32;
 #ifndef true
 #define true 1
 #endif  // true
@@ -17,9 +10,21 @@ typedef uint32_t b32;
 #define false 0
 #endif  // false
 
+typedef uint32_t b32;
+
+#define LIBSERG_IMPLEMENTATION
+#include <libserg/libserg.h>
+
+#include "extended_jpeg.h"
+#include "extended_jpeg.c"
+
+#define DJE_IMPLEMENTATION
+#include "dummy_jpeg.h"
+
+
 #include "gpu.h"
 
-
+// ----
 
 #include "gpu.c"
 
@@ -131,8 +136,7 @@ int main()
 
     Arena iter_arena = arena_push(&root_arena, arena_available_space(&root_arena));
 
-    uint32_t base_bit_count = optimal_state.bit_count / 8;
-    float base_mse = (float)optimal_state.mse;
+    uint32_t base_bit_count   = optimal_state.bit_count / 8;
     float last_winner_fitness = FLT_MAX;
 
     int convergence_hits = 0;
@@ -153,11 +157,7 @@ int main()
 
             float compression_ratio = (float)other_bit_count / (float)base_bit_count;
             float error_ratio       = (float)(state.mse) / optimal_state.mse;
-            //float error_weight = 0.23f;
-            float error_weight = 0.30f;
 
-            // ----
-            //
             float fitness = error_ratio + 2.00f*(1+compression_ratio);
             if (error_ratio < 1.0f) {
                 fitness += 1000;

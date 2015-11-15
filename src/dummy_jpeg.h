@@ -19,8 +19,6 @@
 #define DJE_MULTITHREADED 1
 
 
-typedef struct Arena_s Arena;
-
 typedef struct DJEProcessedQT_s {
     float chroma[64];
     float luma[64];
@@ -406,14 +404,6 @@ DJEI_FORCE_INLINE void djei_calculate_variable_length_int(int value, uint16_t ou
     out[0] = value & ((1 << out[1]) - 1);
 }
 
-// Write bits to file.
-#define djei_write_bits(s, bf, l, n, bt) djei_write_bits_impl(s, n)
-DJEI_FORCE_INLINE void djei_write_bits_impl(DJEState* state, uint16_t num_bits)
-{
-    state->bit_count += num_bits;
-}
-
-
 float slow_fdct(int u, int v, float* data)
 {
 #define kPI 3.14159265f
@@ -491,7 +481,6 @@ static void djei_encode_and_write_MCU(int block_i,
     uint64_t MSE = 0;
 
     for ( int i = 0; i < 64; ++i ) {
-        int32_t precision = 10;  // Decimal-points of precision.
         int32_t re_i = (int32_t)(re[i]);
         int32_t mcu_i = (int32_t)(mcu[i] + 128);
         int32_t err = ABS(re_i - mcu_i);
@@ -785,8 +774,6 @@ static int djei_encode_prelude(DJEState* state,
                     uint8_t b = src_data[src_index + 2];
 
                     float luma = 0.299f   * r + 0.587f    * g + 0.114f    * b - 128;
-                    float cb   = -0.1687f * r - 0.3313f   * g + 0.5f      * b;
-                    float cr   = 0.5f     * r - 0.4187f   * g - 0.0813f   * b;
 
                     // TODO: measure. This could result in many cache misses in the name of parallelization.
                     y_blocks[block_i].d[block_index] = luma;
@@ -916,7 +903,6 @@ static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
 
         sgl_mutex_unlock(work_queue_mutex);
 
-        int completed = 0;
         for (;;) {
             sgl_mutex_lock(work_queue_mutex);
             if (work_done >= num_blocks) {

@@ -6,11 +6,13 @@ static void gpu_panic()
     exit(EXIT_FAILURE);
 }
 
+#if 0
 static void CL_CALLBACK gpui_context_notify(const char* errinfo, const void* db, size_t s, void* ud)
 {
     sgl_log("OpenCL context failure notification: %s\n", errinfo);
     exit(EXIT_FAILURE);
 }
+#endif
 
 static void handle_cl_error(cl_int err)
 {

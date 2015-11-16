@@ -10,17 +10,15 @@
 #define false 0
 #endif  // false
 
-typedef uint32_t b32;
-
 #define LIBSERG_IMPLEMENTATION
 #include <libserg/libserg.h>
 
 #include "extended_jpeg.h"
-#include "extended_jpeg.c"
 
 #define DJE_IMPLEMENTATION
 #include "dummy_jpeg.h"
 
+typedef uint32_t b32;
 
 #include "gpu.h"
 

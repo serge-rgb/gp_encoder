@@ -14,7 +14,7 @@ static void CL_CALLBACK gpui_context_notify(const char* errinfo, const void* db,
 }
 #endif
 
-static void handle_cl_error(cl_int err)
+void gpu_handle_cl_error(cl_int err)
 {
     switch(err) {
     case CL_INVALID_VALUE:
@@ -44,13 +44,28 @@ static void handle_cl_error(cl_int err)
     case CL_OUT_OF_HOST_MEMORY:
         sgl_log("%s\n", "CL_OUT_OF_HOST_MEMORY");
         break;
+    case CL_INVALID_KERNEL:
+        sgl_log("%s\n", "CL_INVALID_KERNEL");
+        break;
+    case CL_INVALID_ARG_INDEX:
+        sgl_log("%s\n", "CL_INVALID_ARG_INDEX");
+        break;
+    case CL_INVALID_ARG_VALUE:
+        sgl_log("%s\n", "CL_INVALID_ARG_VALUE");
+        break;
+    case CL_INVALID_MEM_OBJECT:
+        sgl_log("%s\n", "CL_INVALID_MEM_OBJECT");
+        break;
+    default:
+        sgl_log("Error not recognized yet.\n");
+        break;
     }
 }
 
 GPUInfo* gpu_init()
 {
     GPUInfo* gpu_info = NULL;
-#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; handle_cl_error(err); goto err; }
+#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; gpu_handle_cl_error(err); goto err; }
     b32 ok = true;
     cl_int err = CL_SUCCESS;
 
@@ -178,6 +193,11 @@ GPUInfo* gpu_init()
 
     gpu_info->queue = queue;
 
+    cl_kernel kernel = clCreateKernel(program, "cl_encode_and_write_MCU", &err);
+
+    ERR_CHECK;
+
+    gpu_info->kernel = kernel;
 
     goto end;
 err:
@@ -200,7 +220,7 @@ int gpu_setup_buffers(GPUInfo* gpu_info,
                       int num_blocks, DJEBlock* y_blocks)
 {
     int ok = true;
-#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; handle_cl_error(err); goto err; }
+#define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; gpu_handle_cl_error(err); goto err; }
     cl_int err;
     // NOTE: CL_MEM_COPY_HOST_PTR is an implicit "enqueue write"
     cl_mem ehuffsize_mem = clCreateBuffer(gpu_info->context,

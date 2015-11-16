@@ -886,6 +886,17 @@ static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
         //
         // Enqueue kernel.
 
+#define ERR_CHECK if ( err != CL_SUCCESS ) { gpu_handle_cl_error(err); assert(!"kernel argument fail"); }
+#define CHECK_WRAPPER(expr) err=expr; ERR_CHECK;
+        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,0,sizeof(cl_mem),&gpu_info->y_blocks_mem));
+        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,1,sizeof(cl_mem),&gpu_info->bitcount_array_mem));
+        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,2,sizeof(cl_mem),&gpu_info->mse_mem));
+        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,3,sizeof(cl_mem),&gpu_info->qt_mem));
+        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,4,sizeof(cl_mem),&gpu_info->huffman_memory[0]));
+        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,5,sizeof(cl_mem),&gpu_info->huffman_memory[1]));
+#undef CHECK_WRAPPER
+#undef ERR_CHECK
+
         assert(err == CL_SUCCESS);
 
         assert (!"implement this");

@@ -21,13 +21,12 @@ void djei_calculate_variable_length_int(int value, ushort out[2])
     out[0] = value & ((1 << out[1]) - 1);
 }
 
-__kernel void cl_encode_and_write_MCU(__global DJEBlock* mcu_array,
-                                      __global uint* bitcount_array,
-                                      __global ulong* out_mse,
-                                      __global float* qt,  // Pre-processed quantization matrix.
-                                      // Huffman tables
-                                      __constant uchar* huff_ac_len,
-                                      __constant ushort* huff_ac_code)
+__kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
+                                      /*1*/__global uint* bitcount_array,
+                                      /*2*/__global ulong* out_mse,
+                                      /*3*/__global float* qt,  // Pre-processed quantization matrix.
+                                      /*4*/__constant uchar* huff_ac_len,
+                                      /*5*/__constant ushort* huff_ac_code)
 {
     int block_i = 0;
     __global float* mcu = mcu_array[block_i].d;
@@ -68,7 +67,6 @@ __kernel void cl_encode_and_write_MCU(__global DJEBlock* mcu_array,
 
     out_mse[block_i] = MSE;
 
-
     ushort vli[2];
 
     // ==== Encode AC coefficients ====
@@ -98,7 +96,6 @@ __kernel void cl_encode_and_write_MCU(__global DJEBlock* mcu_array,
                 zero_count = 0;
             }
         }
-
 
         djei_calculate_variable_length_int(du[i], vli);
 

@@ -14,6 +14,8 @@ typedef struct GPUInfo_s {
     // Input buffers
     cl_mem              y_blocks_mem;
     cl_mem              qt_mem;  // AA&N post-processed quantization matrix.
+
+    cl_kernel           kernel;
 } GPUInfo;
 
 GPUInfo* gpu_init();
@@ -21,3 +23,5 @@ GPUInfo* gpu_init();
 int gpu_setup_buffers(GPUInfo* gpu_info,
                       uint8_t* huffsize, uint16_t* huffcode,
                       int num_blocks, DJEBlock* y_blocks);
+
+void gpu_handle_cl_error(cl_int err);

@@ -28,7 +28,7 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
                                       /*4*/__constant uchar* huff_ac_len,
                                       /*5*/__constant ushort* huff_ac_code)
 {
-    int block_i = 0;
+    int block_i = (int)get_global_id(0);
     __global float* mcu = mcu_array[block_i].d;
     short du[64];  // Data unit in zig-zag order
 
@@ -113,7 +113,6 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
         //djei_write_bits(state, bitbuffer, location, vli[1], vli[0]);
         bitcount_array[block_i] += vli[1];
     }
-
 
     if (last_non_zero_i != 63) {
         // write EOB HUFF(00,00)

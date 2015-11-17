@@ -888,18 +888,38 @@ static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
 
 #define ERR_CHECK if ( err != CL_SUCCESS ) { gpu_handle_cl_error(err); assert(!"kernel argument fail"); }
 #define CHECK_WRAPPER(expr) err=expr; ERR_CHECK;
+
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,0,sizeof(cl_mem),&gpu_info->y_blocks_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,1,sizeof(cl_mem),&gpu_info->bitcount_array_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,2,sizeof(cl_mem),&gpu_info->mse_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,3,sizeof(cl_mem),&gpu_info->qt_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,4,sizeof(cl_mem),&gpu_info->huffman_memory[0]));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,5,sizeof(cl_mem),&gpu_info->huffman_memory[1]));
-#undef CHECK_WRAPPER
-#undef ERR_CHECK
 
         assert(err == CL_SUCCESS);
 
-        assert (!"implement this");
+        size_t global_work_size[1] = { num_blocks };
+        size_t local_work_size[1] = { 32 };
+        cl_event event = {0};
+        CHECK_WRAPPER(
+                      clEnqueueNDRangeKernel (gpu_info->queue,
+                                              gpu_info->kernel,
+                                              /*cl_uint work_dim = */1,
+                                              /* const size_t *global_work_offset = */ NULL,
+                                              /* const size_t *global_work_size = */ global_work_size,
+                                              /* const size_t *local_work_size = */ local_work_size,
+                                              /* cl_uint num_events_in_wait_list = */ 0,
+                                              /* const cl_event *event_wait_list = */ NULL,
+                                              /* cl_event *event = */ &event));
+
+        // Wait until the GPU processed the image.
+        clWaitForEvents(1, &event);
+
+        // Read from GPU memory for the 'reduce' step.
+
+
+#undef CHECK_WRAPPER
+#undef ERR_CHECK
     } else {
 #if DJE_MULTITHREADED
         // Fill work to do and unlock queue

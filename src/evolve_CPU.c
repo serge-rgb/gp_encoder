@@ -144,7 +144,6 @@ int main()
 
     for (int gen_i = 0; gen_i < num_generations; ++gen_i) {
         // Determine fitness.
-
         for ( int table_i = 0; table_i < NUM_TABLES_PER_GENERATION; ++table_i ) {
             arena_reset(&iter_arena);
             DJEState state = base_state;
@@ -213,7 +212,6 @@ int main()
                 }
             }
         }
-
 
         // Find worst (our horrible janky hack adds 1000 to elements with numerical errors.)
         int last_i = population_index - 1;

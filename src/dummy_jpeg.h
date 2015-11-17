@@ -866,30 +866,41 @@ static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
     if (gpu_info) {
         cl_int err;
 
-        // Fill input buffer.
-        err = clEnqueueWriteBuffer(gpu_info->queue, gpu_info->qt_mem, /*blocking=*/CL_TRUE,
-                                   /*offset=*/0,
-                                   /*cb=*/64*sizeof(float),
-                                   /*ptr=*/pqt.luma,
-                                   /*num_in_wait_list=*/0,
-                                   /*wait_list*/NULL,
-                                   /*event*/NULL);
-
-
-        // Pass parameters to kernel
-        //   - huffman data
-        //   - quantization table
-        //
-        //   - bitcount_array
-        //   - y_blocks
-        //   - mse
-        //
-        // Enqueue kernel.
-
 #define ERR_CHECK if ( err != CL_SUCCESS ) { gpu_handle_cl_error(err); assert(!"kernel argument fail"); }
 #define CHECK_WRAPPER(expr) err=expr; ERR_CHECK;
 
-        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,0,sizeof(cl_mem),&gpu_info->y_blocks_mem));
+        // Write input parameters
+        //  - Huffman data is passed in gpu_setup_buffers
+        //  - pqt is per-kernel call. Pass it now.
+        cl_event write_events[3];
+        CHECK_WRAPPER (clEnqueueWriteBuffer(gpu_info->queue, gpu_info->qt_mem, /*blocking=*/CL_TRUE,
+                                            /*offset=*/0,
+                                            /*cb=*/64*sizeof(float),
+                                            /*ptr=*/pqt.luma,
+                                            /*num_in_wait_list=*/0,
+                                            /*wait_list*/NULL,
+                                            /*event*/&write_events[0]));
+        // Zeroed-out.
+        CHECK_WRAPPER (clEnqueueWriteBuffer(gpu_info->queue, gpu_info->mse_mem, /*blocking=*/CL_TRUE,
+                                            /*offset=*/0,
+                                            /*cb=*/num_blocks*sizeof(uint64_t),
+                                            /*ptr=*/mse,
+                                            /*num_in_wait_list=*/0,
+                                            /*wait_list*/NULL,
+                                            /*event*/&write_events[1]));
+        // Zeroed-out.
+        CHECK_WRAPPER (clEnqueueWriteBuffer(gpu_info->queue, gpu_info->bitcount_array_mem, /*blocking=*/CL_TRUE,
+                                            /*offset=*/0,
+                                            /*cb=*/num_blocks*sizeof(uint32_t),
+                                            /*ptr=*/mse,
+                                            /*num_in_wait_list=*/0,
+                                            /*wait_list*/NULL,
+                                            /*event*/&write_events[2]));
+        clWaitForEvents(sgl_array_count(write_events), write_events);
+
+        // Reset buffers.
+
+        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,0,sizeof(cl_mem),&gpu_info->mcu_array_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,1,sizeof(cl_mem),&gpu_info->bitcount_array_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,2,sizeof(cl_mem),&gpu_info->mse_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,3,sizeof(cl_mem),&gpu_info->qt_mem));
@@ -901,21 +912,29 @@ static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
         size_t global_work_size[1] = { num_blocks };
         size_t local_work_size[1] = { 32 };
         cl_event event = {0};
-        CHECK_WRAPPER(
-                      clEnqueueNDRangeKernel (gpu_info->queue,
-                                              gpu_info->kernel,
-                                              /*cl_uint work_dim = */1,
-                                              /* const size_t *global_work_offset = */ NULL,
-                                              /* const size_t *global_work_size = */ global_work_size,
-                                              /* const size_t *local_work_size = */ local_work_size,
-                                              /* cl_uint num_events_in_wait_list = */ 0,
-                                              /* const cl_event *event_wait_list = */ NULL,
-                                              /* cl_event *event = */ &event));
+        CHECK_WRAPPER( clEnqueueNDRangeKernel (gpu_info->queue,
+                                               gpu_info->kernel,
+                                               /*cl_uint work_dim = */1,
+                                               /* const size_t *global_work_offset = */ NULL,
+                                               /* const size_t *global_work_size = */ global_work_size,
+                                               /* const size_t *local_work_size = */ local_work_size,
+                                               /* cl_uint num_events_in_wait_list = */ 0,
+                                               /* const cl_event *event_wait_list = */ NULL,
+                                               /* cl_event *event = */ &event));
 
         // Wait until the GPU processed the image.
         clWaitForEvents(1, &event);
 
+        cl_event read_events[2];
         // Read from GPU memory for the 'reduce' step.
+        clEnqueueReadBuffer(gpu_info->queue, gpu_info->bitcount_array_mem, /*blocking=*/CL_TRUE,
+                            /*offset=*/0, /*size=*/num_blocks*sizeof(uint32_t), bitcount_array, /*event crap*/0,NULL,
+                            &read_events[0]);
+        clEnqueueReadBuffer(gpu_info->queue, gpu_info->mse_mem, /*blocking=*/CL_TRUE,
+                            /*offset=*/0, /*size=*/num_blocks*sizeof(uint64_t), mse, /*event crap*/0,NULL,
+                            &read_events[1]);
+
+        clWaitForEvents(2, read_events);
 
 
 #undef CHECK_WRAPPER

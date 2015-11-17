@@ -29,7 +29,6 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
                                       /*5*/__constant ushort* huff_ac_code)
 {
     int block_i = (int)get_global_id(0);
-    __global float* mcu = mcu_array[block_i].d;
     short du[64];  // Data unit in zig-zag order
 
     float dct_mcu[64];
@@ -58,14 +57,14 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
     ulong MSE = 0;
 
     for ( int i = 0; i < 64; ++i ) {
-        int precision = 10;  // Decimal-points of precision.
-        int re_i = (int)(re[i]);
-        int mcu_i = (int)(mcu[i] + 128);
-        int err = abs(re_i - mcu_i);
+        float re_i = (re[i]);
+        float mcu_i = (mcu_array[block_i].d[i] + 128.0f);
+        int err = abs((int)(re_i - mcu_i));
         MSE += err;
     }
 
     out_mse[block_i] = MSE;
+    //out_mse[block_i] = (int)-mcu_array[0].d[block_i];
 
     ushort vli[2];
 

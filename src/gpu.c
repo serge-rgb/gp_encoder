@@ -240,14 +240,14 @@ int gpu_setup_buffers(GPUInfo* gpu_info,
     gpu_info->huffman_memory[0] = ehuffsize_mem;
     gpu_info->huffman_memory[1] = ehuffcode_mem;
 
-    cl_mem y_blocks_mem = clCreateBuffer(gpu_info->context,
-                                         CL_MEM_WRITE_ONLY,  // Result buffer. Only written to.
-                                         num_blocks * sizeof(DJEBlock), // Conservative estimate of result buffer. See DJEBlock
-                                         y_blocks,
-                                         &err);
+    cl_mem mcu_array_mem = clCreateBuffer(gpu_info->context,
+                                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                          num_blocks * sizeof(DJEBlock),
+                                          y_blocks,
+                                          &err);
     ERR_CHECK;
 
-    gpu_info->y_blocks_mem = y_blocks_mem;
+    gpu_info->mcu_array_mem = mcu_array_mem;
 
     cl_mem bitcount_array = clCreateBuffer(gpu_info->context,
                                            CL_MEM_WRITE_ONLY,  // Result buffer. Only written to.
@@ -268,7 +268,7 @@ int gpu_setup_buffers(GPUInfo* gpu_info,
     gpu_info->mse_mem = mse;
 
     cl_mem qt = clCreateBuffer(gpu_info->context,
-                               CL_MEM_READ_ONLY,  // Result buffer. Only written to.
+                               CL_MEM_READ_ONLY,
                                64 * sizeof(float),
                                NULL,
                                &err);

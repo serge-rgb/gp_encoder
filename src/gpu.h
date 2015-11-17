@@ -12,7 +12,7 @@ typedef struct GPUInfo_s {
     cl_mem              mse_mem;
 
     // Input buffers
-    cl_mem              y_blocks_mem;
+    cl_mem              mcu_array_mem;
     cl_mem              qt_mem;  // AA&N post-processed quantization matrix.
 
     cl_kernel           kernel;

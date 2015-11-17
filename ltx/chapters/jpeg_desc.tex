@@ -174,11 +174,14 @@ blanco en todos los colores. Una imagen de un cielo azul tiene muy poca
 variación, que al aplicar \emph{DCT} resulta en un peso alto para frecuencias
 bajas y pesos más cercanos a cero para frecuencias más altas.
 
-En JPEG, se divide la imagen en bloques de $8\times8$ y se utiliza una \emph{DCT} de $8\times8$:
+En JPEG, se divide la imagen en bloques de $8\times8$ y se utiliza una
+\emph{DCT} de $8\times8$:
+
 \begin{equation}\label{eq:dct}
 F(u, v) = \frac{1}{4} C(u)C(v) \sum_{x=0}^{7}\sum_{y=0}^{7}
 f(x,y)*\cos{\frac{(2x+1)u\pi}{16}}\cos{\frac{(2y+1)v\pi}{16}}
 \end{equation}
+
 donde \[C(u), C(v) = \begin{cases}
         \frac{1}{\sqrt{2}} & \quad \text{para } u,v = 0\\
         1                  & \quad \text{para } u,v \neq 0\\
@@ -191,6 +194,15 @@ donde \[C(u), C(v) = \begin{cases}
 De la ecuación \ref{eq:dct} se puede derivar directamente un algoritmo para la
 \emph{DCT}, visto más a detalle en el capítulo \ref{ch:implementacion}.
 
+La función $F$ definida en \ref{eq:dct} es una función continua e invertible, y
+su inversa es:
+
+\begin{equation}\label{eq:dct}
+f(x, y) = \frac{1}{4} \sum_{x=0}^{7}\sum_{y=0}^{7} C(u)C(v) F(u, v)*
+\cos{\frac{(2x+1)u\pi}{16}}\cos{\frac{(2y+1)v\pi}{16}}
+\end{equation}
+
+Nótese entonces que en teoría podemos convertir los puntos de cada bloque de $8\times8$ a su forma en DCT y de regreso. La ventaja de tener cada bloque como coeficientes DCT es que su representación nos permite decidir \emph{qué información perder}.
 
 \subsection{La vida de un bloque}\label{sub:vida}
 
@@ -256,7 +268,7 @@ al archivo en ese orden después de ser transformados independientemente.
 
 \subsection{Aplicación de DCT y Cuantificación}
 
-\begin{figure}[hb]
+\begin{figure}[h]
     \includegraphics{DCT-8x8}
     \caption{Visualización de las funciones para el DCT de 8x8 usado en JPEG.
     Esquina superior izquierda: menor frecuencia. Inferior derecha: mayor
@@ -279,13 +291,23 @@ inferior derecha.
     \label{fig:zigzag}
 \end{figure}
 
-El corazón de JPEG es el proceso de cuantificación. Para cada codificador,
-usualmente elegido por heurísticas \emph{ a priori }, le corresponde al menos
-dos tablas de cuantificación de 64 elementos. El propósito de estas tablas es
-decidir cuanta información queremos perder para diferentes frecuencias.
-\emph{Cuantificación} es el proceso de convertir un conjunto de valores a otro
-conjunto más pequeño. Para JPEG, usamos división entera para cuantificar los
-elementos de cada bloque. El concepto se puede explicar con un ejemplo:
+En la descripción de la DCT se menciona que tener a cada bloque como
+coeficientes DCT nos permite elegir educadamente qué información perder. En
+principio, se pierde algo de información al aplicar la función DCT y luego su
+inversa, sólo por el hecho de que estamos trabajando con una máquina con
+precisión finita. Encima, el hecho de que JPEG especifica usar enteros de 10
+bits o menos hace que se pierda un poco más información durante el proceso de
+redondear valores de punto flotante. Aunque esos efectos de pérdida de
+información no son negligibles, la principal manera en que se elige qué
+información perder son las tablas de cuantificación.
+
+Para cada codificador, usualmente elegido por heurísticas \emph{ a priori }, le
+corresponde al menos dos tablas de cuantificación de 64 elementos. El propósito
+de estas tablas es decidir cuanta información queremos perder para diferentes
+coeficientes DCT. \emph{Cuantificación} es el proceso de convertir un conjunto
+de valores a otro conjunto más pequeño. Para JPEG, usamos división entera para
+cuantificar los elementos de cada bloque. El concepto se puede explicar con un
+ejemplo:
 
 Supongamos que tenemos el conjunto de valores $ \{ 1, 5, 103, 128, 242 \} $ que
 queremos cuantificar usando división entera: Todos los elementos $e_i$ se
@@ -302,14 +324,13 @@ $ c = 100 $. Con esta constante, el conjunto se cuantifica a $ \{ 0, 1, 2 \}$ .
 \end{eqnarray*}
 
 Se puede observar que mientras más grande sea la constante de cuantificación,
-más elementos van a reducirse. También se puede ver que una constante de
-cuantificación $1$ resulta en el mismo conjunto de elementos.
+más elementos van a reducirse. También se puede ver que cuantificar con una
+constante de $1$ resulta en el mismo conjunto de elementos. Es decir, \emph{ la constante 1 no resulta en pérdida de información.}
 
 En JPEG, asociamos una constante de cuantificación a cada frecuencia de la DCT.
-De esta manera se controla la \emph{pérdida} de información. Cuando el usuario
-desea obtener la calidad máxima de imagen, se utilizan tablas de cuantificación
-cuyas constantes son todas 1, de esta manera la única pérdida de información
-resulta de la conversión de punto flotante a entero.
+De esta manera es que se controla la \emph{pérdida} de información. Cuando el
+usuario desea obtener la calidad máxima de imagen, se utilizan tablas de
+cuantificación cuyas constantes son todas 1, en cuyo caso, la única pérdida de información es la de redondeo y la de precisión de punto flotante.
 
 En la práctica, se utiliza el hecho de que el sistema de visión humano es menos
 sensible a cambios pequeños en frecuencias altas para escoger constantes
@@ -331,7 +352,12 @@ típica:
 \end{equation}
 \label{eq:cuantificacion}
 
+Nótese que los valores crecen a la derecha y hacia abajo, hacia las frecuencias altas, mientras que los valores mínimos se concentran en la esquina superior izquierda en las frecuencias bajas (ver imágen \ref{fig:dct}).
+
 Una manera de conseguir distintos niveles de calidad es dividir cada elemento de la tabla de cuantificación por una constante. La tabla \ref{eq:cuantificacion} se usa en la implementación de JPEG que desarrollé, con una constante para controlar la calidad.
+
+%todo agregar referencia al capítulo de evolución
+Aquí es donde la utilidad de los algoritmos genéticos entra en juego. Dado un nivel de calidad deseado, es imposible encontrar una tabla de cuantificación óptima para todas las imágenes. Una fotografía de un cielo azul puede prescindir de frecuencias altas, mientras que un acercamiento a un suelo arenoso perdería muchísima calidad. La estrategia para obtener tablas de cuantificación ideales para imágenes individuales se explica en detalle en \ref{ch:evolucion}
 
 %%% Local Variables:
 %%% mode: latex

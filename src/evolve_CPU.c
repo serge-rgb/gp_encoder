@@ -78,9 +78,9 @@ int main()
     int w, h, ncomp;
     char* fname =
             //"diego.bmp";
-            "pluto.bmp";
+            //"pluto.bmp";
             //"in.bmp";
-            //"in_klay.bmp";
+            "in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
     srand((unsigned int)(*data));

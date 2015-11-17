@@ -209,6 +209,19 @@ end:
 #undef ERR_CHECK
 }
 
+void gpu_deinit(GPUInfo* gpu_info)
+{
+    if (gpu_info) {
+        clReleaseMemObject(gpu_info->huffman_len_mem);
+        clReleaseMemObject(gpu_info->bitcount_array_mem);
+        clReleaseMemObject(gpu_info->mse_mem);
+        clReleaseMemObject(gpu_info->mcu_array_mem);
+        clReleaseMemObject(gpu_info->qt_mem);
+
+        clReleaseContext(gpu_info->context);
+    }
+}
+
 // This function uploads data used by every kernel call that doesn't change during the program's lifetime.
 //
 // Passes in the huffman table for luma dc buffers. 1/6th of the data that the
@@ -216,29 +229,22 @@ end:
 //
 // Returns false on error.
 int gpu_setup_buffers(GPUInfo* gpu_info,
-                      uint8_t* huffsize, uint16_t* huffcode,
+                      uint8_t* huffsize,
                       int num_blocks, DJEBlock* y_blocks)
 {
     int ok = true;
 #define ERR_CHECK if ( err != CL_SUCCESS ) { ok = false; gpu_handle_cl_error(err); goto err; }
     cl_int err;
     // NOTE: CL_MEM_COPY_HOST_PTR is an implicit "enqueue write"
-    cl_mem ehuffsize_mem = clCreateBuffer(gpu_info->context,
+    cl_mem ehuff_mem = clCreateBuffer(gpu_info->context,
                                           CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                           257,
                                           huffsize,
                                           &err);
     ERR_CHECK;
 
-    cl_mem ehuffcode_mem = clCreateBuffer(gpu_info->context,
-                                          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                          256,
-                                          huffcode,
-                                          &err);
-    ERR_CHECK;
 
-    gpu_info->huffman_memory[0] = ehuffsize_mem;
-    gpu_info->huffman_memory[1] = ehuffcode_mem;
+    gpu_info->huffman_len_mem = ehuff_mem;
 
     cl_mem mcu_array_mem = clCreateBuffer(gpu_info->context,
                                           CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,

@@ -78,9 +78,9 @@ int main()
     int w, h, ncomp;
     char* fname =
             //"diego.bmp";
-            //"pluto.bmp";
+            "pluto.bmp";
             //"in.bmp";
-            "in_klay.bmp";
+            //"in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
     srand((unsigned int)(*data));
@@ -101,6 +101,7 @@ int main()
     }
 
     DJEState base_state = dje_init(&root_arena, gpu_info, w, h, ncomp, data);
+
 
     // Optimal state -- The result obtained from using a 1-table. Minimum
     // compression. Maximum quality. The best quality possible for baseline
@@ -141,6 +142,10 @@ int main()
 #define CONVERGENCE_LIMIT 4  // If we are withing the convergence threshold 4 times in a row, end evolution loop.
 
     int num_generations = 100;
+
+    LARGE_INTEGER run_measure_begin;
+    QueryPerformanceCounter(&run_measure_begin);
+
 
     for (int gen_i = 0; gen_i < num_generations; ++gen_i) {
         // Determine fitness.
@@ -241,6 +246,11 @@ int main()
     }
     fclose(plot_file);
 
+    LARGE_INTEGER run_measure_end;
+    QueryPerformanceCounter(&run_measure_end);
+
+    sgl_log("Total run time: %" PRIu64 "ns \n", run_measure_end.QuadPart - run_measure_begin.QuadPart);
+
     // Sort by fitness.
     qsort(population, NUM_TABLES_PER_GENERATION, sizeof(PopulationElement), pe_comp);
 
@@ -254,6 +264,7 @@ int main()
         sgl_log("\n");
     }
 
+    gpu_deinit(gpu_info);
     stbi_image_free(data);
     sgl_free(root_arena.ptr);
     sgl_free(gpu_info);

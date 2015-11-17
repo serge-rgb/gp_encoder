@@ -25,17 +25,33 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
                                       /*1*/__global uint* bitcount_array,
                                       /*2*/__global ulong* out_mse,
                                       /*3*/__global float* qt,  // Pre-processed quantization matrix.
-                                      /*4*/__constant uchar* huff_ac_len,
-                                      /*5*/__constant ushort* huff_ac_code)
+                                      /*4*/__constant uchar* huff_ac_len)
 {
     int block_i = (int)get_global_id(0);
     short du[64];  // Data unit in zig-zag order
 
+    // OPT PASS 3. No effect!
+    uint block_error = 0;
+
     float dct_mcu[64];
+    float local_mcu[64];
+    // OPT PASS 4 -- SLOWER
+    /* uchar local_huff_ac_len[257]; */
+    /* for (int i = 0; i < 257; ++i) { */
+    /*     local_huff_ac_len[i] = huff_ac_len[i]; */
+    /* } */
     for (int i = 0; i < 64; ++i) {
-        dct_mcu[i] = mcu_array[block_i].d[i];
+        float val = mcu_array[block_i].d[i];
+        dct_mcu[i] = val;
+        local_mcu[i] = val;
     }
     fdct(dct_mcu);
+
+    // OPT PASS 2 (no effect)
+    /* float local_qt[64]; */
+    /* for (int i = 0; i < 64; ++i) { */
+    /*     local_qt[i] = qt[i]; */
+    /* } */
 
     for ( int i = 0; i < 64; ++i ) {
         float fval = dct_mcu[i];
@@ -58,7 +74,9 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
 
     for ( int i = 0; i < 64; ++i ) {
         float re_i = (re[i]);
-        float mcu_i = (mcu_array[block_i].d[i] + 128.0f);
+        // OPT PASS 1 --
+        //float mcu_i = (mcu_array[block_i].d[i] + 128.0f);
+        float mcu_i = (local_mcu[i] + 128.0f);
         int err = abs((int)(re_i - mcu_i));
         MSE += err;
     }
@@ -91,7 +109,9 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
             ++i;
             if (zero_count == 16) {
                 // encode (ff,00) == 0xf0
-                bitcount_array[block_i] += huff_ac_len[0xf0];
+                //bitcount_array[block_i] += huff_ac_len[0xf0];
+                block_error += huff_ac_len[0xf0];
+                //block_error += local_huff_ac_len[0xf0];
                 zero_count = 0;
             }
         }
@@ -107,15 +127,21 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
 
         // Write symbol 1  --- (RUNLENGTH, SIZE)
         //djei_write_bits(state, bitbuffer, location, huff_ac_len[sym1], huff_ac_code[sym1]);
-        bitcount_array[block_i] += huff_ac_len[sym1];
+        //bitcount_array[block_i] += huff_ac_len[sym1];
+        block_error += huff_ac_len[sym1];
+        //block_error += local_huff_ac_len[sym1];
         // Write symbol 2  --- (AMPLITUDE)
         //djei_write_bits(state, bitbuffer, location, vli[1], vli[0]);
-        bitcount_array[block_i] += vli[1];
+        //bitcount_array[block_i] += vli[1];
+        block_error += vli[1];
     }
 
     if (last_non_zero_i != 63) {
         // write EOB HUFF(00,00)
         //djei_write_bits(state, bitbuffer, location, huff_ac_len[0], huff_ac_code[0]);
-        bitcount_array[block_i] += huff_ac_len[0];
+        //bitcount_array[block_i] += huff_ac_len[0];
+        block_error += huff_ac_len[0];
+        //block_error += local_huff_ac_len[0];
     }
+    bitcount_array[block_i] = block_error;
 }

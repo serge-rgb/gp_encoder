@@ -904,8 +904,7 @@ static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,1,sizeof(cl_mem),&gpu_info->bitcount_array_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,2,sizeof(cl_mem),&gpu_info->mse_mem));
         CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,3,sizeof(cl_mem),&gpu_info->qt_mem));
-        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,4,sizeof(cl_mem),&gpu_info->huffman_memory[0]));
-        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,5,sizeof(cl_mem),&gpu_info->huffman_memory[1]));
+        CHECK_WRAPPER(clSetKernelArg(gpu_info->kernel,4,sizeof(cl_mem),&gpu_info->huffman_len_mem));
 
         assert(err == CL_SUCCESS);
 
@@ -1049,7 +1048,7 @@ DJEState dje_init(Arena* arena,
             gwd = sgl_calloc(sizeof(struct global_work_data), 1);
 
             res = gpu_setup_buffers(gpu_info,
-                                    state.ehuffsize[LUMA_AC], state.ehuffcode[LUMA_AC], state.num_blocks,
+                                    state.ehuffsize[LUMA_AC], state.num_blocks,
                                     state.y_blocks);
         }
 

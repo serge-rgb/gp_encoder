@@ -5,7 +5,7 @@
 typedef struct GPUInfo_s {
     cl_context          context;
     cl_command_queue    queue;
-    cl_mem              huffman_memory[2];  // Size and Code.
+    cl_mem              huffman_len_mem;
 
     // Result buffers.
     cl_mem              bitcount_array_mem;
@@ -21,7 +21,9 @@ typedef struct GPUInfo_s {
 GPUInfo* gpu_init();
 
 int gpu_setup_buffers(GPUInfo* gpu_info,
-                      uint8_t* huffsize, uint16_t* huffcode,
+                      uint8_t* huffsize,
                       int num_blocks, DJEBlock* y_blocks);
 
 void gpu_handle_cl_error(cl_int err);
+
+void gpu_deinit(GPUInfo* gpu_info);

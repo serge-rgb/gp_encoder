@@ -266,7 +266,7 @@ Los tres bloques correspondientes a \verb+Y+, \verb+U+, y \verb+V+ son escritos
 al archivo en ese orden después de ser transformados independientemente.
 
 
-\subsection{Aplicación de DCT y Cuantificación}
+\subsection{Aplicación de DCT y Cuantificación}\label{sub:vida_dct}
 
 \begin{figure}[h]
     \includegraphics{DCT-8x8}
@@ -340,7 +340,7 @@ típica:
 
 \begin{equation}
     \begin{matrix}
-        16 & 11 & 10 & 16 & 24 & 40 & 51 & 61 \\
+        16 & 11 & 10 & 16 & 24  & 40  & 51  & 61 \\
         12 & 12 & 14 & 19 & 26  & 58  & 60  & 55 \\
         14 & 13 & 16 & 24 & 40  & 57  & 69  & 56 \\
         14 & 17 & 22 & 29 & 61  & 87  & 80  & 62 \\
@@ -352,12 +352,85 @@ típica:
 \end{equation}
 \label{eq:cuantificacion}
 
-Nótese que los valores crecen a la derecha y hacia abajo, hacia las frecuencias altas, mientras que los valores mínimos se concentran en la esquina superior izquierda en las frecuencias bajas (ver imágen \ref{fig:dct}).
+Nótese que los valores crecen a la derecha y hacia abajo, hacia las frecuencias
+altas, mientras que los valores mínimos se concentran en la esquina superior
+izquierda en las frecuencias bajas (ver imágen \ref{fig:dct}).
 
-Una manera de conseguir distintos niveles de calidad es dividir cada elemento de la tabla de cuantificación por una constante. La tabla \ref{eq:cuantificacion} se usa en la implementación de JPEG que desarrollé, con una constante para controlar la calidad.
+Una manera de conseguir distintos niveles de calidad es dividir cada elemento
+de la tabla de cuantificación por una constante. La tabla
+\ref{eq:cuantificacion} se usa en la implementación de JPEG, con una constante
+para controlar la calidad.
 
-%todo agregar referencia al capítulo de evolución
-Aquí es donde la utilidad de los algoritmos genéticos entra en juego. Dado un nivel de calidad deseado, es imposible encontrar una tabla de cuantificación óptima para todas las imágenes. Una fotografía de un cielo azul puede prescindir de frecuencias altas, mientras que un acercamiento a un suelo arenoso perdería muchísima calidad. La estrategia para obtener tablas de cuantificación ideales para imágenes individuales se explica en detalle en \ref{ch:evolucion}
+Aquí es donde la utilidad de los algoritmos genéticos entra en juego. Dado un
+nivel de calidad deseado, es imposible encontrar una tabla de cuantificación
+óptima para todas las imágenes. Una fotografía de un cielo azul puede
+prescindir de frecuencias altas, mientras que un acercamiento a un suelo
+arenoso perdería muchísima calidad. La estrategia para obtener tablas de
+cuantificación ideales para imágenes individuales se explica en detalle en
+\ref{ch:evolucion}
+
+
+% descripción breve de Huffman.
+
+\subsection{Codificación Huffman}
+
+El paso final en la vida de un bloque es utilizar \emph{codificación de
+entropía}, que es el nombre que le damos a los algoritmos que codifican
+información independientemente de las características de su medio. JPEG usa
+\emph{prefix trees} en particular, y la gran mayoría de las implementaciones
+JPEG usan Árboles de Huffman. La especificación proporciona una segunda
+alternativa a Huffman: codificación aritmética, de la cual se dará un breve
+resúmen al final de esta sección.
+
+Los árboles de Huffman se enseñan en la Facultad de Ciencias para la carrera de
+Ciencias de la Computación en el curso de Estructuras Discretas.
+
+Dado una lista de símbolos, (el abecedario, por ejemplo), queremos que los
+símbolos más usados tengan una representación más compacta que los símbolos
+menos usados.
+
+En el Español, la letra A es la más común y la K es la menos frecuente.
+\cite{Espanol} La diferencia en frecuencias es de tres órdenes de magnitud.
+Esto es un ejemplo de la Ley de Benford en acción \cite{Benford}
+
+Los códigos de Huffman ordenan una lista de símbolos y le asigna a cada úno un
+código respectivo de longitud creciente.
+
+Para generar los códigos, se usa un Árbol de Huffman, que es un árbol binario
+de prefijos. La figura \ref{fig:huffman} muestra un árbol de Huffman para el
+enunciado en inglés \emph{this is an example of a huffman tree}.
+
+\begin{figure}[h]
+    \includegraphics[width=1.0\textwidth]{Huffman}
+    \caption{Ejemplo de un Árbol de Huffman}
+    \label{fig:huffman}
+\end{figure}
+
+Los códigos se generan a partir del camino que se toma para llegar al símbolo
+en el árbol. $0$ para rama izquierda, $1$ para rama derecha. En este ejemplo, a
+la letra 'e' le corresponde el código \verb+000+ y a la letra 'a' \verb+001+.
+Para estas dos letras se está usando 3 ($37.5\%$) de los 8 bits que se
+necesitan comúnmente para representar letras en inglés.
+
+El estándar proporciona un código de Huffman de referencia para las
+implementaciones. Es el que comúnmente se usa y es el que nosotros usamos.
+Depende del implementador hacer un código diferente para cada imagen, al costo
+extra de tiempo de codificación y de complejidad de implementación.
+
+La segunda opción que nos da la especificación es la \emph{Codificación
+Aritmética}. No es popular, ya que hay muchas patentes relacionadas a la
+técnica, pero para compresión es un método superior.
+
+Aunque los Árboles de Huffman son óptimos para comprimir símbolos
+separadamente, la Codificación Aritmética obtiene mejores resultados porque
+codifica varios símbolos como coeficientes de polinomios. A cada símbolo le
+corresponde un entero único correspondiente a la frecuencia en la que ocure, y
+ese número se usa como el coeficiente. El grado del polinomio es la longitud
+del mensaje.
+
+\subsection{Resumen de la vida de un bloque}
+
+Para recapitular. Lo que se hace en JPEG es (si es necesario) convertir la imagen a \verb+YUV+, partirla en bloques de $8\times8$ para cada componente, aplicar DCT a cada bloque y cuantificar, y finalmente, aplicar Codificación de Huffman o Aritmética. Los bloques son escritos secuencialmente a disco en formato \verb+YUV YUV YUV (...)+. Este trabajo se enfoca en usar heurísticas para encontrar tablas de cuantificación cercanas a lo ideal.
 
 %%% Local Variables:
 %%% mode: latex

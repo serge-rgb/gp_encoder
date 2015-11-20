@@ -7,10 +7,130 @@
 \section{Introducción a Cómputo Evolutivo}
 % ============================================================
 
+El Cómputo Evolutivo es una rama de la Inteligencia Artificial que se define
+por los tipos de algoritmos en los que se enfoca. Son algoritmos que utilizan
+el concepto de la selección natural para resolver problemas de cómputo. Son
+problemas de optimización en el sentido matemático. Es decir, se concentran en
+encontrar un máximo local o un mínimo local utilizando heurísticas.
+
+
 % ============================================================
-\section{Algoritmos Genéticos}
+\section{Algoritmos Evolutivos}
 % ============================================================
+
+Las características que los Algoritmos Evolutivos tienen en común son:
+
+\begin{itemize}
+\item Definen una población
+\item Definen una función de selección.
+\item Utilizan mutación y reproducción junto con la función de selección para
+mejorar la población a lo largo de varias generaciones.
+\end{itemize}
+
+Aunque comparten la misma idea, se definen distintos tipos de algoritmos con
+respecto a la manera en que concretizan estas características.
+
+\begin{itemize}
+\item La \emph{Programación Genética} \cite{GenProg} tiene conjuntos de
+programas como su población. Su función de selección es la capacidad de un
+programa para resolver cierto problema. Los programas se representan como
+árboles de sintaxis, y de esta manera se define la mutación y reproducción como
+operaciones en árboles.
+\item La \emph{Programación Evolutiva} es similar a la Programación Genética
+pero lo que se evoluciona son los parámetros de los programas, no su
+estructura.
+\item Los \emph{Algoritmos Genéticos} definen genotipos y su correspondiente
+función de selección que evalúa los fenotipos respectivos. Es decir, se opera
+sobre el cromosoma pero se evalúa el organismo.
+
+El algoritmo desarrollado entra dentro de la clasificación de Algoritmo
+Genético. El fenotipo es una tabla de cuantificación y el genotipo es un
+codificador JPEG que usa esa tabla.
+
+\end{itemize}
 
 % ============================================================
 \section{Método para la evolución de codificadores JPEG}
 % ============================================================
+
+\subsection{Población}
+
+Se inicializa una población de tablas. En el conjunto se incluye la tabla que
+sólo contiene unos, que llamamos \emph{tabla unitaria}, ya que es la que
+obtiene la mejor calidad posible pero resulta en menor compresión. El resto del
+conjunto se llena de tablas con valores aleatorios entre 1 y 64.
+
+La función de selección requiere de un punto de referencia. Antes de iniciar la
+evolución, se comprime la imagen con la tabla unitaria. Se guarda con esto la
+calidad óptima.
+
+\subsection{Selección}
+
+La calidad de la compresión de determina haciendo descompresión y comparando la
+imagen resultante con la original píxel por píxel. Las diferencias absolutas se
+suman. No se utiliza MSE (Error cuadrático medio) por la enorme cantidad de
+pixeles y la sensibilidad del algoritmo a errores de precisión.
+
+El tamaño es más fácil de comparar. Tan sólo vemos cuántos bits pesa la imagen
+resultante comparada con la original.
+
+Tenemos dos garantías. Cualquier tabla que no sea la unitaria va a resultar en
+mayor compresión y en menor calidad.
+
+Sea $T$ una tabla de nuestra población y sea $T_0$ la tabla unitaria.
+
+Definimos nuestra función de selección como:
+
+\begin{equation}
+f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(1 + \frac{s(T)}{s(T_0)}\Big)
+\end{equation}\label{eq:fitness}
+
+\dots donde $e(T)$ es el error de compresión y $s(T)$ es el tamaño de la
+imagen. $\alpha$ es una constante que se usa para ajustar la importancia que le
+damos al tamaño sobre la compresión o vice versa.
+
+Nótese que los dos términos se afectan mutuamente. Una tabla que comprime mejor
+va a tener un mayor error, y una tabla que comprime menos resulta en mayor
+fidelidad. Es decir, cuando el primer término disminuye, el segundo crece.
+Cuando el segundo término crece, el primero disminuye.
+
+Nuestra meta es encontrar $T$ tal que $f(T)$ es mínima. La relación entre los
+dos términos permite que el algoritmo converja.
+
+El primer término es siempre mayor o igual a $1$. Al segundo se le suma 1
+porque el valor de $\frac{s(T)}{s(T_0)} \in (0, 1]$. Es una conveniencia al
+seleccionar $\alpha$.
+
+El valor de $\alpha$ controla el proceso de minimización. Mientras mayor sea
+$\alpha$, más peso artificial tiene el tamaño de la imagen. El algoritmo tiende
+a 'preferir' minimizar el error contra el tamaño después de cierto umbral de
+$\alpha > 1$.
+
+Un valor de $\alpha = 2$ resulta en imágenes que son indistinguibles de las originales.
+
+\subsection {Mutación y Reproducción}
+
+Cada generación, sobreviven las dos mejores tablas. El resto se parte en dos.
+
+La primera mitad es mutada. Cada entrada de la tabla tiene una probabilidad de $\frac{1}{64}$ de mutar. Cuando una entrada $e$ muta, lo hace sumando a su valor original
+$e_{nueva} = e_{vieja} + x $ donde $x \in [-4, 4]$ con distribución de
+probabilidad uniforme.
+
+La segunda mitad es un resultado de reproducir las dos tablas ganadoras. Para
+cada entrada se hace un tiro de moneda. Cada entrada tiene un $50\%$ de
+probabilidad de venir de uno de los dos tablas sobrevivientes.
+
+\subsection {Fin de la evolución}
+
+El algoritmo decide terminar cuando sucede una de dos cosas.
+
+\begin{itemize}
+\item El número de generaciones llega a 100
+\item La diferencia entre el valor de la función \ref{eq:fitness} para el
+individuo más apto es menor a 0.0001 cuatro veces consecutivas. En este caso,
+decidimos que hemos convergido y regresamos la tabla ganadora.
+\end{itemize}
+
+Este algoritmo genético resulta en tablas de codificación que generan imágenes
+indistinguibles de las originales sin el tamaño excesivo de las tablas
+unitarias.

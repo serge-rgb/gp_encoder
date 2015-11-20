@@ -4,18 +4,23 @@ Se implementó un codificador JPEG, lanzado al dominio público en github bajo e
 nombre de TinyJPEG \cite{tiny_jpeg}. La ubicación permanente de esta biblioteca
 está en \begin{alltt}https://github.com/serge-rgb/TinyJPEG \end{alltt}
 
-En paralelo con TinyJPEG, se desarrolló un proyecto que extiende TinyJPEG para
-incluír el algoritmo evolutivo \cite{gp_encoder}, localizado en
-\begin{alltt}https://github.com/serge-rgb/gp_encoder\end{alltt} Entre otras
-cosas, se desarrolló una implementación paralela de JPEG que utiliza el GPU
-para calcular \emph{DCT}, con el objetivo de hacer una comparación de
-desempeño.
+Encima de TinyJPEG, se desarrolló un proyecto que extiende TinyJPEG para
+implementar el algoritmo evolutivo \cite{gp_encoder}, localizado en
+\begin{alltt}https://github.com/serge-rgb/gp_encoder\end{alltt}
 
+En este capítulo se describen los detalles de ambos proyectos.
+
+\section {Términos}
 Se van a usar los términos \emph{debugging} y \emph{profiling} por su ubiquidad
 en la literatura. \emph{debugging} se traduce como depurar y se define como el
 proceso de encontrar y arreglar defectos de código. \emph{profiling} es el
 proceso de encontrar los puntos en los que un programa puede ser modificado
 para mejorar el desempeño.
+
+\emph{General Purpose GPU}, o \emph{GPGPU} es el
+término usado para la práctica de usar programar GPUs directamente, a
+diferencia de el uso original, en el cual el GPU era un acelerador cuya
+interfaz era una biblioteca de gráficas como OpenGL o DirectX.
 
 % ============================================================
 \section{Lenguajes}
@@ -23,23 +28,54 @@ para mejorar el desempeño.
 
 La elección de lenguaje para TinyJPEG fue C, en particular C99 \cite{c99}.
 TinyJPEG fue lanzado con el objetivo de ser una biblioteca reutilizable por
-otras personas, y ha encontrado cierto grado de éxito gracias en parte a
-integrar una biblioteca de un sólo archivo escrita en C es muy simple para casi
-cualquier proyecto. C es un lenguaje ideal para escribir cosas como
-codificadores. El lenguaje permite mantener el nivel bajo de abstracción que se
-necesita y las herramientas de \emph{debugging} son mejores para C y C++ que
-para casi cualquier otro lenguaje.
+otras personas, y ha encontrado cierto grado de éxito. Un planetario en París
+usa TinyJPEG para capturar vídeo de sus simulaciones.
 
-Escogí CUDA para la implementación de GPGPU. La máquina en la que se desarrolló
-tiene una tarjete de video Nvidia, y el soporte de OpenCL en Nvidia deja mucho
-que desear en el tiempo en el que se está escribiendo esto. Nvidia proporciona
-herramientas excelentes para hacer \emph{debugging} y para \emph{profiling},
-que es de particular importancia para un trabajo en el cual el análisis de
-desempeño es una parte muy importante.
+C es un lenguaje ideal para escribir cosas como codificadores. El lenguaje
+permite mantener el nivel bajo de abstracción que se necesita y las
+herramientas de \emph{debugging} son mejores para C y C++ que para casi
+cualquier otro lenguaje.
+
+Escogí OpenCL para la implementación de GPGPU. OpenCL es un estándar abierto
+para GPGPU y está soportado por Intel, Nvidia y AMD. La máquina en la que se
+implementó este trabajo tiene una tarjeta Nvidia. Nvidia tiene su propio
+lenguaje para GPGPU, llamado CUDA, y tiene mejor soporte para debugging y
+profiling que OpenCL para sus tarjetas de video. Sin embargo, las herramientas
+siguen siendo primitivas comparadas con lo que se tiene en el CPU. En cualquier
+caso, uno termina haciendo hipótesis, experimentos y medidas para optimizar la
+solución, aún teniendo herramientas sofisticadas. Se escogió OpenCL porque los
+méritos relativos de facilidad de desarrollo no le ganan al soporte
+multi-plataforma y al valor de apoyar estándares abiertos.
 
 % ============================================================
 \section{Arquitectura}
 % ============================================================
+
+TinyJPEG es minimalista. Es un sólo archivo de poco más de 1000 líneas. Está escrito en el estilo popularizado por Sean Barrett de escribir ún solo archivo \verb+.h+ con la siguiente estructura:
+
+\label{alg:stb}
+\begin{code}[language=C][h]
+    // Principio del archivo
+    #pragma once
+
+    // Definición de la interfaz.
+    tje_encode_jpeg(...);
+
+    #ifdef TJE_IMPLEMENTATION
+
+    // La implementación completa va aquí.
+\end{code}
+
+De esta manera, uno puede incluir \verb+#include <tiny_jpeg.h>+ como cualquier \emph{header} de C, pero en uno de los archivos del proyecto, se hace esto:
+
+
+\label{alg:stb_impl}
+\begin{code}[language=C][h]
+    #define TJE_IMPLEMENTATION
+    #include <tiny_jpeg.h>
+\end{code}
+
+
 
 % ============================================================
 \section{Algoritmo DCT}

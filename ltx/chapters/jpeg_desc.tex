@@ -370,9 +370,28 @@ cuantificación ideales para imágenes individuales se explica en detalle en
 \ref{ch:evolucion}
 
 
+Después de la cuantificación, se codifica cada coeficiente como un entero de
+longitud variable (\emph{VLI} por sus siglas en inglés).
+
+El procedimiento \emph{VLI} convierte un número \verb+x+ en una tupla \verb+(n, x & (1 << n) - 1 )+
+donde \verb+n+ es la longitud en bits necesaria para
+representar \verb+x+ y el segundo término de la tupla es el valor restringido a
+la precisión de \verb+n+ bits.
+
+Un VLI es un tipo de datos de bajo nivel. Consiste de una longitud, que siempre
+es de tamaño fijo, seguido de un número variable de bits que representan el
+número.
+
+Como ejemplo, digamos que queremos escribir el número 3. Se puede representar
+en binario como \verb+11+, con dos bits. Sin embargo, en C, típicamente usamos
+8, 16, 32 o 64 bits para representar números. Usando VLI, podemos escribir el
+número 2 seguido de los dos bits que representan 3. Combinado con codificación
+Huffman, esta técnica reduce aún más la representación de la información.
+
+
 % descripción breve de Huffman.
 
-\subsection{Codificación Huffman}
+\subsection{Codificación Huffman}\label{sub:huffman}
 
 El paso final en la vida de un bloque es utilizar \emph{codificación de
 entropía}, que es el nombre que le damos a los algoritmos que codifican
@@ -430,7 +449,12 @@ del mensaje.
 
 \subsection{Resumen de la vida de un bloque}
 
-Para recapitular. Lo que se hace en JPEG es (si es necesario) convertir la imagen a \verb+YUV+, partirla en bloques de $8\times8$ para cada componente, aplicar DCT a cada bloque y cuantificar, y finalmente, aplicar Codificación de Huffman o Aritmética. Los bloques son escritos secuencialmente a disco en formato \verb+YUV YUV YUV (...)+. Este trabajo se enfoca en usar heurísticas para encontrar tablas de cuantificación cercanas a lo ideal.
+Para recapitular. Lo que se hace en JPEG es (si es necesario) convertir la
+imagen a \verb+YUV+, partirla en bloques de $8\times8$ para cada componente,
+aplicar DCT a cada bloque y cuantificar, y finalmente, aplicar Codificación de
+Huffman o Aritmética. Los bloques son escritos secuencialmente a disco en
+formato \verb+YUV YUV YUV (...)+. Este trabajo se enfoca en usar heurísticas
+para encontrar tablas de cuantificación cercanas a lo ideal.
 
 %%% Local Variables:
 %%% mode: latex

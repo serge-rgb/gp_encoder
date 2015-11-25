@@ -388,6 +388,11 @@ en binario como \verb+11+, con dos bits. Sin embargo, en C, típicamente usamos
 número 2 seguido de los dos bits que representan 3. Combinado con codificación
 Huffman, esta técnica reduce aún más la representación de la información.
 
+\subsection{Coeficientes AC y DC}\label{sub:acdc}
+
+El primer coeficiente de cada bloque, denominado \emph{coeficiente DC}, se codifica con \emph{codificación delta}. Se mantiene una variable delta, inicializada en cero. Para cada bloque depués del primero, la variable delta guarda el valor del primer coeficiente. Cada bloque codifica su primer coeficiente como la diferencia entre su propio coeficiente y el coeficiente anterior. La razón para esto es que la variación entre coeficientes DC consecutivos tiende a ser pequeña. En los experimentos hechos para paralelizar el algoritmo evolutivo, se notó que la compresión delta contribuye con alrededor de $15\%$ de compresión extra, comparado con una versión que no usa compresión delta para el coeficiente DC.
+
+Los otros 63 coeficientes son denominados \emph{coeficientes DC}. Se comprimen en tuplas de dos elementos. El segundo elemento es un coeficiente distinto de cero, el primer elemento representa el número coeficientes iguales a cero que le preceden.
 
 % descripción breve de Huffman.
 

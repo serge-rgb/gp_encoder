@@ -39,7 +39,7 @@ cualquier otro lenguaje.
 Escogí OpenCL para la implementación de GPGPU. OpenCL es un estándar abierto
 para GPGPU y está soportado por Intel, Nvidia y AMD. La máquina en la que se
 implementó este trabajo tiene una tarjeta Nvidia. Nvidia tiene su propio
-lenguaje para GPGPU, llamado CUDA, y tiene mejor soporte para debugging y
+lenguaje para GPGPU, llamado CUDA, que tiene mejor soporte para debugging y
 profiling que OpenCL para sus tarjetas de video. Sin embargo, las herramientas
 siguen siendo primitivas comparadas con lo que se tiene en el CPU. En cualquier
 caso, uno termina haciendo hipótesis, experimentos y medidas para optimizar la
@@ -51,7 +51,9 @@ multi-plataforma y al valor de apoyar estándares abiertos.
 \section{Arquitectura}
 % ============================================================
 
-TinyJPEG es minimalista. Es un sólo archivo de poco más de 1000 líneas. Está escrito en el estilo popularizado por Sean Barrett de escribir ún solo archivo \verb+.h+ con la siguiente estructura:
+TinyJPEG es minimalista. Consiste de un archivo de alrededor 1000 líneas. Está
+escrito en el estilo popularizado por Sean Barrett de escribir un solo archivo
+\verb+.h+ con la siguiente estructura:
 
 \label{alg:stb}
 \begin{code}[language=C][h]
@@ -59,15 +61,15 @@ TinyJPEG es minimalista. Es un sólo archivo de poco más de 1000 líneas. Está
     #pragma once
 
     // Definición de la interfaz.
-    tje_encode_jpeg(...);
+    tje_encode_to_file(...);
 
     #ifdef TJE_IMPLEMENTATION
 
     // La implementación completa va aquí.
 \end{code}
 
-De esta manera, uno puede incluir \verb+#include <tiny_jpeg.h>+ como cualquier \emph{header} de C, pero en uno de los archivos del proyecto, se hace esto:
-
+De esta manera, uno puede incluir \verb+#include <tiny_jpeg.h>+ como cualquier
+\emph{header} de C, pero en uno de los archivos del proyecto, se hace esto:
 
 \label{alg:stb_impl}
 \begin{code}[language=C][h]
@@ -75,6 +77,83 @@ De esta manera, uno puede incluir \verb+#include <tiny_jpeg.h>+ como cualquier \
     #include <tiny_jpeg.h>
 \end{code}
 
+para definir la implementación completa. El propósito de esta técnica es
+facilitar la distribución de bibliotecas en un lenguaje que no cuenta con un
+sistema de distribución digital de módulos,
+o siquiera un sistema de módulos.
+
+Se exponen dos funciones como interfaz pública:
+
+\begin{code}[language=C][h]
+tje_encode_to_file(...)
+tje_encode_to_file_at_quality(...)
+\end{code}
+
+La primera comprime con la tabla unitaria y la segunda ofrece tres posibles
+niveles de calidad, todos correspondientes únicamente al uso de tres tablas de
+cuantificación. Ambas funciones son \emph{wrappers} sobre la función principal
+interna, que funciona de la siguiente manera:
+
+Se prepara una estructura estática para hacer compresión de Huffman y se
+pre-procesa la tabla según el algoritmo \ref{alg:fast-dct}, descrito en la
+siguiente sección. A esto le llamamos el \emph{paso inicial}.
+Cuando terminamos el \emph{paso inicial}, determinamos el número de bloques que
+van a ser procesados. JPEG debe funcionar con imágenes cuyos tamaños verticales
+y horizontales no son múltiplos de 8. Para esto la especificación sólo nos pide
+como codificador redondear al siguiente múltiplo de 8. Al decodificador le pide
+ignorar los datos extra. Para evitar artefactos, como convención se repite en
+el bloque el color del último píxel de la imagen para cada columna extra y para
+cada renglón extra. Si $w$ es el ancho de la imagen y $h$ es el alto, entonces
+el número de bloques es
+$n = (w + (8 - w \mod 8)) * (h + (8 - h \mod 8))$
+
+Cada bloque se separa en tres bloques \verb+Y+, \verb+U+ \verb+V+ que a los que se les aplica la función \verb+encode_MCU()+.
+
+La función \verb+encode_MCU()+ es llamada así por el acrónimo \emph{MCU},
+\emph{Minimum Coded Unit}. JPEG puede especificar un factor para describir los
+bloques \verb+U+ y \verb+V+ con menos resolución, por nuestra relativa falta de
+sensibilidad a la crominancia contra la luminancia, pero TinyJPEG no utiliza
+esto. Otra posibilidad es usar diferentes tablas de codificación para
+lumninancia y crominancia. TinyJPEG sí utiliza esto, escogiendo tablas con
+mayor compresión para los bloques de crominancia.
+
+El flujo de la lógica es parecido a como se describe en español. Un \verb+for loop+ para extraer los bloques, y cada bloque se pasa como parámetro a la función \verb+encode_MCU+.
+
+\subsection{DummyJPEG} \label{sub:dummy}
+
+Para el algoritmo evolutivo se implementa una biblioteca de ayuda llamada
+\emph{DummyJPEG}. DummyJPEG es parecida a TinyJPEG excepto en los siguientes
+puntos
+
+\begin{enumerate}
+    \item{Los bloques JPEG no son \emph{data-parallel} por culpa de la
+        codificación delta que se hace para el coeficiente DC. DummyJPEG ignora
+    el primer coeficiente. Esto induce un error en el reporte del tamaño de la imagen pero no afecta el cálculo del error. Es necesario eliminar la codificación delta para aprovechar el poder del cómputo del GPU. Una alternativa que viene a la mente es codificar el coeficiente DC como el resto de los coeficientes AC, pero esto trae problemas. Los valores AC pueden no estar en nuestra tabla de Huffman. Se tendría que usar una tabla nueva y completamente única a la función de selección. El resultado sería un reporte de tamaño de imagen que no tiene nada que ver con el valor real.}
+
+    \item{DummyJPEG descomprime cada bloque después de comprimirlo para
+        calcular el error en el momento que se tienen todos los datos para
+    hacerlo eficientemente.}
+
+    \item{La arquitectura del flujo de lógica cambia. En lugar de llamar la
+        función \verb+encode_MCU+ una vez por bloque, se llama \emph{una sóla
+    vez} para todos los bloques, en el caso de un sólo \emph{thread}. Para
+múltiples threads, se dividen los arreglos de bloques entre el número de
+trabajadores, y se la función se llama una vez por cada CPU.}
+
+    \item{DummyJPEG \emph{No escribe a disco}. Hace sólo el trabajo necesario
+        para hacer la DCT y la IDCT, y en lugar de escribir, cuenta bits. El
+    cuello de botella de TinyJPEG es manipular bits y acomodarlos en bytes para
+mandar a disco, DummyJPEG evita ese trabajo porque no lo tiene que hacer.}
+
+    \item{Sólo procesa los bloques de luminancia. El algoritmo evolutivo genera
+        una tabla por imagen. Usar la lumninancia exclusivamente requiere un
+    tercio del trabajo y resulta en un cambio negligible en el reporte del
+error.}
+\end{enumerate}
+
+El cambio arquitectural de DummyJPEG no sólo facilita la paralelización en CPU,
+sino que hace posible la implementación del algoritmo paralelo en el GPU
+\ref{sec:GPGPU}.
 
 
 % ============================================================
@@ -106,6 +185,11 @@ $8\times8$. La matriz de la derecha es el bloque con los valores de la imagen y
 la matriz de la izquierda es la representación como matriz de la ecuación
 \ref{eq:dct}.
 
+\label{alg:fast-dct}
+\begin{code}[language=C][h]
+    #define TJE_IMPLEMENTATION
+    #include <tiny_jpeg.h>
+\end{code}
 % ============================================================
 \section{Manejo de memoria}
 % ============================================================
@@ -115,5 +199,5 @@ la matriz de la izquierda es la representación como matriz de la ecuación
 % ============================================================
 
 % ============================================================
-\section{GPGPU}
+\section{GPGPU} \label{sec:GPGPU}
 % ============================================================

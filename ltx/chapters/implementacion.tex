@@ -152,9 +152,21 @@ error.}
 \end{enumerate}
 
 El cambio arquitectural de DummyJPEG no sólo facilita la paralelización en CPU,
-sino que hace posible la implementación del algoritmo paralelo en el GPU
-\ref{sec:GPGPU}.
+sino que hace posible la implementación del algoritmo paralelo en el GPU \ref{sec:GPGPU}. DummyJPEG procesa $N$ bloques a la vez y escribe a un arreglo de $N$ resultados. Un resultado es una tupla $(B, E)$ donde $B$ es el número de bits que el bloque consume después de ser codificado (con un ligero error inducido al ignorar el coeficiente DC) y $E$ es la suma de las diferencias absolutas pixel-por-pixel entre el bloque original y el bloque descomprimido.
 
+El algoritmo paralelo trabaja en un patrón \emph{map-reduce}. La función \emph{map} es el proceso paralelo que acabamos de describir, y el \emph{reduce} consiste de:
+
+\begin{code}
+    B_total = 0;
+    E_total = 0;
+    Para todo resultado (B, E):
+       B_total += B;
+       E_total += E;
+    Terminar el algoritmo, regresando (B_total, E_total).
+\end{code}
+
+La tupla que regresa DummyJPEG son los parametros a la función de selección
+\ref{eq:fitness}.
 
 % ============================================================
 \section{Algoritmo DCT}
@@ -173,26 +185,122 @@ simple para la \emph{DCT}:
     }
 \end{code}
 
-
 \verb+tiny_jpeg+ contiene dos implementaciones de \emph{DCT}, la que se deriva
 directamente de la ecuación \ref{eq:dct} y que se describe en \ref{alg:dct}
 muestra arriba, y una más rápida, desarrollada por \cite{ahmed_dct}.
 
+El algoritmo \ref{alg:dct} no es práctico para un codificador JPEG y mucho
+menos para este proyecto, que pretende ejecutar el algoritmo JPEG
+potencialmente miles de veces para una sola imagen. Existen métodos calcular la
+DCT (y su inversa, la IDCT) rápidamente. La discusión presentada aquí sobre el
+desarrollo de algoritmos rápidos DCT es análoga para la inversa, ya que las
+ecuaciones son muy similares (\ref{eq:dct}, \ref{eq:idct}).
+
 Los algoritmos rápidos para calcular la \emph{DCT} están basados en la
 observación de que la ecuación \ref{eq:dct} es lineal, y por lo tanto el
-cálculo \emph{DCT} se puede ver como una multiplicación de dos matrices de
-$8\times8$. La matriz de la derecha es el bloque con los valores de la imagen y
-la matriz de la izquierda es la representación como matriz de la ecuación
-\ref{eq:dct}.
+cálculo \emph{DCT} se puede expresar como $F(X) = A^{T}XA$ Donde $X$ es un bloque de $8\times8$ y A es la matriz:
 
-\label{alg:fast-dct}
-\begin{code}[language=C][h]
-    #define TJE_IMPLEMENTATION
-    #include <tiny_jpeg.h>
-\end{code}
+\begin{equation}
+    \label{eq:dct-matrix}
+    \begin{bmatrix}
+        \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2} & \frac{\sqrt{2}}{2} \\
+        cos\frac{\pi}{16} & cos\frac{3\pi}{16}& cos\frac{5\pi}{16}& cos\frac{7\pi}{16}& cos\frac{9\pi}{16}& cos\frac{11\pi}{16}& cos\frac{13\pi}{16}& cos\frac{15\pi}{16} \\
+        cos\frac{2\pi}{16} & cos\frac{6\pi}{16}& cos\frac{10\pi}{16}& cos\frac{14\pi}{16}& cos\frac{18\pi}{16}& cos\frac{22\pi}{16}& cos\frac{26\pi}{16}& cos\frac{30\pi}{16} \\
+        cos\frac{3\pi}{16} & cos\frac{9\pi}{16}& cos\frac{15\pi}{16}& cos\frac{21\pi}{16}& cos\frac{27\pi}{16}& cos\frac{33\pi}{16}& cos\frac{39\pi}{16}& cos\frac{45\pi}{16} \\
+        cos\frac{4\pi}{16} & cos\frac{12\pi}{16}& cos\frac{20\pi}{16}& cos\frac{28\pi}{16}& cos\frac{36\pi}{16}& cos\frac{44\pi}{16}& cos\frac{52\pi}{16}& cos\frac{60\pi}{16} \\
+        cos\frac{5\pi}{16} & cos\frac{15\pi}{16}& cos\frac{25\pi}{16}& cos\frac{35\pi}{16}& cos\frac{45\pi}{16}& cos\frac{55\pi}{16}& cos\frac{65\pi}{16}& cos\frac{75\pi}{16} \\
+        cos\frac{6\pi}{16} & cos\frac{18\pi}{16}& cos\frac{30\pi}{16}& cos\frac{42\pi}{16}& cos\frac{54\pi}{16}& cos\frac{66\pi}{16}& cos\frac{78\pi}{16}& cos\frac{90\pi}{16} \\
+        cos\frac{7\pi}{16} & cos\frac{21\pi}{16}& cos\frac{35\pi}{16}& cos\frac{49\pi}{16}& cos\frac{63\pi}{16}& cos\frac{77\pi}{16}& cos\frac{91\pi}{16}& cos\frac{105\pi}{16}
+    \end{bmatrix}
+\end{equation}
+
+Esta matriz tiene alta redundancia gracias a la simetría del coseno y al factor $16$. Por ejemplo, el cuarto elemento del segundo renglón es $cos\frac{7\pi}{16} \approx 0.19509$ igual al siguiente elemento del renglón salvo al signo: $cos\frac{9\pi}{16} \approx -0.19509$, que es igual al último elemento de la matriz: $cos\frac{105\pi}{16} \approx -0.19509$. Siguiendo este proceso simplificamos la matríz:
+
+\begin{equation}
+    \label{eq:dct-matrix-simple}
+    \sqrt{2}/2
+    \begin{bmatrix}
+        1 & 1 & 1 & 1 & 1 & 1 & 1 & 1  \\
+        a & c & d & f & -f & -d & -c & -a \\
+        b & e & -e & -b & -b & -e & e & b \\
+        c & -f & -a & -d & d & a & f & -c \\
+        1 & -1 & -1 & 1 & 1 & -1 & -1 & 1\\
+        d & -a & f & c & -c & -f & a & -d \\
+        e & -b & b & -e & -e & b & -b & e \\
+        f & -d & c & -a & a & -c & d & -f
+    \end{bmatrix}
+\end{equation}
+
+donde
+
+\begin{eqnarray*}
+    a = \frac{2}{\sqrt{2}}cos\frac{\pi}{16}\\
+    b = \frac{2}{\sqrt{2}}cos\frac{\pi}{8}\\
+    c = \frac{2}{\sqrt{2}}cos\frac{3\pi}{16}\\
+    d = \frac{2}{\sqrt{2}}cos\frac{5\pi}{16}\\
+    e = \frac{2}{\sqrt{2}}cos\frac{3\pi}{8}\\
+    f = \frac{2}{\sqrt{2}}cos\frac{7\pi}{16}
+\end{eqnarray*}
+
+Entonces, una columna Y del bloque procesado por DCT se puede descomponer así:
+
+\begin{equation}
+    \label{eq:dct-row}
+    \begin{bmatrix}
+        Y(0) \\
+        Y(2) \\
+        Y(4) \\
+        Y(6)
+    \end{bmatrix}
+    = \frac{\sqrt{2}}{2} \begin{bmatrix}
+        1 & 1 & 1 & 1  \\
+        b & e & -e & -b \\
+        1 & -1 & -1 & 1  \\
+        e & -b & b & e
+        \end {bmatrix} \begin {bmatrix}
+        X(0) + X(7) \\
+        X(1) + X(6) \\
+        X(2) + X(5) \\
+        X(3) + X(4)
+        \end {bmatrix}
+\end{equation}
+
+\begin{equation*}
+    \begin{bmatrix}
+        Y(0) \\
+        Y(2) \\
+        Y(4) \\
+        Y(6)
+    \end{bmatrix}
+    = \frac{\sqrt{2}}{2} \begin{bmatrix}
+        a & -c & d & -f  \\
+        c & f & -a & d  \\
+        d & a & f & -c  \\
+        f & d & c & a
+        \end {bmatrix} \begin {bmatrix}
+        X(0) - X(7) \\
+        X(6) - X(1) \\
+        X(2) - X(5) \\
+        X(4) - X(3)
+        \end {bmatrix}
+\end{equation*}
+
+donde $X$ es un renglón del bloque.
+
+Por lo tanto, si aplicamos la ecuación \ref{eq:dct-row}, avanzando columna por columna por el bloque original, obtenemos el bloque DCT.
+
+El algoritmo resultante es lo suficientemente rápido para no aparecer como un cuello de botella significativo al momento de hacer optimización.
+
 % ============================================================
 \section{Manejo de memoria}
 % ============================================================
+
+TinyJPEG no efectúa alojamiento dinámico de memoria. Aloja suficiente memoria en el \emph{stack} para guardar las tablas de Huffman y por razones de eficiencia también mantiene un \emph{buffer} de 8KB, que se usa para minimizar llamadas a sistema.
+
+Para el algoritmo paralelo, no es posible mantener esta propiedad. TinyJPEG procesa la imagen un bloque a la vez, mientras que DummyJPEG recibe $N$ bloques y escribe $N$ resultados en paralelo. Esto forza al sistema a alojar memoria para los bloques y para los arreglos donde se guardan los resultados.
+
+Si OpenCL se utiliza, DummyJPEG aloja memoria en el GPU para los arreglos de entrada y de salida, así como para las tablas de Huffman. La latencia es el punto débil de las arquitecturas GPU. Por razones de eficiencia, los arreglos que se usan una vez por imagen son definidos una sola vez. Esto incluye los arreglos de los bloques, las tablas de Huffman. Los únicos datos que deben ser actualizados en cada llamada al \emph{kernel} son la tabla DCT y los arreglos de resultados.
+
 
 % ============================================================
 \section{Optimización}

@@ -97,11 +97,6 @@ int main()
     FILE* plot_file = fopen("evo.dat", "w");
     assert (plot_file);
 
-    if ( !data ) {
-        puts("Could not load file");
-        return EXIT_FAILURE;
-    }
-
     size_t size = (size_t)2 * 1024 * 1024 * 1024;
     void* memory = sgl_calloc(size, 1);
     if ( !memory ) {
@@ -267,7 +262,7 @@ int main()
 #elif __linux__
     struct timespec ts_end = {0};
     clock_gettime(CLOCK_REALTIME, &ts_end);
-    sgl_log("Total run time: %" PRIu64 "ns \n", (ts_end.tv_nsec - ts.tv_nsec) / 1000);
+    sgl_log("Total run time: %" PRIu64 "us \n", (ts_end.tv_nsec - ts.tv_nsec) / 1000);
 #endif
 
 

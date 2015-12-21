@@ -103,6 +103,9 @@ static uint8_t djei_g_output_buffer[DJEI_BUFFER_SIZE];
 #define dje_log(msg)
 #endif  // NDEBUG
 
+
+#define DJE_UNUSED(v) (void*)&v;
+
 // ============================================================
 // Table definitions.
 //
@@ -288,6 +291,8 @@ typedef struct DJEScanHeader_s {
 
 void djei_write(DJEState* state, void* data, uint32_t num_bytes, size_t num_elements)
 {
+    DJE_UNUSED(data);
+    DJE_UNUSED(num_elements);
     state->bit_count += num_bytes * 8;
 }
 
@@ -436,6 +441,7 @@ static void djei_encode_and_write_MCU(int block_i,
                                       // Huffman tables
                                       uint8_t* huff_ac_len, uint16_t* huff_ac_code)
 {
+    DJE_UNUSED(huff_ac_code);
     float* mcu = mcu_array[block_i].d;
     int16_t du[64];  // Data unit in zig-zag order
 
@@ -804,6 +810,7 @@ static struct global_work_data* gwd;
 
 void dje_worker_thread(void* data)
 {
+    DJE_UNUSED(data);
     for(;;) {
         sgl_mutex_lock(work_queue_mutex);
         volatile uint32_t bi =  work_done++;

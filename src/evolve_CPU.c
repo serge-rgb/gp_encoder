@@ -2,6 +2,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
+#if defined(__linux__)
+#include <time.h>
+#endif
+
 
 #ifndef true
 #define true 1
@@ -83,6 +87,11 @@ int main()
             "in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
+    if ( !data ) {
+        printf("stb_image failed to load image.\n");
+        exit(EXIT_FAILURE);
+    }
+
     srand((unsigned int)(*data));
 
     FILE* plot_file = fopen("evo.dat", "w");
@@ -143,8 +152,13 @@ int main()
 
     int num_generations = 100;
 
+#ifdef _WIN32
     LARGE_INTEGER run_measure_begin;
     QueryPerformanceCounter(&run_measure_begin);
+#elif __linux__
+    struct timespec ts = {0};
+    clock_gettime(CLOCK_REALTIME, &ts);
+#endif
 
 
     for (int gen_i = 0; gen_i < num_generations; ++gen_i) {
@@ -246,10 +260,16 @@ int main()
     }
     fclose(plot_file);
 
+#ifdef _WIN32
     LARGE_INTEGER run_measure_end;
     QueryPerformanceCounter(&run_measure_end);
-
     sgl_log("Total run time: %" PRIu64 "ns \n", run_measure_end.QuadPart - run_measure_begin.QuadPart);
+#elif __linux__
+    struct timespec ts_end = {0};
+    clock_gettime(CLOCK_REALTIME, &ts_end);
+    sgl_log("Total run time: %" PRIu64 "ns \n", (ts_end.tv_nsec - ts.tv_nsec) / 1000);
+#endif
+
 
     // Sort by fitness.
     qsort(population, NUM_TABLES_PER_GENERATION, sizeof(PopulationElement), pe_comp);

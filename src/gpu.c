@@ -70,7 +70,9 @@ GPUInfo* gpu_init()
     cl_int err = CL_SUCCESS;
 
     cl_uint num_platforms = 0;
-    if ( clGetPlatformIDs(0, NULL, &num_platforms) != CL_SUCCESS ) {
+    err = clGetPlatformIDs(0, NULL, &num_platforms);
+    if ( err != CL_SUCCESS ) {
+        gpu_handle_cl_error(err);
         gpu_panic();
     }
 

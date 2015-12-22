@@ -107,7 +107,8 @@ cada renglón extra. Si $w$ es el ancho de la imagen y $h$ es el alto, entonces
 el número de bloques es
 $n = (w + (8 - w \mod 8)) * (h + (8 - h \mod 8))$
 
-Cada bloque se separa en tres bloques \verb+Y+, \verb+U+ \verb+V+ que a los que se les aplica la función \verb+encode_MCU()+.
+Cada bloque se separa en tres bloques \verb+Y+, \verb+U+ \verb+V+ que a los que
+se les aplica la función \verb+encode_MCU()+.
 
 La función \verb+encode_MCU()+ es llamada así por el acrónimo \emph{MCU},
 \emph{Minimum Coded Unit}. JPEG puede especificar un factor para describir los
@@ -121,35 +122,77 @@ El flujo de la lógica es parecido a como se describe en español. Un \verb+for 
 
 \subsection{DummyJPEG} \label{sub:dummy}
 
-Para el algoritmo evolutivo se implementa una biblioteca de ayuda llamada
-\emph{DummyJPEG}. DummyJPEG es parecida a TinyJPEG excepto en los siguientes
-puntos
+A primera vista, el algoritmo JPEG se ve ``embarazosamente paralelo". Una
+motivación para este trabajo fue la observación de que el algoritmo trabaja
+dividiendo la imágenes en cuadros de $8\times8$, y el hecho de que los GPUs
+actuales trabajan con instrucciones vectoriales de 64 elementos.
 
-\begin{enumerate}
-    \item{Los bloques JPEG no son \emph{data-parallel} por culpa de la
-        codificación delta que se hace para el coeficiente DC. DummyJPEG ignora
-    el primer coeficiente. Esto induce un error en el reporte del tamaño de la imagen pero no afecta el cálculo del error. Es necesario eliminar la codificación delta para aprovechar el poder del cómputo del GPU. Una alternativa que viene a la mente es codificar el coeficiente DC como el resto de los coeficientes AC, pero esto trae problemas. Los valores AC pueden no estar en nuestra tabla de Huffman. Se tendría que usar una tabla nueva y completamente única a la función de selección. El resultado sería un reporte de tamaño de imagen que no tiene nada que ver con el valor real.}
+Desafortunadamente, el algoritmo JPEG no es paralelo. Aplicar codificación
+delta al coeficiente DC introduce una dependencia de datos entre cada bloque de
+\verb+Y+, \verb+U+ y \verb+V+ respectivamente. Para cada componente, cualquier
+bloque después del primero depende del anterior para poder computar la
+diferencia entre su coeficiente DC  y el de su antecesor.
 
-    \item{DummyJPEG descomprime cada bloque después de comprimirlo para
-        calcular el error en el momento que se tienen todos los datos para
-    hacerlo eficientemente.}
+Sin embargo, aunque JPEG es inherentemente secuencial para cada componente,
+está muy cerca de ser paralelo. Si el \emph{Joint Photographic Experts Group}
+no hubiera decidido tratar de manera diferente a los coeficientes DC y AC, el
+algoritmo sería completamente paralelo.
 
-    \item{La arquitectura del flujo de lógica cambia. En lugar de llamar la
+Queremos darle la vuelta al problema, y la manera en que lo hacemos es creando un "Dummy JPEG": Un algoritmo que es \emph{casi} JPEG, pero que no es correcto.
+
+La implementación de DummyJPEG empieza como un clon directo de TinyJPEG. Lo
+primero que hacemos es cambiar las función que escribe a disco por una función
+que va sumando el número de bits. De esta manera, al aplicar el algoritmo no
+tenemos una imagen, pero tenemos un reporte del tamaño de la imagen que
+hubiéramos generado.
+
+También cambiamos el algoritmo para aplicar la Transformada Inversa de Coseno
+justo después de aplicar la DCT al bloque, para poder compararlos y calcular el
+error.
+
+Entonces, si nuestro algoritmo original para cada bloque es:
+
+\begin{code}
+    x = aplicar_dct(bloque);
+    codificar(x)
+\end{code}
+
+Nuestro algoritmo para cada bloque en DummyJPEG se convierte en esto:
+
+\begin{code}
+    x = aplicar_dct(bloque)
+    reportar_tamaño(x)
+    y = aplicar_idct(x)
+    reportar_error(bloque, y)
+\end{code}
+
+En donde \verb+reportar_error+ es una suma de la diferencia absoluta entre cada pixel del bloque original y del bloque reconstruido.
+
+INSERTAR IMAGEN DE PROFILING DE TinyJPEG
+
+
+La manera en que volvemos paralelo a DummyJPEG es simplemente no codificar al coeficiente DC. Esto introduce un error en el tamaño reportado pero no afecta al error reportado. El tamaño reportado es menor que el tamaño real entre un 10\% y 20\%. El error es proporcionalmente más alto para imágenes con más energía en el primer coeficiente.
+
+La pregunta que nos hacemos es: ¿El error en el reporte de tamaño es significativo?
+
+Las presión que ponemos en la evolución es hacia imágenes que son indistinguibles de la original. Como el valor de cuantificación del primer coeficiente afecta de manera importante a la calidad de imagen comprimida, las tablas de la población rápidamente convergen a tener el primer valor de cuantificación igual a 1. Esto quiere decir que para casi cualquier conjunto de tablas que vayamos a comparar, estamos introduciendo el mismo error en el reporte de los tamaños de las imágenes resultantes. Por lo tanto, podemos despreocuparnos por completo de no tomar en cuenta el primer coeficiente.
+
+Describir el deseo de hacer una implementación paralela en el CPU
+
+Cambiar este párrafo a algo más legible:
+
+    La arquitectura del flujo de lógica cambia. En lugar de llamar la
         función \verb+encode_MCU+ una vez por bloque, se llama \emph{una sóla
     vez} para todos los bloques, en el caso de un sólo \emph{thread}. Para
 múltiples threads, se dividen los arreglos de bloques entre el número de
-trabajadores, y se la función se llama una vez por cada CPU.}
+trabajadores, y se la función se llama una vez por cada CPU.
 
-    \item{DummyJPEG \emph{No escribe a disco}. Hace sólo el trabajo necesario
-        para hacer la DCT y la IDCT, y en lugar de escribir, cuenta bits. El
-    cuello de botella de TinyJPEG es manipular bits y acomodarlos en bytes para
-mandar a disco, DummyJPEG evita ese trabajo porque no lo tiene que hacer.}
+Explicar que estamos evoucionando una tabla:
 
-    \item{Sólo procesa los bloques de luminancia. El algoritmo evolutivo genera
+    Sólo procesa los bloques de luminancia. El algoritmo evolutivo genera
         una tabla por imagen. Usar la lumninancia exclusivamente requiere un
     tercio del trabajo y resulta en un cambio negligible en el reporte del
-error.}
-\end{enumerate}
+error.
 
 El cambio arquitectural de DummyJPEG no sólo facilita la paralelización en CPU,
 sino que hace posible la implementación del algoritmo paralelo en el GPU \ref{sec:GPGPU}. DummyJPEG procesa $N$ bloques a la vez y escribe a un arreglo de $N$ resultados. Un resultado es una tupla $(B, E)$ donde $B$ es el número de bits que el bloque consume después de ser codificado (con un ligero error inducido al ignorar el coeficiente DC) y $E$ es la suma de las diferencias absolutas pixel-por-pixel entre el bloque original y el bloque descomprimido.

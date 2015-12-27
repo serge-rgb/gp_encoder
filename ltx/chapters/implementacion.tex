@@ -23,7 +23,7 @@ diferencia de el uso original, en el cual el GPU era un acelerador cuya
 interfaz era una biblioteca de gráficas como OpenGL o DirectX.
 
 % ============================================================
-\section{Lenguajes}
+\section{Tecnologías}
 % ============================================================
 
 La elección de lenguaje para TinyJPEG fue C, en particular C99 \cite{c99}.
@@ -36,7 +36,7 @@ permite mantener el nivel bajo de abstracción que se necesita y las
 herramientas de \emph{debugging} son mejores para C y C++ que para casi
 cualquier otro lenguaje.
 
-Escogí OpenCL para la implementación de GPGPU. OpenCL es un estándar abierto
+Se escogió OpenCL para la implementación de GPGPU. OpenCL es un estándar abierto
 para GPGPU y está soportado por Intel, Nvidia y AMD. La máquina en la que se
 implementó este trabajo tiene una tarjeta Nvidia. Nvidia tiene su propio
 lenguaje para GPGPU, llamado CUDA, que tiene mejor soporte para debugging y
@@ -118,7 +118,8 @@ esto. Otra posibilidad es usar diferentes tablas de codificación para
 lumninancia y crominancia. TinyJPEG sí utiliza esto, escogiendo tablas con
 mayor compresión para los bloques de crominancia.
 
-El flujo de la lógica es parecido a como se describe en español. Un \verb+for loop+ para extraer los bloques, y cada bloque se pasa como parámetro a la función \verb+encode_MCU+.
+El flujo de la lógica es parecido a como se describe en Español. Un \verb+for loop+ para extraer los bloques, y cada bloque se pasa como parámetro a la
+función \verb+encode_MCU+.
 
 \subsection{DummyJPEG} \label{sub:dummy}
 
@@ -142,7 +143,7 @@ Queremos darle la vuelta al problema, y la manera en que lo hacemos es creando u
 
 La implementación de DummyJPEG empieza como un clon directo de TinyJPEG. Lo
 primero que hacemos es cambiar las función que escribe a disco por una función
-que va sumando el número de bits. De esta manera, al aplicar el algoritmo no
+que va contando el número de bits. De esta manera, al aplicar el algoritmo no
 tenemos una imagen, pero tenemos un reporte del tamaño de la imagen que
 hubiéramos generado.
 
@@ -150,7 +151,7 @@ También cambiamos el algoritmo para aplicar la Transformada Inversa de Coseno
 justo después de aplicar la DCT al bloque, para poder compararlos y calcular el
 error.
 
-Entonces, si nuestro algoritmo original para cada bloque es:
+Entonces, si nuestro algoritmo original para cada bloque en TinyJPEG es:
 
 \begin{code}
     x = aplicar_dct(bloque);
@@ -168,16 +169,28 @@ Nuestro algoritmo para cada bloque en DummyJPEG se convierte en esto:
 
 En donde \verb+reportar_error+ es una suma de la diferencia absoluta entre cada pixel del bloque original y del bloque reconstruido.
 
-INSERTAR IMAGEN DE PROFILING DE TinyJPEG
-
-
-La manera en que volvemos paralelo a DummyJPEG es simplemente no codificar al coeficiente DC. Esto introduce un error en el tamaño reportado pero no afecta al error reportado. El tamaño reportado es menor que el tamaño real entre un 10\% y 20\%. El error es proporcionalmente más alto para imágenes con más energía en el primer coeficiente.
+La manera en que volvemos paralelo a DummyJPEG es simplemente no codificar al
+coeficiente DC. Esto introduce un error en el tamaño reportado pero no afecta
+al error reportado. El error que introducimos viene de que contamos los bits de
+la representación de los 63 coeficientes AC, pero no contamos los bits del
+coeficiente DC. En las imágenes de prueba que se usaron para este trabajo, el
+tamaño reportado es menor que el tamaño real entre un 10\% y 20\%. El error es
+proporcionalmente más alto para imágenes con más energía en el primer
+coeficiente.
 
 La pregunta que nos hacemos es: ¿El error en el reporte de tamaño es significativo?
 
-Las presión que ponemos en la evolución es hacia imágenes que son indistinguibles de la original. Como el valor de cuantificación del primer coeficiente afecta de manera importante a la calidad de imagen comprimida, las tablas de la población rápidamente convergen a tener el primer valor de cuantificación igual a 1. Esto quiere decir que para casi cualquier conjunto de tablas que vayamos a comparar, estamos introduciendo el mismo error en el reporte de los tamaños de las imágenes resultantes. Por lo tanto, podemos despreocuparnos por completo de no tomar en cuenta el primer coeficiente.
+Las presión que ponemos en la evolución es hacia imágenes que son
+indistinguibles de la original. Como el valor de cuantificación del primer
+coeficiente afecta de manera importante a la calidad de imagen comprimida, las
+tablas de la población rápidamente convergen a tener el primer valor de
+cuantificación igual a 1. Esto quiere decir que para casi cualquier conjunto de
+tablas que vayamos a comparar, estamos introduciendo el mismo error en el
+reporte de los tamaños de las imágenes resultantes. Por lo tanto, podemos
+despreocuparnos por completo de no tomar en cuenta el primer coeficiente.
 
-Describir el deseo de hacer una implementación paralela en el CPU
+% Describir el deseo de hacer una implementación paralela en el CPU
+Ya que tenemos un algoritmo que es \emph{casi JPEG}, pero paralelo, seguimos con la tarea de cambiar la arquitectura del programa para paralelizarlo en el CPU. La razón por la que implementamos el paralelismo en el CPU antes de hacerlo en el GPU es principalmente la velocidad de desarrollo. La manera en que implementamos la versión paralela en CPU se hace como \emph{plan con maña}, en el moldeamos el código para que el flujo de ejecución en el CPU sea muy similar a la manera en que trabaja el GPU, intentando llegar al punto de que la implementación en el GPU se reduzca a un \emph{copy paste}, y que el esfuerzo que se aplique a la implementación del GPU sea solamente un trabajo de optimización de bajo nivel.
 
 Cambiar este párrafo a algo más legible:
 

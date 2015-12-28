@@ -190,7 +190,16 @@ reporte de los tamaños de las imágenes resultantes. Por lo tanto, podemos
 despreocuparnos por completo de no tomar en cuenta el primer coeficiente.
 
 % Describir el deseo de hacer una implementación paralela en el CPU
-Ya que tenemos un algoritmo que es \emph{casi JPEG}, pero paralelo, seguimos con la tarea de cambiar la arquitectura del programa para paralelizarlo en el CPU. La razón por la que implementamos el paralelismo en el CPU antes de hacerlo en el GPU es principalmente la velocidad de desarrollo. La manera en que implementamos la versión paralela en CPU se hace como \emph{plan con maña}, en el moldeamos el código para que el flujo de ejecución en el CPU sea muy similar a la manera en que trabaja el GPU, intentando llegar al punto de que la implementación en el GPU se reduzca a un \emph{copy paste}, y que el esfuerzo que se aplique a la implementación del GPU sea solamente un trabajo de optimización de bajo nivel.
+Ya que tenemos un algoritmo que es \emph{casi JPEG}, pero paralelo, seguimos
+con la tarea de cambiar la arquitectura del programa para paralelizarlo en el
+CPU. La razón por la que implementamos el paralelismo en el CPU antes de
+hacerlo en el GPU es principalmente la velocidad de desarrollo. La manera en
+que implementamos la versión paralela en CPU se hace como \emph{plan con maña},
+en el moldeamos el código para que el flujo de ejecución en el CPU sea muy
+similar a la manera en que trabaja el GPU, intentando llegar al punto de que la
+implementación en el GPU se reduzca a un \emph{copy paste}, y que el esfuerzo
+que se aplique a la implementación del GPU sea solamente un trabajo de
+optimización de bajo nivel.
 
 Cambiar este párrafo a algo más legible:
 

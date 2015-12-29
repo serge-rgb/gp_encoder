@@ -118,8 +118,9 @@ esto. Otra posibilidad es usar diferentes tablas de codificación para
 lumninancia y crominancia. TinyJPEG sí utiliza esto, escogiendo tablas con
 mayor compresión para los bloques de crominancia.
 
-El flujo de la lógica es parecido a como se describe en Español. Un \verb+for loop+ para extraer los bloques, y cada bloque se pasa como parámetro a la
-función \verb+encode_MCU+.
+El flujo de la lógica es parecido a como se describe en Español.
+Un \verb+for loop+ para extraer los bloques, y cada bloque se pasa como
+parámetro a la función \verb+encode_MCU+.
 
 \subsection{DummyJPEG} \label{sub:dummy}
 
@@ -139,7 +140,8 @@ está muy cerca de ser paralelo. Si el \emph{Joint Photographic Experts Group}
 no hubiera decidido tratar de manera diferente a los coeficientes DC y AC, el
 algoritmo sería completamente paralelo.
 
-Queremos darle la vuelta al problema, y la manera en que lo hacemos es creando un "Dummy JPEG": Un algoritmo que es \emph{casi} JPEG, pero que no es correcto.
+Queremos darle la vuelta al problema, y la manera en que lo hacemos es creando
+un "Dummy JPEG": Un algoritmo que es \emph{casi} JPEG, pero que no es correcto.
 
 La implementación de DummyJPEG empieza como un clon directo de TinyJPEG. Lo
 primero que hacemos es cambiar las función que escribe a disco por una función
@@ -167,7 +169,8 @@ Nuestro algoritmo para cada bloque en DummyJPEG se convierte en esto:
     reportar_error(bloque, y)
 \end{code}
 
-En donde \verb+reportar_error+ es una suma de la diferencia absoluta entre cada pixel del bloque original y del bloque reconstruido.
+En donde \verb+reportar_error+ es una suma de la diferencia absoluta entre cada
+pixel del bloque original y del bloque reconstruido.
 
 La manera en que volvemos paralelo a DummyJPEG es simplemente no codificar al
 coeficiente DC. Esto introduce un error en el tamaño reportado pero no afecta
@@ -178,7 +181,8 @@ tamaño reportado es menor que el tamaño real entre un 10\% y 20\%. El error es
 proporcionalmente más alto para imágenes con más energía en el primer
 coeficiente.
 
-La pregunta que nos hacemos es: ¿El error en el reporte de tamaño es significativo?
+La pregunta que nos hacemos es: ¿El error en el reporte de tamaño es
+significativo?
 
 Las presión que ponemos en la evolución es hacia imágenes que son
 indistinguibles de la original. Como el valor de cuantificación del primer
@@ -194,32 +198,69 @@ Ya que tenemos un algoritmo que es \emph{casi JPEG}, pero paralelo, seguimos
 con la tarea de cambiar la arquitectura del programa para paralelizarlo en el
 CPU. La razón por la que implementamos el paralelismo en el CPU antes de
 hacerlo en el GPU es principalmente la velocidad de desarrollo. La manera en
-que implementamos la versión paralela en CPU se hace como \emph{plan con maña},
-en el moldeamos el código para que el flujo de ejecución en el CPU sea muy
+que implementamos la versión paralela en CPU se hace con \emph{plan con maña}.
+Moldeamos el código para que el flujo de ejecución en el CPU sea muy
 similar a la manera en que trabaja el GPU, intentando llegar al punto de que la
 implementación en el GPU se reduzca a un \emph{copy paste}, y que el esfuerzo
 que se aplique a la implementación del GPU sea solamente un trabajo de
 optimización de bajo nivel.
 
-Cambiar este párrafo a algo más legible:
+\section{Introducción a GPGPU}
 
-    La arquitectura del flujo de lógica cambia. En lugar de llamar la
-        función \verb+encode_MCU+ una vez por bloque, se llama \emph{una sóla
-    vez} para todos los bloques, en el caso de un sólo \emph{thread}. Para
-múltiples threads, se dividen los arreglos de bloques entre el número de
-trabajadores, y se la función se llama una vez por cada CPU.
+Las arquitecturas de GPU, en el momento que se escribe esto, trabajan con
+instrucciones SIMD (\emph{Single Instruction, Multiple Data}), que también
+llamamos \emph{instrucciones vectoriales}. En 19XX (TODO: BUSCAR CUANDO SE
+INTRODUJO), se introdujeron instrucciones vectoriales cuando había una alta
+demanda para que los procesadores x86 tuvieran mejor desempeño en
+\emph{aplicaciones multimedia}. Por esa misma época empezaron a salir
+aceleradores gráficos, tarjetas que se dedicaban a rasterizar triángulos
+rápidamente. Las tarjetas aceleradoras eran comunes en los 90s. Había tarjetas
+aceleradoras de punto flotante y tarjetas de sonido, por ejemplo. Durante la
+década de 2000\-2010, las tarjetas de extensión prácticamente desparecieron,
+excepto por las tarjetas de video, que hoy en día son uno de los componentes
+más caros de un sistema de cómputo, en términos de FLOPS (operaciones de punto
+flotante por segundo, por sus siglas en inglés), un GPU va a ser más poderoso
+que un CPU por un orden de magnitud (TODO: AGREGAR REFERENCIA). Aunque al
+principio los GPUs estaban diseñados alrededor de APIs como OpenGL y DirectX,
+con funcionalidad fija, poco a poco fueron adquiriendo la habilidad de ser
+programables. Primero con shaders, que permitieron meter código en un par de
+partes clave del proceso de rasterización, y más tarde con OpenCL y CUDA, que
+permiten escribir programas para el GPU en un dialecto de C.
 
-Explicar que estamos evoucionando una tabla:
+Hoy en día, la arquitectura de un GPU opera con \emph{warps} (usando la
+terminología de CUDA). Un warp puede pensarse como el apuntador de
+instrucciones en x86 o en ARM. Cada instrucción que ejecuta el warp es
+vectorial, con una longitud de 64 elementos para la arquitectura Haswell de
+Nvidia (TODO: CHECAR QUE NO ESTOY MAMANDO)
 
-    Sólo procesa los bloques de luminancia. El algoritmo evolutivo genera
-        una tabla por imagen. Usar la lumninancia exclusivamente requiere un
-    tercio del trabajo y resulta en un cambio negligible en el reporte del
-error.
+EXPLICAR PROBLEMAS DE CONTENCIÓN Y BRANCHING
 
-El cambio arquitectural de DummyJPEG no sólo facilita la paralelización en CPU,
-sino que hace posible la implementación del algoritmo paralelo en el GPU \ref{sec:GPGPU}. DummyJPEG procesa $N$ bloques a la vez y escribe a un arreglo de $N$ resultados. Un resultado es una tupla $(B, E)$ donde $B$ es el número de bits que el bloque consume después de ser codificado (con un ligero error inducido al ignorar el coeficiente DC) y $E$ es la suma de las diferencias absolutas pixel-por-pixel entre el bloque original y el bloque descomprimido.
+INTRO BREVE A OPENCL
 
-El algoritmo paralelo trabaja en un patrón \emph{map-reduce}. La función \emph{map} es el proceso paralelo que acabamos de describir, y el \emph{reduce} consiste de:
+DESCRIBIR LO QUE ES UN KERNEL
+
+El kernel para nuestra función de selección va a hacer el trabajo de la función
+\verb+encode_MCU+, que se encarga de tomar bloques de $8\times8$, codificarlos
+y reportar el tamaño, y luego decodificarlos y reportar el error.
+
+Lo diseñamos para que cada warp se encargue de un bloque. Se llama \emph{una sóla vez} para todos los bloques, en el caso de un sólo
+\emph{thread}. para múltiples threads, se dividen los arreglos de bloques entre
+el número de trabajadores, y se la función se llama una vez por cada cpu.
+explicar que estamos evoucionando una tabla:
+
+sólo procesa los bloques de luminancia. el algoritmo evolutivo genera una tabla
+por imagen. usar la lumninancia exclusivamente requiere un tercio del trabajo y
+resulta en un cambio negligible en el reporte del error.
+
+el cambio arquitectural de dummyjpeg no sólo facilita la paralelización en cpu,
+sino que hace posible la implementación del algoritmo paralelo en el gpu
+\ref{sec:gpgpu}. dummyjpeg procesa $n$ bloques a la vez y escribe a un arreglo
+de $n$ resultados. un resultado es una tupla $(b, e)$ donde $b$ es el número de
+bits que el bloque consume después de ser codificado (con un ligero error
+inducido al ignorar el coeficiente dc) y $e$ es la suma de las diferencias
+absolutas pixel-por-pixel entre el bloque original y el bloque descomprimido.
+
+el algoritmo paralelo trabaja en un patrón \emph{map-reduce}. la función \emph{map} es el proceso paralelo que acabamos de describir, y el \emph{reduce} consiste de:
 
 \begin{code}
     B_total = 0;

@@ -208,36 +208,89 @@ optimización de bajo nivel.
 \section{Introducción a GPGPU}
 
 Las arquitecturas de GPU, en el momento que se escribe esto, trabajan con
-instrucciones SIMD (\emph{Single Instruction, Multiple Data}), que también
-llamamos \emph{instrucciones vectoriales}. En 19XX (TODO: BUSCAR CUANDO SE
-INTRODUJO), se introdujeron instrucciones vectoriales cuando había una alta
-demanda para que los procesadores x86 tuvieran mejor desempeño en
-\emph{aplicaciones multimedia}. Por esa misma época empezaron a salir
-aceleradores gráficos, tarjetas que se dedicaban a rasterizar triángulos
-rápidamente. Las tarjetas aceleradoras eran comunes en los 90s. Había tarjetas
-aceleradoras de punto flotante y tarjetas de sonido, por ejemplo. Durante la
-década de 2000\-2010, las tarjetas de extensión prácticamente desparecieron,
-excepto por las tarjetas de video, que hoy en día son uno de los componentes
-más caros de un sistema de cómputo, en términos de FLOPS (operaciones de punto
-flotante por segundo, por sus siglas en inglés), un GPU va a ser más poderoso
-que un CPU por un orden de magnitud (TODO: AGREGAR REFERENCIA). Aunque al
-principio los GPUs estaban diseñados alrededor de APIs como OpenGL y DirectX,
-con funcionalidad fija, poco a poco fueron adquiriendo la habilidad de ser
-programables. Primero con shaders, que permitieron meter código en un par de
-partes clave del proceso de rasterización, y más tarde con OpenCL y CUDA, que
-permiten escribir programas para el GPU en un dialecto de C.
+instrucciones SIMD (\emph{Single Instruction, Multiple Data}), también llamadas
+\emph{instrucciones vectoriales}.
 
-Hoy en día, la arquitectura de un GPU opera con \emph{warps} (usando la
-terminología de CUDA). Un warp puede pensarse como el apuntador de
-instrucciones en x86 o en ARM. Cada instrucción que ejecuta el warp es
-vectorial, con una longitud de 64 elementos para la arquitectura Haswell de
-Nvidia (TODO: CHECAR QUE NO ESTOY MAMANDO)
+Supercomputadoras vectoriales como la \emph{Cray} se introdujeron en los 70s y
+gradualmente perdieron popularidad mientras computadoras con microprocesadores
+x86 bajaron de precio.
 
-EXPLICAR PROBLEMAS DE CONTENCIÓN Y BRANCHING
+En 1998 AMD introdujo instrucciones vectoriales con su tecnología \emph{3D
+Now}, seguido por Intel en 1999 cuando introdujo SSE (Streaming SIMD
+extensions). Ambas tecnologías son extensiones al conjunto de instrucciones x86.
 
-INTRO BREVE A OPENCL
+Por esa misma época empezaron a salir aceleradores gráficos: tarjetas que se
+dedicaban a rasterizar triángulos rápidamente para aplicaciones multimedia,
+principalmente videojuegos.
 
-DESCRIBIR LO QUE ES UN KERNEL
+Aunque al principio los GPUs estaban diseñados alrededor de APIs como OpenGL y
+DirectX, con funcionalidad fija, poco a poco fueron adquiriendo la habilidad de
+ser programables. Primero con \emph{shaders}, que permitieron meter código en
+un par de partes clave del proceso de rasterización, y más tarde con OpenCL y
+CUDA, que permiten escribir programas para el GPU en un dialecto de C.
+
+El modelo de ejecución de OpenCL se mapea directamente a las arquitecturas GPU
+actuales y funciona de la siguiente manera.
+
+Un programa OpenCL opera con \emph{work items}. Un work item puede pensarse
+como el apuntador de instrucciones en x86, pero que ejecuta solamente
+instrucciones vectoriales. En la arquitecturas modernas de Nvidia, la longitud
+de los vectores es de 32 elementos.
+
+Los \emph{work items} corren \emph{kernels}, que son esencialmente funciones
+escritas en el dialecto de C de OpenCL escritas para ser ejecutadas en el GPU.
+
+Un \emph{work item} es parte de un \emph{work group}. El tamaño del \emph{work
+group} es decisión del programador, puede ser de 1, 2 o 3 dimensiones y su
+tamaño puede variar, aunque es buena práctica escoger un múltiplo del tamaño
+vectorial (32 en Kepler y Maxwell). Hay que encontrar el tamaño apropiado de
+\emph{work group} para minimizar contención de memoria y maximizar el
+rendimiento (traducción de \emph{throughput}).
+
+La tarjeta de video tiene un calendarizador implementado en hardware que
+trabaja con granularidad de work items individuales. El \emph{work group} es
+una abstracción que se provee para proveer al \emph{kernel} con índices
+relativos a la dimensión y tamaño del espacio de \emph{work groups}. Esto es
+útil para que el programador diseñe el algoritmo para utilizar la jerarquía de
+memoria eficientemente y evitar ejecución condicional. Es útil usar referencias
+oficiales \cite{maxwell-tuning} o buscar los recursos gratis de GPU Tech Conf,
+una conferencia anual sobre GPUs en la que siempre hay pláticas que explican
+tips y trucos para sacar el mayor desempeño posible de las arquitecturas
+actuales. \cite{gtc}
+
+Cada work item tiene un número limitado de registros y un espacio de memoria
+local (a veces llamada stack, por su equivalente operacional en CPUs). Cada
+work group tiene \emph{memoria compartida}, con acceso de lectura y escritura
+para cualquier miembro del grupo. Todos los work groups tienen acceso de
+lectura y escritura a la memoria global. El CPU también tiene acceso de lectura
+y escritura a este espacio de memoria, y es por aqui donde se especifican datos
+de entrada para el kernel y de donde se leen los resultados.
+
+Hay una correspondencia entre el modelo de memoria de OpenCL y la jerarquía de
+memoria de las arquitecturas GPU. Existe una memoria compartida con garantía de
+coherencia, y un número de \emph{cores} capaces de ejecutar work items existen en
+grupos de tamaño fijo con memoria local.
+
+La memoria global puede ser copiada automáticamente a memoria local, de la
+misma manera que se utilizan cachés en CPUs para lidiar con la relativa
+lentitud de la memoria RAM.
+
+Al programar GPUs es muy fácil entrar a problemas de contención de memoria. La
+arquitectura está diseñada para lidiar con contención. Cuando un work item está
+esperando a que se efectúe una operación de memoria, el calendarizador hace que
+el \emph{core} ejecute otro work item que esté listo para ser ejecutado.
+
+Cuando se sabe que un work item va a trabajar con un trozo de memoria de cierto tamaño, es buena práctica hacer una copia a memoria local. El siguiente pseudocódigo es una optimización común en OpenCL.
+
+\label{alg:gpgpu-memcpy}
+\begin{code}[language=C][h]
+    // 64 es un número arbitrario.
+    // Hay que tomar en cuenta el tamaño de la memoria local.
+    int mi_copia[64];
+    for (int i = 0; i < 64; ++i) {
+        mi_copia[i] = memoria_global[i];
+    }
+\end{code}
 
 El kernel para nuestra función de selección va a hacer el trabajo de la función
 \verb+encode_MCU+, que se encarga de tomar bloques de $8\times8$, codificarlos

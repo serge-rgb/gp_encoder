@@ -184,7 +184,7 @@ coeficiente.
 La pregunta que nos hacemos es: ¿El error en el reporte de tamaño es
 significativo?
 
-Las presión que ponemos en la evolución es hacia imágenes que son
+Las presión que se pone en la evolución es hacia imágenes que son
 indistinguibles de la original. Como el valor de cuantificación del primer
 coeficiente afecta de manera importante a la calidad de imagen comprimida, las
 tablas de la población rápidamente convergen a tener el primer valor de
@@ -192,6 +192,14 @@ cuantificación igual a 1. Esto quiere decir que para casi cualquier conjunto de
 tablas que vayamos a comparar, estamos introduciendo el mismo error en el
 reporte de los tamaños de las imágenes resultantes. Por lo tanto, podemos
 despreocuparnos por completo de no tomar en cuenta el primer coeficiente.
+
+Otra cosa que se hace es \emph{solo calcular bloques de luminancia}. Los
+bloques de crominancia usualmente usan una tabla secundaria, y el propósito es
+evolucionar una sola tabla. Podemos deshacernos de $66\%$ del trabajo si
+descartamos los dos componentes de crominancia. Más tarde, cuando se finalice
+la evolución, podemos usar la misma tabla para los tres componentes, o bajar la
+calidad de la tabla para los componentes de crominancia multiplicando cada
+elemento por alguna constante.
 
 % Describir el deseo de hacer una implementación paralela en el CPU
 Ya que tenemos un algoritmo que es \emph{casi JPEG}, pero paralelo, seguimos
@@ -287,28 +295,35 @@ un bloque.  Cada kernel de OpenCL puede accesar a ciertas variables globales
 para saber su índice global en términos de work items. Como vamos a tener un
 work item por work group, este índice es todo lo que necesitamos.
 
-% Describir el método de ataque para implementar en el CPU
-Antes de escribir el kernel,
+\section{Implementación paralela en CPU}
 
-Se llama \emph{una sóla vez} para todos los bloques, en el caso de un sólo
-\emph{thread}. para múltiples threads, se dividen los arreglos de bloques entre
-el número de trabajadores, y se la función se llama una vez por cada cpu.
-explicar que estamos evoucionando una tabla:
+Para describir la versión paralela de \verb+encode_MCU+, primero hay que listar
+la lista de parámetros que toma la función secuencial, que es llamada una vez
+por cada bloque.
 
-sólo procesa los bloques de luminancia. el algoritmo evolutivo genera una tabla
-por imagen. usar la lumninancia exclusivamente requiere un tercio del trabajo y
-resulta en un cambio negligible en el reporte del error.
+\begin{enumerate}
+    \item \verb+mcu+, el \emph{minimum coded unit}. Es decir, el bloque $8\times8$
+    \item \verb+qt+, la tabla de cuantificación (puede ser de luminancia o crominancia)
+    \item \verb+huffman+, apuntadores a las tablas de huffman para coeficientes DC y AC.
+    \item \verb+...+, un parámetro para hacer la compresión delta, y un par de parámetros que son detalles de implementación.
+\end{enumerate}
 
-el cambio arquitectural de dummyjpeg no sólo facilita la paralelización en cpu,
-sino que hace posible la implementación del algoritmo paralelo en el gpu
-\ref{sec:gpgpu}. dummyjpeg procesa $n$ bloques a la vez y escribe a un arreglo
-de $n$ resultados. un resultado es una tupla $(b, e)$ donde $b$ es el número de
-bits que el bloque consume después de ser codificado (con un ligero error
-inducido al ignorar el coeficiente dc) y $e$ es la suma de las diferencias
-absolutas pixel-por-pixel entre el bloque original y el bloque descomprimido.
+Lo que nos interesa son los primeros tres: El bloque, la tabla de cuantificación y las tablas de huffman.
 
-el algoritmo paralelo trabaja en un patrón \emph{map-reduce}. la función \emph{map} es el proceso paralelo que acabamos de describir, y el \emph{reduce} consiste de:
+Para todos los bloques, los elementos 2 y 3 se mantienen invariantes. El cambio
+que se hace es cambiar la función para que opere sobre un arreglo de bloques de
+entrada y que escriba a un arreglo de tuplas de salida.
 
+Si hay $n$ bloques en la imagen, DummyJPEG procesa $n$ bloques a la vez y
+escribe a un arreglo de $n$ resultados. Un resultado es una tupla $(b, e)$
+donde $b$ es el número de bits que el bloque consume después de ser codificado
+y $e$ es la suma de las diferencias absolutas pixel-por-pixel entre el bloque
+original y el bloque descomprimido.
+
+% TODO: agregar alguna referencia a lo que es map-reduce
+El algoritmo paralelo trabaja en un patrón \emph{map-reduce}. La función \emph{map} es el proceso paralelo que acabamos de describir, y el \emph{reduce} consiste de:
+
+\label{alg:mcu_paralelo}
 \begin{code}
     B_total = 0;
     E_total = 0;
@@ -318,8 +333,15 @@ el algoritmo paralelo trabaja en un patrón \emph{map-reduce}. la función \emph
     Terminar el algoritmo, regresando (B_total, E_total).
 \end{code}
 
-La tupla que regresa DummyJPEG son los parametros a la función de selección
+La tupla que regresa DummyJPEG son los parámetros a la función de selección
 \ref{eq:fitness}.
+
+% TODO: Describir que la función es igual excepto por el índice y por los arreglos.
+
+Para múltiples threads, se dividen los arreglos de bloques entre el número de
+trabajadores, y se la función se llama una vez por cada cpu.
+
+% Describir lo que es un trabajador
 
 % ============================================================
 \section{Algoritmo DCT}
@@ -457,8 +479,11 @@ Si OpenCL se utiliza, DummyJPEG aloja memoria en el GPU para los arreglos de ent
 
 
 % ============================================================
-\section{Optimización}
+\section{Micro-Optimización}
 % ============================================================
+
+% TODO:
+% TODO: Describir la diferencia entre eficiencia y desempeño.
 
 La memoria global puede ser copiada automáticamente a memoria local, de la
 misma manera que se utilizan cachés en CPUs para lidiar con la relativa
@@ -482,6 +507,8 @@ pseudocódigo es una optimización común en OpenCL.
         mi_copia[i] = memoria_global[i];
     }
 \end{code}
+
+% TODO: Hacer una nota sobre el manejo de memoria. Arenas y demás
 
 
 % ============================================================

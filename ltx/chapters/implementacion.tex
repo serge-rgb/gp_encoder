@@ -258,45 +258,39 @@ una conferencia anual sobre GPUs en la que siempre hay pláticas que explican
 tips y trucos para sacar el mayor desempeño posible de las arquitecturas
 actuales. \cite{gtc}
 
-Cada work item tiene un número limitado de registros y un espacio de memoria
-local (a veces llamada stack, por su equivalente operacional en CPUs). Cada
-work group tiene \emph{memoria compartida}, con acceso de lectura y escritura
-para cualquier miembro del grupo. Todos los work groups tienen acceso de
-lectura y escritura a la memoria global. El CPU también tiene acceso de lectura
-y escritura a este espacio de memoria, y es por aqui donde se especifican datos
-de entrada para el kernel y de donde se leen los resultados.
+Cada \emph{work item} tiene un número limitado de registros y un espacio de
+memoria local (a veces llamada stack, por su equivalente operacional en CPUs).
+Cada work group tiene \emph{memoria compartida}, con acceso de lectura y
+escritura para cualquier miembro del grupo. Todos los work groups tienen acceso
+de lectura y escritura a la memoria global. El CPU también tiene acceso de
+lectura y escritura al espacio de memorial global, y es por aqui donde se
+especifican datos de entrada para el kernel y de donde se leen los resultados.
+Los demás espacios de memoria sólo son accesibles desde adentro de un kernel.
 
 Hay una correspondencia entre el modelo de memoria de OpenCL y la jerarquía de
 memoria de las arquitecturas GPU. Existe una memoria compartida con garantía de
-coherencia, y un número de \emph{cores} capaces de ejecutar work items existen en
-grupos de tamaño fijo con memoria local.
-
-La memoria global puede ser copiada automáticamente a memoria local, de la
-misma manera que se utilizan cachés en CPUs para lidiar con la relativa
-lentitud de la memoria RAM.
-
-Al programar GPUs es muy fácil entrar a problemas de contención de memoria. La
-arquitectura está diseñada para lidiar con contención. Cuando un work item está
-esperando a que se efectúe una operación de memoria, el calendarizador hace que
-el \emph{core} ejecute otro work item que esté listo para ser ejecutado.
-
-Cuando se sabe que un work item va a trabajar con un trozo de memoria de cierto tamaño, es buena práctica hacer una copia a memoria local. El siguiente pseudocódigo es una optimización común en OpenCL.
-
-\label{alg:gpgpu-memcpy}
-\begin{code}[language=C][h]
-    // 64 es un número arbitrario.
-    // Hay que tomar en cuenta el tamaño de la memoria local.
-    int mi_copia[64];
-    for (int i = 0; i < 64; ++i) {
-        mi_copia[i] = memoria_global[i];
-    }
-\end{code}
+coherencia, y un número de \emph{cores} capaces de ejecutar \emph{work items}
+que existen en grupos de tamaño fijo con memoria local. Estos \emph{cores} son
+llamados \emph{streaming multiprocessors}, abreviados SMX. El número de SMX
+varía por GPU. No esta fijado por la arquitectura. Chips basados en Kepler
+pueden tener entre 4 y 14 SMX, cada uno con 192 \emph{cuda cores}. Cada
+\emph{cuda core} tiene sus propios registros y puede ejecutar un warp. Todos
+los cuda cores en un SMX comparten un cache L1. Todos los SMX comparten un
+cache L2. \cite{kepler-notes}.
 
 El kernel para nuestra función de selección va a hacer el trabajo de la función
 \verb+encode_MCU+, que se encarga de tomar bloques de $8\times8$, codificarlos
 y reportar el tamaño, y luego decodificarlos y reportar el error.
 
-Lo diseñamos para que cada warp se encargue de un bloque. Se llama \emph{una sóla vez} para todos los bloques, en el caso de un sólo
+El kernel de DummyJPEG está diseñado para que para que cada warp se encargue de
+un bloque.  Cada kernel de OpenCL puede accesar a ciertas variables globales
+para saber su índice global en términos de work items. Como vamos a tener un
+work item por work group, este índice es todo lo que necesitamos.
+
+% Describir el método de ataque para implementar en el CPU
+Antes de escribir el kernel,
+
+Se llama \emph{una sóla vez} para todos los bloques, en el caso de un sólo
 \emph{thread}. para múltiples threads, se dividen los arreglos de bloques entre
 el número de trabajadores, y se la función se llama una vez por cada cpu.
 explicar que estamos evoucionando una tabla:
@@ -450,11 +444,12 @@ Por lo tanto, si aplicamos la ecuación \ref{eq:dct-row}, avanzando columna por 
 
 El algoritmo resultante es lo suficientemente rápido para no aparecer como un cuello de botella significativo al momento de hacer optimización.
 
-% ============================================================
-\section{Manejo de memoria}
-% ============================================================
+TinyJPEG no efectúa alojamiento dinámico de memoria. Aloja suficiente memoria
+en el \emph{stack} para guardar las tablas de Huffman y por razones de
+eficiencia también mantiene un \emph{buffer} de 8KB, que se usa para minimizar
+llamadas a fwrite. Las implementaciones de fwrite tratan de evitar llamadas a sistema, pero el uso de un buffer reduce dramáticamente el costo de escritura. Si no fuera por esto, fwrite sería el cuello de botella.
 
-TinyJPEG no efectúa alojamiento dinámico de memoria. Aloja suficiente memoria en el \emph{stack} para guardar las tablas de Huffman y por razones de eficiencia también mantiene un \emph{buffer} de 8KB, que se usa para minimizar llamadas a sistema.
+% TODO: AGREGAR IMAGEN DE PROFILING FWRITE
 
 Para el algoritmo paralelo, no es posible mantener esta propiedad. TinyJPEG procesa la imagen un bloque a la vez, mientras que DummyJPEG recibe $N$ bloques y escribe $N$ resultados en paralelo. Esto forza al sistema a alojar memoria para los bloques y para los arreglos donde se guardan los resultados.
 
@@ -464,6 +459,30 @@ Si OpenCL se utiliza, DummyJPEG aloja memoria en el GPU para los arreglos de ent
 % ============================================================
 \section{Optimización}
 % ============================================================
+
+La memoria global puede ser copiada automáticamente a memoria local, de la
+misma manera que se utilizan cachés en CPUs para lidiar con la relativa
+lentitud de la memoria RAM.
+
+La arquitectura de los GPUs está diseñada para lidiar con problemas de
+contención de memoria. Cuando un work item está esperando a que se efectúe una
+operación de memoria, el calendarizador hace que el \emph{core} ejecute otro
+work item que esté listo para ser ejecutado.
+
+Cuando se sabe que un work item va a trabajar con un trozo de memoria de cierto
+tamaño, es buena práctica hacer una copia a memoria local. El siguiente
+pseudocódigo es una optimización común en OpenCL.
+
+\label{alg:gpgpu-memcpy}
+\begin{code}[language=C][h]
+    // 64 es un número arbitrario.
+    // Hay que tomar en cuenta el tamaño de la memoria local.
+    int mi_copia[64];
+    for (int i = 0; i < 64; ++i) {
+        mi_copia[i] = memoria_global[i];
+    }
+\end{code}
+
 
 % ============================================================
 \section{GPGPU} \label{sec:GPGPU}

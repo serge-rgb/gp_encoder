@@ -61,7 +61,7 @@ int pe_comp(const void* va, const void* vb)
 
 int main()
 {
-    int use_gpu = true;
+    int use_gpu = false;
 
     GPUInfo* gpu_info = NULL;
     if (use_gpu) {
@@ -81,10 +81,10 @@ int main()
 
     int w, h, ncomp;
     char* fname =
-            //"diego.bmp";
+            "diego.bmp";
             //"pluto.bmp";
             //"in.bmp";
-            "in_klay.bmp";
+            //"in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
     if ( !data ) {

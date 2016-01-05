@@ -33,17 +33,22 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
     // OPT PASS 3. No effect!
     uint block_error = 0;
 
+#define LOCAL_COPY 0
     float dct_mcu[64];
+#if LOCAL_COPY
     float local_mcu[64];
+#endif
     // OPT PASS 4 -- SLOWER
-    /* uchar local_huff_ac_len[257]; */
-    /* for (int i = 0; i < 257; ++i) { */
-    /*     local_huff_ac_len[i] = huff_ac_len[i]; */
-    /* } */
+    uchar local_huff_ac_len[257];
+    for (int i = 0; i < 257; ++i) {
+        local_huff_ac_len[i] = huff_ac_len[i];
+    }
     for (int i = 0; i < 64; ++i) {
         float val = mcu_array[block_i].d[i];
         dct_mcu[i] = val;
+#if LOCAL_COPY
         local_mcu[i] = val;
+#endif
     }
     fdct(dct_mcu);
 
@@ -75,8 +80,11 @@ __kernel void cl_encode_and_write_MCU(/*0*/__global DJEBlock* mcu_array,
     for ( int i = 0; i < 64; ++i ) {
         float re_i = (re[i]);
         // OPT PASS 1 --
-        //float mcu_i = (mcu_array[block_i].d[i] + 128.0f);
+#if LOCAL_COPY
         float mcu_i = (local_mcu[i] + 128.0f);
+#else
+        float mcu_i = (mcu_array[block_i].d[i] + 128.0f);
+#endif
         int err = abs((int)(re_i - mcu_i));
         MSE += err;
     }

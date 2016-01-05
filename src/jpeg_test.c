@@ -5,7 +5,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
 
-
 #define TJE_IMPLEMENTATION
 #include "tiny_jpeg.h"
 

@@ -10,7 +10,7 @@ clang -g \
     -I./src -I./third_party -I./src/tiny_jpeg -I./src/libserg \
     ./src/extended_jpeg.c \
     ./src/evolve_CPU.c \
-    -O0 -g --std=gnu99 \
+    -O2 -g --std=gnu99 \
     -lpthread \
     -lOpenCL \
     -lm \

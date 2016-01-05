@@ -27,7 +27,7 @@ interfaz era una biblioteca de gráficas como OpenGL o DirectX.
 % ============================================================
 
 La elección de lenguaje para TinyJPEG fue C. C99 para ser específico
-\cite{c99}.  TinyJPEG fue lanzado con el objetivo de ser una biblioteca
+\cite{c99}. TinyJPEG fue lanzado con el objetivo de ser una biblioteca
 reutilizable por otras personas, y ha encontrado cierto grado de éxito. Un
 planetario en París usa TinyJPEG para capturar vídeo de sus simulaciones.
 
@@ -241,12 +241,16 @@ El modelo de ejecución de OpenCL se mapea directamente a las arquitecturas GPU
 actuales y funciona de la siguiente manera.
 
 Un programa OpenCL opera con \emph{work items}. Un work item puede pensarse
-como el apuntador de instrucciones en x86, pero que ejecuta solamente
-instrucciones vectoriales. En la arquitecturas modernas de Nvidia, la longitud
-de los vectores es de 32 elementos.
+como un thread, pero lo que es realmente es una \emph{``fibra"} en un
+\emph{``cable"} que ejecuta instrucciones vectoriales. En la arquitecturas
+modernas de Nvidia, la longitud de los vectores es de 32 elementos.
 
-Los \emph{work items} corren \emph{kernels}, que son esencialmente funciones
-escritas en el dialecto de C de OpenCL escritas para ser ejecutadas en el GPU.
+A estos \emph{``cable"} se les denomina \emph{wavefronts}.
+
+La tarjeta de video tiene un calendarizador implementado en hardware que
+trabaja con granularidad de \emph{wavefronts} individuales.  Los \emph{work
+items} corren \emph{kernels}, que son esencialmente funciones escritas en el
+dialecto de C de OpenCL para ser ejecutadas en el GPU.
 
 Un \emph{work item} es parte de un \emph{work group}. El tamaño del \emph{work
 group} es decisión del programador, puede ser de 1, 2 o 3 dimensiones y su
@@ -255,9 +259,7 @@ vectorial (32 en Kepler y Maxwell). Hay que encontrar el tamaño apropiado de
 \emph{work group} para minimizar contención de memoria y maximizar el
 rendimiento (traducción de \emph{throughput}).
 
-La tarjeta de video tiene un calendarizador implementado en hardware que
-trabaja con granularidad de grupos de workitems llamados \emph{wavefronts}. El
-\emph{work group} es una abstracción que se provee para proveer al
+El \emph{work group} es una abstracción que se provee para proveer al
 \emph{kernel} con índices relativos a la dimensión y tamaño del espacio de
 \emph{work groups}. Esto es útil para que el programador diseñe el algoritmo
 para utilizar la jerarquía de memoria eficientemente y evitar ejecución
@@ -266,14 +268,17 @@ los recursos gratis de GPU Tech Conf, una conferencia anual sobre GPUs en la
 que siempre hay pláticas que explican tips y trucos para sacar el mayor
 desempeño posible de las arquitecturas actuales. \cite{gtc}
 
-Cada \emph{work item} tiene un número limitado de registros y un espacio de
-memoria local (a veces llamada stack, por su equivalente operacional en CPUs).
-Cada wavefront tiene \emph{memoria compartida}, con acceso de lectura y
-escritura para cualquier miembro del grupo. Todos los wavefronts tienen acceso
-de lectura y escritura a la memoria global. El CPU también tiene acceso de
-lectura y escritura al espacio de memorial global, y es por aqui donde se
-especifican datos de entrada para el kernel y de donde se leen los resultados.
-Los demás espacios de memoria sólo son accesibles desde adentro de un kernel.
+
+En la microarquitectura del GPU, los \emph{wavefronts} son ejecutados en
+procesadores vectoriales llamados \emph{Compute Units}. Cada Compute Unit tiene
+un número limitado de registros y un espacio de memoria local (a veces llamada
+stack, por su equivalente operacional en CPUs). Cada work group tiene
+\emph{memoria compartida}, con acceso de lectura y escritura para cualquier
+miembro del grupo. Todos los wavefronts tienen acceso de lectura y escritura a
+la memoria global. El CPU también tiene acceso de lectura y escritura al
+espacio de memorial global, y es por aqui donde se especifican datos de entrada
+para el kernel y de donde se leen los resultados.  Los demás espacios de
+memoria sólo son accesibles desde adentro de un kernel.
 
 La arquitectura de los GPUs está diseñada para lidiar con problemas de
 contención de memoria. Cuando algún work item dentro de un wavefront está
@@ -307,10 +312,14 @@ la lista de parámetros que toma la función secuencial, que es llamada una vez
 por cada bloque.
 
 \begin{enumerate}
-    \item \verb+mcu+, el \emph{minimum coded unit}. Es decir, el bloque $8\times8$
-    \item \verb+qt+, la tabla de cuantificación (puede ser de luminancia o crominancia)
-    \item \verb+huffman+, apuntadores a las tablas de huffman para coeficientes DC y AC.
-    \item \verb+...+, un parámetro para hacer la compresión delta, y un par de parámetros que son detalles de implementación.
+    \item \verb+mcu+, el \emph{minimum coded unit}. Es decir, el bloque
+        $8\times8$
+    \item \verb+qt+, la tabla de cuantificación (puede ser de luminancia o
+        crominancia)
+    \item \verb+huffman+, apuntadores a las tablas de huffman para coeficientes
+        DC y AC.
+    \item \verb+...+, un parámetro para hacer la compresión delta, y un par de
+        parámetros que son detalles de implementación.
 \end{enumerate}
 
 Lo que nos interesa son los primeros tres: El bloque, la tabla de
@@ -364,7 +373,8 @@ En el cpu, la parte \emph{map} del algoritmo se ve así:
     }
 \end{code}
 
-Para múltiples threads, se utilizan threads trabajadores que consumen unidades de trabajo. Como se muestra con el siguiente pseudo código:
+Para múltiples threads, se utilizan threads trabajadores que consumen unidades
+de trabajo. Como se muestra con el siguiente pseudo código:
 
 \begin{code}[language=C][h]
     bool loop = true;
@@ -457,6 +467,26 @@ Afortunadamente, la estrategia de paralelizar en CPU, donde contamos con
 herramientas de \emph{debugging} fue exitosa. La implementación paralela en GPU
 no requirió de esfuerzos extra, fuera de las micro-optimizaciones que se
 describirán más adelante \ref{sec:microopt}.
+
+El algoritmo funciona correctamente en sus tres modalidades: Un thread,
+Múltiples threads, y GPU. Sigue una tabla con el tiempo en segundos, para un
+grupo de imágenes de prueba, que cada modalidad toma para realizar la evolución
+de la tabla de cuantificación y escribir el JPEG resultante.
+
+
+\begin{figure}[h]
+    \begin{tabular}{ |l c c c c r| }
+        \hline
+        Nombre &  Un Thread & Múltiples Threads & GPU & Speedup Multithread & Speedup GPU \\
+        \hline
+        Diego & 10.796s & 5.210s & 1.391s  & 2.072X & 7.76X \\
+        Ghost & 13.706s & 6.607s & 1.760s  & 2.257X & 7.78X \\
+        Klay & 40.526s & 22.279s & 4.785s  & 1.819X & 8.46X \\%, 4.65
+        Plutón & 558.83s & 204.120s & 13.940s & 2.73X & 40.08X \\ % 14.64
+        \hline
+    \end{tabular}
+\end{figure}
+
 
 % ============================================================
 \section{Algoritmo DCT} \label{sec:DCT}

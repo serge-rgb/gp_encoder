@@ -16,7 +16,7 @@
 
 #include "gpu.h"
 
-#define DJE_MULTITHREADED 1
+#define DJE_MULTITHREADED 0
 
 
 typedef struct DJEProcessedQT_s {
@@ -984,7 +984,6 @@ static int dje_encode_main(DJEState* state, GPUInfo* gpu_info, uint8_t* qt)
 #else
                                       state->qt_luma,
 #endif
-                                      state->ehuffsize[LUMA_DC], state->ehuffcode[LUMA_DC],
                                       state->ehuffsize[LUMA_AC], state->ehuffcode[LUMA_AC]);
         }
 #endif

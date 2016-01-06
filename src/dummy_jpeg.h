@@ -16,7 +16,7 @@
 
 #include "gpu.h"
 
-#define DJE_MULTITHREADED 0
+#define DJE_MULTITHREADED 1
 
 
 typedef struct DJEProcessedQT_s {

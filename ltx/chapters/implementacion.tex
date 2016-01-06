@@ -95,17 +95,16 @@ cuantificación. Ambas funciones son \emph{wrappers} sobre la función principal
 interna, que funciona de la siguiente manera:
 
 Se prepara una estructura estática para hacer compresión de Huffman y se
-pre-procesa la tabla según el algoritmo \ref{alg:fast-dct}, descrito en la
-siguiente sección. A esto le llamamos el \emph{paso inicial}.
-Cuando terminamos el \emph{paso inicial}, determinamos el número de bloques que
-van a ser procesados. JPEG debe funcionar con imágenes cuyos tamaños verticales
-y horizontales no son múltiplos de 8. Para esto la especificación sólo nos pide
-como codificador redondear al siguiente múltiplo de 8. Al decodificador le pide
-ignorar los datos extra. Para evitar artefactos, como convención se repite en
-el bloque el color del último píxel de la imagen para cada columna extra y para
-cada renglón extra. Si $w$ es el ancho de la imagen y $h$ es el alto, entonces
-el número de bloques es
-$n = (w + (8 - w \mod 8)) * (h + (8 - h \mod 8))$
+pre-procesa la tabla según el algoritmo dct descrito en \ref{sec:DCT}. A esto
+le llamamos el \emph{paso inicial}.  Cuando terminamos el \emph{paso inicial},
+determinamos el número de bloques que van a ser procesados. JPEG debe funcionar
+con imágenes cuyos tamaños verticales y horizontales no son múltiplos de 8.
+Para esto la especificación sólo nos pide como codificador redondear al
+siguiente múltiplo de 8. Al decodificador le pide ignorar los datos extra. Para
+evitar artefactos, como convención se repite en el bloque el color del último
+píxel de la imagen para cada columna extra y para cada renglón extra. Si $w$ es
+el ancho de la imagen y $h$ es el alto, entonces el número de bloques es $n =
+(w + (8 - w \mod 8)) * (h + (8 - h \mod 8))$
 
 Cada bloque se separa en tres bloques \verb+Y+, \verb+U+ \verb+V+ que a los que
 se les aplica la función \verb+encode_MCU()+.
@@ -473,7 +472,6 @@ Múltiples threads, y GPU. Sigue una tabla con el tiempo en segundos, para un
 grupo de imágenes de prueba, que cada modalidad toma para realizar la evolución
 de la tabla de cuantificación y escribir el JPEG resultante.
 
-
 \begin{figure}[h]
     \begin{tabular}{ |l c c c c r| }
         \hline
@@ -487,6 +485,20 @@ de la tabla de cuantificación y escribir el JPEG resultante.
     \end{tabular}
 \end{figure}
 
+Más adelante se describen las características de las cuatro imágenes de prueba
+\ref{sec:testset}. Cabe notar que aunque la implementación GPU es siempre más
+rápida, en el caso de la imagen ``Plutón", que mide 192MB, el beneficio del GPU
+crece por un factor de alrededor de 5X comparado con el CPU con un thread. Es
+probable que la razón sea que el trabajo a realizar crece proporcionalmente con
+el tamaño de la imagen, y los GPUs están diseñados para rendimiento, no
+latencia. Se puede especular sobre la razón verdadera. Puede que el hecho de
+que haya más wavefronts en vuelo permita que los Compute Units tengan una mayor
+utilización, mientras que el menor número de wavefronts para las imágenes más
+pequeñas cause problemas de utilización cuando muchos wavefronts están
+ejecutando código con saltos condicionales, como el proceso en JPEG en el que
+se busca el útlimo elemento del bloque que no es cero. Otra explicación sería
+que con imágenes grandes, el calendarizador puede hacer un mejor trabajo
+dándole la vuelta a problemas de contención de memoria.
 
 % ============================================================
 \section{Algoritmo DCT} \label{sec:DCT}
@@ -620,7 +632,6 @@ cuello de botella significativo al momento de hacer optimización.
 \section{Micro-Optimización} \label{sec:microopt}
 % ============================================================
 
-% TODO:
 
 Usamos el término \emph{micro-optimización} cuando nos referimos al tipo de
 optimización de desempeño en la que no cambiamos los algoritmos que utilizamos.
@@ -714,9 +725,12 @@ los work items en el wavefront hayan terminado de ejecutar el bloque if. Esto
 quiere decir que si \verb+funcion_b+ es muy cara, el 90\% del wavefront va a
 estar sin hacer trabajo, esperando a que el 10\% restante termine.
 
-% TODO: limpiar esto
-
-Si OpenCL se utiliza, DummyJPEG aloja memoria en el GPU para los arreglos de entrada y de salida, así como para las tablas de Huffman. La latencia es el punto débil de las arquitecturas GPU. Por razones de eficiencia, los arreglos que se usan una vez por imagen son definidos una sola vez. Esto incluye los arreglos de los bloques, las tablas de Huffman. Los únicos datos que deben ser actualizados en cada llamada al \emph{kernel} son la tabla DCT y los arreglos de resultados.
+DummyJPEG aloja memoria en el GPU para los arreglos de entrada y de salida, así
+como para las tablas de Huffman. Por razones de eficiencia, los arreglos que se
+usan una vez por imagen son definidos una sola vez. Esto incluye los arreglos
+de los bloques, las tablas de Huffman. Los únicos datos que deben ser
+actualizados en cada llamada al \emph{kernel} son la tabla DCT y los arreglos
+de resultados.
 
 Ahora se describen algunos detalles de micro optimización para la
 implementación en el CPU.
@@ -748,21 +762,68 @@ buffer de 1024 bytes, eliminamos por completo el costo de \verb+fwrite+.
 
 \subsection{CPU: Saltos condicionales}\label{sub:cpu-branch}
 
-%TODO comparar perf con / sin truco de branch.
+Para terminar las notas de micro-optimización, se va a discutir un truco en la
+implementación de TinyJPEG que trata con predicción de \emph{branches} (i.e.
+saltos condicionales, o bloques \verb+if+)
 
-\subsection{CPU: Memoria}\label{sub:cpu-mem}
+Los CPUs son muy buenos ejecutando \emph{branches} cuando pueden predecir su
+comportamiento. Agner Fog \cite{agner} tiene muy buenos recursos para estar al
+día con la manera en que los procesadores de Intel predicen branches. El
+concepto es que cuando el CPU piensa que un branch va a ser ejecutado, lo
+ejecuta \emph{ especulativamente } mientras la condición del salto se computa
+paralelamente. Se le conoce como un \emph{branch missprediction}, que
+traducimos como \emph{mis-predicción de salto} a la situación en cuando el
+salto se calculó especulativamente pero la condición falló. En código de alto
+desempeño como la función interna de JPEG, esto puede ser un cuello de botella.
 
-%TODO quitar esto?
-TinyJPEG no efectúa alojamiento dinámico de memoria. Aloja suficiente memoria
-en el \emph{stack} para guardar las tablas de Huffman y por razones de
-eficiencia también
+En el caso e TinyJPEG, una vez que se utilizó un algoritmo rápido de DCT, el
+cuello de botella en la función \verb+encode_MCU+ resultó ser la siguiente
+línea de código:
 
-Para el algoritmo paralelo, nos vemos forzados a alojar memoria. La razón es
-que mientras TinyJPEG procesa la imagen un bloque a la vez, DummyJPEG recibe
-$N$ bloques y escribe $N$ resultados en paralelo. Esto obliga al sistema a
-alojar memoria para los bloques y para los arreglos donde se guardan los
-resultados.
+\begin{code}[language=C][h]
+fval = (fval > 0)? floorf(fval + 0.5f) : ceilf(fval - 0.5f);
+\end{code}
+
+Esta es una implementación clásica de redondeo, escrita de acuerdo a la
+especificación JPEG.
+
+Usando \verb+perf+, se puede visualizar el problema:
+
+\begin{figure}[hb]
+    \includegraphics[width=5.16666in]{round_slow}
+    \caption{Mis-predicción de salto}
+\end{figure}
+
+Ambos caminos del salto condicional inducido por el operador \verb+?:+ toman
+alrededor de 9 ciclos de CPU, con un total de 18. En el momento en que se
+encontró este problema, 18 ciclos de reloj en \verb+encode_MCU+ eran un cuello
+de botella.
+
+Esa información no es suficiente para decidir que el problema es
+mis-predicción, pero se puede atacar al problema aplicando la medicina y
+realizando un diagnóstico si resulta efectiva.
+
+En este caso, sabemos que $fval \in [-1024, 1024]$. Esta información nos
+permite evitar el salto haciendo una suma, $(fval + 1024) \in [0, 2048]$. Si
+hacemos esto, podemos usar \verb+floorf+, ya que el valor siempre es positivo:
+
+\begin{code}[language=C][h]
+    fval += 1024;
+    fval = floorf(fval + 0.5f);
+    fval -= 1024;
+\end{code}
+
+El resultado, con \verb+perf+:
+
+\begin{figure}[hb]
+    \includegraphics[width=5.16666in]{round_fast}
+    \caption{Evitando mis-predicción}
+\end{figure}
+
+Como logramos alrededor de 2X de mejora en velocidad, podemos concluir con
+confianza que el salto no se estaba prediciendo exitosamente, con el resultado
+de que \verb+floorf+ y \verb+ceilf+ se estaban calculando \emph{siempre},
+independientemente de si \verb+fval+ era positivo o negativo.
 
 
-% TODO: Hacer una nota sobre el manejo de memoria. Arenas y demás
 

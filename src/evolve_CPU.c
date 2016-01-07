@@ -61,7 +61,7 @@ int pe_comp(const void* va, const void* vb)
 
 int main()
 {
-#if 0
+#if 1
     int use_gpu = true;
 #else
     int use_gpu = false;
@@ -85,8 +85,8 @@ int main()
 
     int w, h, ncomp;
     char* fname =
-            //"diego.bmp";
-            "pluto.bmp";
+            "diego.bmp";
+            //"pluto.bmp";
             //"in.bmp";
             //"in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
@@ -190,7 +190,7 @@ int main()
             population[0], population[1],
         };
 
-        int num_mutated = (NUM_TABLES_PER_GENERATION - 2) / 2;
+        int num_mutated = (NUM_TABLES_PER_GENERATION - 2) * 0.5;
         // Note: NUM_TABLES_PER_GENERATION = 2 + num_mutated + num_crossed
         int num_crossed = NUM_TABLES_PER_GENERATION - 2 - num_mutated;
 

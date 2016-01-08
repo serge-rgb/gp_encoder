@@ -3,25 +3,117 @@
 \chapter{Evolución de codificadores JPEG}\label{ch:resultados_evolucion}
 %************************************************
 
+En \ref{ch:evolution} se dio una breve introducción al cómputo evolutivo y a su
+\emph{ ``taxonomía" }. Se concluyó que este proyecto entra dentro de la
+clasificación de programación genética, ya que podemos ver las tablas de
+cuantificación como genotipos y los codificadores resultantes como genotipos.
+Para tener una base sobre la cual discutir los detalles de implementación, se
+discutió como funciona el algoritmo: La población inicial, la función de
+selección y el criterio de finalización.
+
 % ============================================================
-\section{Conjunto de prueba} \label{sec:testset}
+\section{Correctud y Conjunto de prueba} \label{sec:testset}
 % ============================================================
 
-Descripción de las imágenes usadas para probar y la razón por la que se eligieron.
+El proyecto está dividió en tres partes: TinyJPEG, la implementación de JPEG
+con compresión \emph{baseline} basada en la especificación \cite{jpeg-spec};
+DummyJPEG, la versión modificada de JPEG que sirve para tener una función de
+selección paralelizable, que tiene implementaciones paralelas para CPU y GPU; y
+finalmente, el proyecto completo, llamado \emph{gp\_encoder}, que consta de un
+algoritmo evolutivo descrito en \ref{ch:evolucion}, que utiliza DummyJPEG en su
+función de selección y emite el resultado usando TinyJPEG.
+
+La biblioteca TinyJPEG, a partir de ser lanzada como código libre, consiguió
+una base de usuarios usándola en aplicaciones que van desde tareas escolares
+hasta proyectos de investigación. Durante un año ha sido pulida mientras se han
+encontrado problemas con distintos decodificadores.
+
+El proyecto \emph{gp\_encoder} tiene la ventaja de contar con el uso al que ha
+sido sometido TinyJPEG para asegurarse que se tiene una base sólida. Aunque la
+implementación OpenCL no ha tenido pruebas fuera de las imágenes que se han
+utilizado a lo largo del desarrollo, hasta la fecha no ha habido problemas
+
 % ============================================================
 
 % ============================================================
 \section{Convergencia}
 % ============================================================
 
-Mostrar la convergencia en la función de selección para las diferentes imágenes.
-Explicar la cota mínima para la función de selección.
+Recordando la ecuación que usamos para nuestra función de seleccion:
+
+\begin{equation}
+f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(1 + \frac{s(T)}{s(T_0)}\Big)
+\end{equation}\label{eq:fitness-repeated}
+
+Se desea obtener la cota mínima.
+
+Se sabe que $e(T_0)$ es siempre menor o igual a $e(T)$, ya que $T_0$ es la
+tabla de cuantificación que consiste solo de valores 1, que denominamos
+\emph{tabla unitaria}, que resulta en lo más cercano en JPEG con compresión
+\emph{baseline} a una compresión sin pérdida. Por lo tanto, el primer parámetro
+de la ecuación está en $[1, \infty)$.
+
+De manera análoga, el tamaño de la imágen resultante al comprimir con la tabla
+unitaria es el mayor posible. Entonces, el término $\frac{s(T)}{s(T_0)} \in (0,
+1]$. Se encontró que un buen valor de $\alpha$ para conseguir imágenes de alta
+calidad es 2. Por lo tanto, el segundo término de la ecuación $f(T)$ está en
+$(2, 4]$
+
+En base a esto, se concluye que para la función de selección, con una tabla de
+cuantificación arbitraria, el mínimo valor posible es 3.
+
+En esta sección se incluyen las gráficas de convergencia para las cuatro
+imágenes de referencia, \ref{img:plot_diego}, \ref{img:plot_ghost},
+\ref{img:plot_klay}, \ref{img:plot_pluto}.
+
+
+\begin{figure}[h]\label{img:plot_diego}
+    \includegraphics[width=1.0\textwidth]{plot_diego}
+    \caption{Convergencia para imagen "Diego"}
+    \label{fig:huffman}
+\end{figure}
+
+\begin{figure}[h]\label{img:plot_ghost}
+    \includegraphics[width=1.0\textwidth]{plot_ghost}
+    \caption{Convergencia para imagen "Ghost"}
+    \label{fig:huffman}
+\end{figure}
+
+\begin{figure}[h]\label{img:plot_klay}
+    \includegraphics[width=1.0\textwidth]{plot_klay}
+    \caption{Convergencia para imagen "Klay"}
+    \label{fig:huffman}
+\end{figure}
+
+\begin{figure}[h]\label{img:plot_pluto}
+    \includegraphics[width=1.0\textwidth]{plot_pluto}
+    \caption{Convergencia para imagen "Pluto"}
+    \label{fig:huffman}
+\end{figure}
 
 % ============================================================
 \section{Comparación de desempeño}
 % ============================================================
 
-Una tabla, para cada imagen, CPU, CPU multi-threaded, OpenCL.
+En el capítulo \ref{ch:implementacion} se presentó una tabla mostrando el
+desempeño del proyecto en sus diferentes modalidades: CPU (single-thread y
+multi-thread) y GPU (OpenCL). Se duplica la tabla a continuación para facilitar
+la lectura.
 
-Tabla para cada imagen. TinyJPEG calida máxima, media y con la tabla generada por DummyJPEG
+\begin{figure}[h] \label{fig:perf_table}
+    \begin{tabular}{ |l c c c c r| }
+        \hline
+        Nombre &  Un Thread & Múltiples Threads & GPU & Speedup MT & Speedup GPU \\
+        \hline
+        Diego & 10.796s & 5.210s & 1.391s  & 2.072X & 7.76X \\
+        Ghost & 13.706s & 6.607s & 1.760s  & 2.257X & 7.78X \\
+        Klay & 40.526s & 22.279s & 4.785s  & 1.819X & 8.46X \\%, 4.65
+        Plutón & 558.83s & 204.120s & 13.940s & 2.73X & 40.08X \\ % 14.64
+        \hline
+    \end{tabular}
+    \caption{Tabla de desempeño para gp\_encoder}
+\end{figure}
+
+
+%TODO Tabla de tamaño para cada imagen. TinyJPEG calida máxima, media y con la tabla generada por DummyJPEG
 

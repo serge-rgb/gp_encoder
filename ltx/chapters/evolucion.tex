@@ -112,7 +112,15 @@ Un valor de $\alpha = 2$ resulta en imágenes que son indistinguibles de las ori
 
 Cada generación, sobreviven las dos mejores tablas. El resto se parte en dos.
 
-La primera mitad es mutada. Cada entrada de la tabla tiene una probabilidad de $\frac{1}{64}$ de mutar. Cuando una entrada $e$ muta, lo hace sumando a su valor original
+Con las pruebas que se hicieron, se encontró que con el método de cruza y de
+mutación que se está utilizando, la taza más efectiva es dividir 50\% de la
+población para ser mutada, y 50\% para ser cruzada. En la mayoría de los casos
+esto resultó en una convergencia más rápida con mejores valores al evaluar la
+función de selección.
+
+La primera mitad se muta. Cada entrada de la tabla tiene una probabilidad de
+$\frac{1}{64}$ de mutar. Cuando una entrada $e$ muta, lo hace sumando a su
+valor original
 $e_{nueva} = e_{vieja} + x $ donde $x \in [-4, 4]$ con distribución de
 probabilidad uniforme.
 

@@ -23,7 +23,7 @@ sin pérdida.
 
 Después de Huffman, el método más popular para reducir redundancia es la
 Codificación Aritmética. Es un método más sofisticado que consigue mejores
-resultados. Entre $5\%$ y $10\%$ según el estándar JPEG \cite{JPEGSTD}. La
+resultados. Entre $5\%$ y $10\%$ según el estándar JPEG \cite{jpeg-spec}. La
 especificación de la compresión JPEG incluye la capacidad de utilizar
 codificación aritmética, pero en la práctica no tiende a ser usada. En
 particular, las implementaciones de código abierto no podían usar legalmente
@@ -77,7 +77,7 @@ mientras se descarga.
 \item \emph{Sin pérdida}
 
 La compresión sin pérdida fue agregada a JPEG ``por que tenían que'' y no hubo
-un análisis riguroso para su diseño \cite{JPEGSPEC}. Aunque la compresión JPEG
+un análisis riguroso para su diseño \cite{jpeg-spec}. Aunque la compresión JPEG
 sin pérdida no es mala, formatos como PNG son altamente más populares y
 efectivos. Mucho software simplemente no soporta JPEG con compresión sin
 pérdida.
@@ -330,12 +330,13 @@ constante de $1$ resulta en el mismo conjunto de elementos. Es decir, \emph{ la 
 En JPEG, asociamos una constante de cuantificación a cada frecuencia de la DCT.
 De esta manera es que se controla la \emph{pérdida} de información. Cuando el
 usuario desea obtener la calidad máxima de imagen, se utilizan tablas de
-cuantificación cuyas constantes son todas 1, en cuyo caso, la única pérdida de información es la de redondeo y la de precisión de punto flotante.
+cuantificación cuyas constantes son todas 1, en cuyo caso, la única pérdida de
+información es la de redondeo y la de precisión de punto flotante.
 
 En la práctica, se utiliza el hecho de que el sistema de visión humano es menos
 sensible a cambios pequeños en frecuencias altas para escoger constantes
 grandes para frecuencias altas y constantes pequeña para frecuencias bajas.
-Sigue un ejemplo dado en \cite{JPEG_paper} para una tabla de cuantificación
+Sigue un ejemplo dado en \cite{jpeg-paper} para una tabla de cuantificación
 típica:
 
 \begin{equation}

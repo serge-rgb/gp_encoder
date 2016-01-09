@@ -3,35 +3,106 @@
 \chapter{Evolución de codificadores JPEG}\label{ch:resultados_evolucion}
 %************************************************
 
-En \ref{ch:evolucion} se dio una breve introducción al cómputo evolutivo y a su
-\emph{ ``taxonomía" }. Se concluyó que este proyecto entra dentro de la
-clasificación de programación genética, ya que podemos ver las tablas de
-cuantificación como genotipos y los codificadores resultantes como genotipos.
-Para tener una base sobre la cual discutir los detalles de implementación, se
-discutió como funciona el algoritmo: La población inicial, la función de
-selección y el criterio de finalización.
+En \ref{ch:evolucion} se dio una introducción al cómputo evolutivo y a su
+``taxonomía". Se clasificó a este proyecto como programación genética, ya que
+podemos ver las tablas de cuantificación como genotipos y los codificadores
+resultantes como genotipos. Para poder tener una base sobre la cual discutir
+los detalles de implementación, fue necesario describir las bases del algoritmo:
+La población inicial, la función de selección y el criterio de finalización.
+
+El nombre del proyecto final es \emph{gp\_encoder}. Consta de un algoritmo
+evolutivo que utiliza a DummyJPEG para su función de selección y a TinyJPEG
+para codificar la imagen resultante.
 
 % ============================================================
-\section{Correctud y Conjunto de prueba} \label{sec:testset}
+\section{Conjuntos de prueba} \label{sec:testset}
 % ============================================================
 
-El proyecto está dividió en tres partes: TinyJPEG, la implementación de JPEG
+El proyecto está dividido en tres partes: TinyJPEG: la implementación de JPEG
 con compresión \emph{baseline} basada en la especificación \cite{jpeg-spec};
-DummyJPEG, la versión modificada de JPEG que sirve para tener una función de
+DummyJPEG: la versión modificada de JPEG que sirve para tener una función de
 selección paralelizable, que tiene implementaciones paralelas para CPU y GPU; y
-finalmente, el proyecto completo, llamado \emph{gp\_encoder}, que consta de un
-algoritmo evolutivo descrito en \ref{ch:evolucion}, que utiliza DummyJPEG en su
-función de selección y emite el resultado usando TinyJPEG.
+finalmente, el proyecto completo, que consta de un algoritmo evolutivo descrito
+en \ref{ch:evolucion}, que utiliza DummyJPEG en su función de selección y emite
+el resultado usando TinyJPEG.
 
 La biblioteca TinyJPEG, a partir de ser lanzada como código libre, consiguió
-una base de usuarios usándola en aplicaciones que van desde tareas escolares
-hasta proyectos de investigación. Durante un año ha sido pulida mientras se han
-encontrado problemas con distintos decodificadores.
+una base de usuarios. Actualmente hay gente usándola en aplicaciones que van
+desde tareas escolares hasta proyectos de investigación \cite{humblebrag}.
+Durante un año se han encontrado distintos errores de implementación que no
+aparecieron con los decodificadores de prueba que se utilizaron durante su
+desarrollo. La exposición al ``mundo real" que ha tenido la biblioteca ha sido
+de gran ayuda para dar un cierto nivel de confianza de que la implementación es
+correcta.
 
-El proyecto \emph{gp\_encoder} tiene la ventaja de contar con el uso al que ha
-sido sometido TinyJPEG para asegurarse que se tiene una base sólida. Aunque la
-implementación OpenCL no ha tenido pruebas fuera de las imágenes que se han
-utilizado a lo largo del desarrollo, hasta la fecha no ha habido problemas
+El proyecto \emph{gp\_encoder} se ha beneficiado directamente de la exposición
+de TinyJPEG. DummyJPEG es un clon directo, y cualquier error de TinyJPEG que
+pudo haber afectado a DummyJPEG fue corregido. La única porción del trabajo que
+no ha tenido la ventaja de ser probado en el ``mundo real" es la implementación
+OpenCL de DummyJPEG. Sin embargo, no ha dado problemas para las pruebas que se
+han hecho durante el desarrollo de gp\_encoder.
+
+Para el propósito de mostrar resultados en este documento, se utilizan cuatro
+imágenes de ejemplo. Más adelante mostramos las imágenes y damos las razones
+por las cuales fueron elegidas.
+
+Uno de los puntos débiles de JPEG es que no es bueno lidiando con
+discontinuidades. Una queja común es que al comprimir imágenes de caricatura,
+JPEG tiene problemas con los delineados, como se muestra en la figura
+\ref{fig:gibbs}. A esto se le conoce como el Fenómeno de Gibbs \cite{gibbs}, y
+puede aparecer en la literatura de procesamiento de señales como \emph{ringing
+artifacts}. El fenómeno describe la manera en que se comportan las Series de
+Fourier cuando se encuentran con un salto discontinuo. Esto es exactamente lo
+que sucede cuando vemos ``delineados" en caricaturas que se comportan mal
+cuando se codifican con JPEG. La DCT es un caso particular de la transformada
+de Fourier, como se menciona en el capitulo \ref{ch:jpeg_desc}.
+
+\begin{figure}[b]
+    \includegraphics[width=1.0\textwidth]{gibbs}
+    \caption{Fenómeno de Gibbs en una imagen JPEG}
+    \label{fig:gibbs}
+\end{figure}
+
+La imagen ``Klay" (figura \ref{fig:ref-klay}) es una captura de un pantalla de
+un juego cuyo estilo presenta muchos saltos discontinuos.
+
+La imagen ``Diego" (figura \ref{fig:ref-diego}) es una fotografía que presenta
+mucho ruido, gracias al fondo de mármol.
+
+La imagen ``Ghost" es una captura de pantalla del Anime \emph{Ghost in the
+Shell}. Es un punto medio entre el ruído de ``Diego" y el estilo caricaturesco
+de ``Klay"
+
+Finalmente, la imágen ``Pluto" (figura \ref{fig:ref-pluto}) es una fotografía
+publicada por NASA cuando la sonda \emph{New Horizons} pasó cerca de Plutón en
+Septiembre de 2015. La imágen tiene una resolución de $8000\times8000$ y su
+principal propósito es mostrar cómo se comportan los diferentes componentes del
+proyecto cuando se presenta una carga de trabajo grande, relativamente a las
+demás imágenes.
+
+\begin{figure}[b]
+    \includegraphics[width=1.0\textwidth]{ref_klay}
+    \caption{Klay}
+    \label{fig:ref-klay}
+\end{figure}
+
+\begin{figure}[b]
+    \includegraphics[width=1.0\textwidth]{ref_diego}
+    \caption{Diego}
+    \label{fig:ref-diego}
+\end{figure}
+
+\begin{figure}[b]
+    \includegraphics[width=1.0\textwidth]{ref_ghost}
+    \caption{Ghost}
+    \label{fig:ref-ghost}
+\end{figure}
+
+\begin{figure}[b]
+    \includegraphics[width=1.0\textwidth]{ref_pluto}
+    \caption{Pluto}
+    \label{fig:ref-pluto}
+\end{figure}
 
 % ============================================================
 
@@ -79,31 +150,31 @@ evolución avanza.
 Cabe notar que la gráfica para la imagen "Pluto" muestra que hubo una
 convergencia en un relativamente pequeño número de generaciones. Para ver lo
 que pasaba, se cambió la tasa de mutación:cruza de 0.5 a 0.8, resultando en la
-figura \ref{fig:plot-pluto2}. Esto resulta en una gráfica
+figura \ref{img:plot-pluto2}. Esto resulta en una gráfica
 \emph{``escalonada"}, mostrando una evolución de 57 generaciones que produce una
 tabla con valor de selección similar al del resultado original. Fue consistente
 el encontrar que cualquier distribución distinta a 50/50 producía peores
 resultados.
 
-\begin{figure}[h]
+\begin{figure}[b]
     \includegraphics[width=1.0\textwidth]{plot_diego}
     \caption{Convergencia para imagen ``Diego"}
     \label{img:plot-diego}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[b]
     \includegraphics[width=1.0\textwidth]{plot_ghost}
     \caption{Convergencia para imagen ``Ghost"}
     \label{img:plot-ghost}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[b]
     \includegraphics[width=1.0\textwidth]{plot_klay}
     \caption{Convergencia para imagen ``Klay"}
     \label{img:plot-klay}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[b]
     \includegraphics[width=1.0\textwidth]{plot_pluto}
     \caption{Convergencia para imagen ``Pluto"}
     \label{img:plot-pluto}
@@ -116,15 +187,14 @@ resultados.
 \end{figure}
 
 % ============================================================
-\section{Comparación de desempeño}
+\section{Comparación de resultados}
 % ============================================================
 
-La figura \ref{fig:perf_table} en esta sección es una copia de la que se
-introdujo en el capítulo \ref{ch:implementacion}. La tabla muestra el desempeño
-de gp\_encoder en sus diferentes modalidades: CPU (single-thread y multi-thread)
-y GPU (OpenCL).
+La tabla \ref{fig:perf_table} una copia de la que se introdujo en el capítulo
+\ref{ch:implementacion}. Muestra el desempeño de gp\_encoder en sus
+diferentes modalidades: CPU (single-thread y multi-thread) y GPU (OpenCL).
 
-\begin{figure}[h]
+\begin{figure}[h!]
     \begin{tabular}{ |l c c c c r| }
         \hline
         Nombre &  Un Thread & Múltiples Threads & GPU & Speedup MT & Speedup GPU \\
@@ -139,6 +209,75 @@ y GPU (OpenCL).
     \label{fig:perf_table}
 \end{figure}
 
+El algoritmo evolutivo se desarrolló con el propósito de generar imágenes
+indistinguibles de las originales pero con una buena tasa de compresión. En la
+tabla \ref{fig:size-table} comparamos los tamaños de las imágenes de prueba
+originales con su versión comprimida con la tabla de cuantificación
+evolucionada y la compresión "media" de TinyJPEG, descrita en el capítulo
+\ref{ch:implementacion}.
+
+Con la excepción de la imagen de Plutón, gp\_encoder resulta en imágenes codificadas de menor tamaño.
+
+Tanto Con TinyJPEG en calidad media como con los resultados de gp\_encoder, todas las imágenes son indistinguibles de la original, excepto por Klay.
+
+La imagen de Klay es interesante porque gp\_encoder consigue hacerla
+indistinguible de la original, a diferencia de TinyJPEG, que falla a calidad
+media. Encima de lograr esto, el nivel de compresión es 1.56X mejor. 419K de
+TinyJPEG contra 268K de gp\_encoder. Esto sugiere que el algoritmo evolutivo
+desarrollado en este proyecto es una estrategia viable para aplicaciones que
+requieran usar JPEG incluso cuando el tipo de imágenes con las que se está
+tratando no son ideales para el formato.
+
+Para ilustrar la diferencia entre la imagen Klay comprimida con TinyJPEG y la
+resultante de gp\_encoder, se incluye la imagen \ref{img:banding}, con TinyJPEG
+a la izquierda y gp\_encoder a la derecha. A la izquierda puede observarse un
+efecto de bandas de color más marcado que el que aparece en el lado derecho.
+Cabe notar que las bandas de color del lado derecho también aparecen en la
+imagen original, y son el resultado de no aplicar \emph{dithering} dentro del
+motor del juego que produjo la imagen original.
+
+\begin{figure}
+    \includegraphics[width=400pt, height=200pt]{banding}
+    \caption{Izquierda: TinyJPEG. Derecha: gp\_encoder}
+    \label{img:banding}
+\end{figure}
+
+Para finalizar, se incluye la tabla de cuantificación evolucionada para la
+imágen Klay (figura \ref{fig:klay-table}). Vale la pena compararla con la tabla de
+cuantificación de referencia \ref{fig:reference-table} para observar las
+características poco intuitivas de la tabla generada por gp\_encoder, como la
+relativa alta cantidad de coeficientes de valores bajos en las frecuencias
+altas.
+
+
+\begin{equation}
+    \begin{matrix}
+        1  &   8  &  1  & 20  &  1  & 16  & 38  & 12 \\
+        37 &   59 &  44 &  21 &  18 &  14 &   4 &  11 \\
+        23 &   54 &  49 &  33 &  42 &  15 &  27 &  45 \\
+        53 &   43 &  32 &  34 &   6 &  28 &   6 &   4 \\
+        4  &  63  & 39  & 10  & 15  &  2  &  1  &  4 \\
+        10 &    1 &  17 &  10 &  28 &   7 &   8 &  47 \\
+        46 &   28 &   3 &  20 &   1 &  39 &   8 &  31 \\
+        5  &  34  &  4  & 31  & 12  & 15  & 43  & 39
+    \end{matrix}
+    \label{fig:klay-table}
+\end{equation}
+
+\begin{figure}[h]
+    \begin{tabular}{|l c c r|}
+        \hline
+        Nombre & Original & TinyJPEG & gp\_encoder \\
+        \hline
+        Diego & 2.3M & 355K & 328K \\
+        Ghost & 2.6M & 562K & 366K \\
+        Klay  & 9.1M & 419K & 268K \\
+        Pluto & 192M & 26M & 31M  \\
+        \hline
+    \end{tabular}
+    \caption{Tamaños de imagen original y con compresión}
+    \label{fig:size-table}
+\end{figure}
 
 %TODO Tabla de tamaño para cada imagen. TinyJPEG calida máxima, media y con la tabla generada por DummyJPEG
 

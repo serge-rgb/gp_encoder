@@ -90,8 +90,10 @@ tje_encode_to_file_at_quality(...)
 \end{code}
 
 La primera comprime con la tabla unitaria y la segunda ofrece tres posibles
-niveles de calidad, todos correspondientes únicamente al uso de tres tablas de
-cuantificación. Ambas funciones son \emph{wrappers} sobre la función principal
+niveles de calidad: "alto", "mediano", y "bajo". Todos correspondientes
+únicamente al uso de tres tablas de cuantificación.
+
+Ambas funciones son \emph{wrappers} sobre la función principal
 interna, que funciona de la siguiente manera:
 
 Se prepara una estructura estática para hacer compresión de Huffman y se

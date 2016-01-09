@@ -85,10 +85,10 @@ int main()
 
     int w, h, ncomp;
     char* fname =
-            "diego.bmp";
+            //"diego.bmp";
             //"pluto.bmp";
             //"in.bmp";
-            //"in_klay.bmp";
+            "in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
     if ( !data ) {

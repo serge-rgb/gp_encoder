@@ -46,6 +46,7 @@ ngerman,american,%
 
 \usepackage[style=long,nolist,xindy,toc, hyperfirst=false]{glossaries}
 \setkeys{glslink}{hyper=false}
+\glsdisablehyper
 \makeglossaries
 \loadglsentries{glosario}
 %\glsaddall
@@ -73,8 +74,8 @@ ngerman,american,%
 %\include{FrontBackmatter/DirtyTitlepage}
 \include{FrontBackmatter/Titleback}
 % \cleardoublepage\include{FrontBackmatter/Dedication}
-% \cleardoublepage\include{FrontBackmatter/Abstract}
-% \cleardoublepage\include{FrontBackmatter/Acknowledgments}
+\cleardoublepage\include{FrontBackmatter/Abstract}
+\cleardoublepage\include{FrontBackmatter/Acknowledgments}
 \pagestyle{scrheadings}
 \cleardoublepage\include{FrontBackmatter/Contents}
 
@@ -98,7 +99,7 @@ ngerman,american,%
 \include{chapters/evolucion} % <- escrito!, EDITAR
 \include{chapters/implementacion} % <- implementado!, escrito!, EDITAR
 \include{chapters/resultados_evolucion} % <- minado!, escrito!, EDITAR
-\include{chapters/conclusiones} % ESCRIBIR, EDITAR
+\include{chapters/conclusiones} % escrito!, EDITAR
 \include{chapters/apendice}
 
 \end{document}

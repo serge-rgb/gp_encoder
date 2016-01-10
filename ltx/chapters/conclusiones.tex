@@ -3,21 +3,58 @@
 \chapter{Conclusiones}\label{ch:conclusiones}
 %************************************************
 
-Para este trabajo se realizó la implementación de un codificador JPEG.
-Resumir lo que se hizo y lo que se mostró
+El proyecto presentado en esta tesis aprovecha los saltos tecnológicos que se
+han dado desde la creación de JPEG en 1992 \ref{jpeg-spec} para lograr mejor
+resultados usando un formato ya existente. El algoritmo produce buenos
+resultados consistentemente, y ocasionalmente consigue simultáneamente una
+mejor calidad de imagen y una mayor compresión.
 
-Subjetividad de la calidad de imagen.
+Se hizo mención en un par de ocasiones a que el programa está diseñado para
+producir imágenes \emph{indistinguibles} de las originales, sin mencionar el
+hecho de que es imposible medir las características cualitativas del sistema
+visual humano. Se utilizó una métrica estándar de diferencia \emph{pixel por
+pixel} para determinar el error de imagen, pero esta no es la única opción
+disponible. Existe un área de investigación interesada en medir la calidad de
+imágenes tomando en cuenta modelos basados en el sistema visual humano
+\cite{subjective-paper}.
 
-Distribución de programas que usan OpenCL
+% Nuevos formatos (Mr. Bellard) que pretenden reemplazar a JPEG.
+Recientemente ha habido esfuerzos para reemplazar a JPEG en la web,
+notablemente por Google (\cite{brotli}, \cite{webp}). El mayor problema a
+resolver es el de inercia. Google usa su poder sobre el Internet, pero esta no
+es la única estrategia. Francis Bellard, creador de Qemu, FFmpeg y otros
+proyectos de código libre, lanzó un formato llamado \gls{BPG}, cuyo
+decodificador está escrito en Javascript, y por lo tanto tiene una adopción
+virtualmente universal.
 
-Ubiquidad Intel. OpenCL para GPU integrado
+Sin embargo, JPEG no se va a ir a ningún lado. Usar la fuerza bruta de las
+máquinas comunes de hoy en día también es una buena estrategia para obtener una
+mejora sobre un formato que ya está en la médula del mundo del software.
 
-Desarrollo (Disney? Pixar? Quien fue?) de algoritmos que miden error "subjetivo"
+% Distribución de programas que usan OpenCL
+Se utilizó OpenCL para la paralelización en GPUs por ser un formato abierto y
+por que actualmente está adoptado por todos los proveedores de cómputo
+vectorial masivo (Intel, NVidia y AMD). Actualmente es difícil distribuir de
+manera binaria un codificador que use OpenCL. Se tiene la esperanza de que en
+el futuro exista una manera inmediata de utilizar las capacidades de cómputo
+vectorial que son cada vez más ubicuas.
 
-Nuevos formatos (Mr. Bellard) que pretenden reemplazar a JPEG.
+En las últimas dos décadas ha habido una tendencia hacia una convergencia entre
+GPU y CPU. Aunque hoy en día se tiene que escribir código en lenguajes
+propietarios o con herramientas primitivas, es claro hacia donde se está
+moviendo la marea. Por el lado del hardware, Intel y Nvidia están dando
+soluciones para cómputo de alto desempeño con sus productos Xeon Phi y Tesla,
+respectivamente. En el lado del consumidor, los procesadores de escritorio de
+Intel dedican una porción cada vez más grande de los transistores disponibles a
+una unidad de gráficas integradas, que hoy en día puede ser aprovechada con
+OpenCL. Los GPUs, por otro lado están, generación tras generación, volviéndose
+más programables. Cada día hay más información disponible para el programador
+que quiera usar el poder de los GPUs.
 
-Diferencias entre arquitecturas. Importancia de tener una intuición del funcionamiento del Hardware.
+Este proyecto aprovechó el hecho de que JPEG cuenta con un problema para el
+cual no existe solución, y fue exitoso en lograr su propósito mediante el uso
+de \gls{Cómputo Evolutivo}. La programación genética fue una gran herramienta
+para conseguir una solución heurística al problema de las tablas de
+cuantificación.
 
-Futuro (GPU ISA, convergencia de arquitecturas)
-
-Uso de cómputo evolutivo
+% Uso de cómputo evolutivo

@@ -2,32 +2,33 @@
 % Abstract
 %*******************************************************
 %\renewcommand{\abstractname}{Abstract}
-\pdfbookmark[1]{Abstract}{Abstract}
+\pdfbookmark[1]{Resumen}{Resumen}
 \begingroup
 \let\clearpage\relax
 \let\cleardoublepage\relax
 \let\cleardoublepage\relax
 
-\chapter*{Abstract}
-Short summary in English\dots
-
-\lipsum[1]
-
-\vfill
-
-\pdfbookmark[1]{Resumen}{Resumen}
 \chapter*{Resumen}
-Resumen en español \dots
 
-\lipsum[1]
+En esta tesis se describe el desarollo de un proyecto que logra generar una
+mejora sobre el algoritmo de compresión JPEG estándar. Esto se logra mediante
+el uso de una heurística individual para la imagen a comprimir. El método
+heurístico es un \gls{algoritmo evolutivo} que usa una aproximación de JPEG
+para su función de selección. Esta aproximación es una versión paralela de JPEG
+que evita realizar trabajo que no es necesario para los propósitos de la
+evolución. Se implementa en el CPU una versión secuencial y una paralela, así
+como una implementación en el GPU usando OpenCL. Se le da un cuidado especial
+al desempeño de la implementación y se describen las técnicas usadas para hacer
+tanto optimización algorítmica como micro-optimización.
 
-\endgroup			
 
 \vfill
 
-%%% Local Variables: 
+\endgroup
+
+%%% Local Variables:
 %%% mode: latex
 %%% ispell-local-dictionary: "espanol"
 %%% TeX-engine: xetex
 %%% TeX-master: "../Tesis_RGC"
-%%% End: 
+%%% End:

@@ -1,1 +1,1 @@
-wc -w tesis.tex chapters/*.tex
+wc -w tesis.tex chapters/*.tex FrontBackmatter/Acknowledgments.tex FrontBackmatter/Abstract.tex

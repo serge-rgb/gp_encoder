@@ -27,6 +27,15 @@ tags
 *.out
 *.toc
 *.lot
+*.acn
+*.alg
+*.glg
+*.glo
+*.gls*
+*.idx
+*.ilg
+*.ist
+*.xdy
 
 # osx crap
 .DS_Store

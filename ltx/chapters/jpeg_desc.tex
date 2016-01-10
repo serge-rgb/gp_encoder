@@ -4,7 +4,7 @@
 
 \section{Historia y Descripciones Breves de los Fundamentos Matemáticos}
 
-La Teoría de Codificación es una sub-rama de la Teoría de la Información que
+La \gls{Teoría de Codificación} es una sub-rama de la Teoría de la Información que
 marcó el inicio del estudio formal de la compresión de datos. La Teoría de la
 Información, nacida en 1948 con la publicación del artículo de Claude E.
 Shannon ``A Mathematical Theory of Communication'' \cite{shannon}, gira
@@ -202,7 +202,10 @@ f(x, y) = \frac{1}{4} \sum_{x=0}^{7}\sum_{y=0}^{7} C(u)C(v) F(u, v)*
 \cos{\frac{(2x+1)u\pi}{16}}\cos{\frac{(2y+1)v\pi}{16}}
 \end{equation}
 
-Nótese entonces que en teoría podemos convertir los puntos de cada bloque de $8\times8$ a su forma en DCT y de regreso. La ventaja de tener cada bloque como coeficientes DCT es que su representación nos permite decidir \emph{qué información perder}.
+Nótese entonces que en teoría podemos convertir los puntos de cada bloque de
+$8\times8$ a su forma en DCT y de regreso. La ventaja de tener cada bloque como
+coeficientes DCT es que su representación nos permite decidir \emph{qué
+información perder}.
 
 \subsection{La vida de un bloque}\label{sub:vida}
 
@@ -212,7 +215,7 @@ y alto. Si el tamaño de la imagen no es un múltiplo de ocho, se redondea al
 siguiente número que sí lo es y es el trabajo del decodificador ignorar los
 píxeles sobrantes. Cada bloque es independiente de los demás y por lo tanto el
 algoritmo es altamente paralelizable. Es una buena coincidencia que las
-arquitecturas de GPU de hoy en día trabajan con grupos de 64 \emph{threads}.
+arquitecturas de \gls{GPU} de hoy en día trabajan con grupos de 64 \emph{threads}.
 
 Cada bloque pasa por varias etapas antes de ser escrito a memoria como bits
 comprimidos de JPEG.

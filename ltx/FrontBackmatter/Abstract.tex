@@ -10,16 +10,15 @@
 
 \chapter*{Resumen}
 
-En esta tesis se describe el desarollo de un proyecto que logra generar una
-mejora sobre el algoritmo de compresión JPEG estándar. Esto se logra mediante
-el uso de una heurística individual para la imagen a comprimir. El método
-heurístico es un \gls{algoritmo evolutivo} que usa una aproximación de JPEG
-para su función de selección. Esta aproximación es una versión paralela de JPEG
-que evita realizar trabajo que no es necesario para los propósitos de la
-evolución. Se implementa en el CPU una versión secuencial y una paralela, así
-como una implementación en el GPU usando OpenCL. Se le da un cuidado especial
-al desempeño de la implementación y se describen las técnicas usadas para hacer
-tanto optimización algorítmica como micro-optimización.
+En esta tesis se describe el diseño e implementación de un codificador JPEG que
+utiliza programación genética para buscar una mejor compresión. Para esto se
+implementa el algoritmo de codificación JPEG, que luego se transforma en una
+función de selección. Se implementan un versión secuencial y una paralela, así
+como una implementación para el GPU.
+
+El resultado es un nuevo codificador, que escribe archivos en formato JPEG pero
+que puede generar imágenes con mejor calidad y menor tamaño.
+
 
 
 \vfill

@@ -23,7 +23,7 @@ clang -g -DTJE_DEBUG \
     -Wno-missing-braces -Wno-incompatible-pointer-types-discards-qualifiers -Wno-missing-field-initializers \
     -I./src -I./third_party -I./src/tiny_jpeg -I./src/libserg \
     ./src/jpeg_test.c \
-    -O2 -g --std=gnu99 \
+    -O0 -g --std=gnu99 \
     -lpthread \
     -lOpenCL \
     -lm \

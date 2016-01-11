@@ -3,12 +3,13 @@
 \chapter{Evolución de codificadores JPEG}\label{ch:resultados_evolucion}
 %************************************************
 
-En \ref{ch:evolucion} se dio una introducción al cómputo evolutivo y a su
-``taxonomía". Se clasificó a este proyecto como programación genética, ya que
-podemos ver las tablas de cuantificación como genotipos y los codificadores
-resultantes como genotipos. Para poder tener una base sobre la cual discutir
-los detalles de implementación, fue necesario describir las bases del algoritmo:
-La población inicial, la función de selección y el criterio de finalización.
+En el capítulo \ref{ch:evolucion} se dio una introducción al \gls{Cómputo Evolutivo}
+y a su ``taxonomía''. Se clasificó a este proyecto como un algorítmo genético,
+ya que podemos ver las tablas de cuantificación como genotipos y los
+codificadores resultantes como fenotipos. Para poder tener una base sobre la
+cual discutir los detalles de implementación, fue necesario describir las bases
+del algoritmo: La población inicial, la función de selección y el criterio de
+finalización.
 
 El nombre del proyecto final es \emph{gp\_encoder}. Consta de un algoritmo
 evolutivo que utiliza a DummyJPEG para su función de selección y a TinyJPEG
@@ -23,7 +24,7 @@ con compresión \emph{baseline} basada en la especificación \cite{jpeg-spec};
 DummyJPEG: la versión modificada de JPEG que sirve para tener una función de
 selección paralelizable, que tiene implementaciones paralelas para CPU y GPU; y
 finalmente, el proyecto completo, que consta de un algoritmo evolutivo descrito
-en \ref{ch:evolucion}, que utiliza DummyJPEG en su función de selección y emite
+en el capítulo \ref{ch:evolucion}, que utiliza DummyJPEG en su función de selección y emite
 el resultado usando TinyJPEG.
 
 La biblioteca TinyJPEG, a partir de ser lanzada como código libre, consiguió
@@ -31,14 +32,14 @@ una base de usuarios. Actualmente hay gente usándola en aplicaciones que van
 desde tareas escolares hasta proyectos de investigación \cite{humblebrag}.
 Durante un año se han encontrado distintos errores de implementación que no
 aparecieron con los decodificadores de prueba que se utilizaron durante su
-desarrollo. La exposición al ``mundo real" que ha tenido la biblioteca ha sido
+desarrollo. La exposición al ``mundo real'' que ha tenido la biblioteca ha sido
 de gran ayuda para dar un cierto nivel de confianza de que la implementación es
 correcta.
 
 El proyecto \emph{gp\_encoder} se ha beneficiado directamente de la exposición
 de TinyJPEG. DummyJPEG es un clon directo, y cualquier error de TinyJPEG que
 pudo haber afectado a DummyJPEG fue corregido. La única porción del trabajo que
-no ha tenido la ventaja de ser probado en el ``mundo real" es la implementación
+no ha tenido la ventaja de ser probado en el ``mundo real'' es la implementación
 OpenCL de DummyJPEG. Sin embargo, no ha dado problemas para las pruebas que se
 han hecho durante el desarrollo de gp\_encoder.
 
@@ -53,7 +54,7 @@ JPEG tiene problemas con los delineados, como se muestra en la figura
 puede aparecer en la literatura de procesamiento de señales como \emph{ringing
 artifacts}. El fenómeno describe la manera en que se comportan las Series de
 Fourier cuando se encuentran con un salto discontinuo. Esto es exactamente lo
-que sucede cuando vemos ``delineados" en caricaturas que se comportan mal
+que sucede cuando vemos ``delineados'' en caricaturas que se comportan mal
 cuando se codifican con JPEG. La DCT es un caso particular de la transformada
 de Fourier, como se menciona en el capitulo \ref{ch:jpeg_desc}.
 
@@ -63,21 +64,21 @@ de Fourier, como se menciona en el capitulo \ref{ch:jpeg_desc}.
     \label{fig:gibbs}
 \end{figure}
 
-La imagen ``Klay" (figura \ref{fig:ref-klay}) es una captura de un pantalla de
+La imagen ``Klay'' (figura \ref{fig:ref-klay}) es una captura de un pantalla de
 un juego cuyo estilo presenta muchos saltos discontinuos.
 
-La imagen ``Diego" (figura \ref{fig:ref-diego}) es una fotografía que presenta
+La imagen ``Diego'' (figura \ref{fig:ref-diego}) es una fotografía que presenta
 mucho ruido, gracias al fondo de mármol.
 
-La imagen ``Ghost" es una captura de pantalla del Anime \emph{Ghost in the
-Shell}. Es un punto medio entre el ruído de ``Diego" y el estilo caricaturesco
-de ``Klay"
+La imagen ``Ghost'' es una captura de pantalla del Anime \emph{Ghost in the
+Shell}. Es un punto medio entre el ruído de ``Diego'' y el estilo caricaturesco
+de ``Klay''
 
-Finalmente, la imágen ``Pluto" (figura \ref{fig:ref-pluto}) es una fotografía
+Finalmente, la imágen ``Pluto'' (figura \ref{fig:ref-pluto}) es una fotografía
 publicada por NASA cuando la sonda \emph{New Horizons} pasó cerca de Plutón en
 Septiembre de 2015. La imágen tiene una resolución de $8000\times8000$ y su
 principal propósito es mostrar cómo se comportan los diferentes componentes del
-proyecto cuando se presenta una carga de trabajo grande, relativamente a las
+proyecto cuando se presenta una carga de trabajo grande relativamente a las
 demás imágenes.
 
 \begin{figure}[b]
@@ -133,28 +134,27 @@ $(2, 4]$
 En base a esto, se concluye que para la función de selección, con una tabla de
 cuantificación arbitraria, el mínimo valor posible es 3.
 
-En esta sección se incluyen las gráficas de convergencia para las cuatro
-imágenes de referencia, \ref{img:plot-diego}, \ref{img:plot-ghost},
-\ref{img:plot-klay}, \ref{img:plot-pluto}.
+En esta sección se incluyen las gráficas de convergencia para la función de
+selección al correr gp\_encoder con las cuatro imágenes de referencia:
+\ref{img:plot-diego}, \ref{img:plot-ghost}, \ref{img:plot-klay}, \ref{img:plot-pluto}.
 
 Todas las figuras mostradas están normalizadas a 50 generaciones con un rango
 de evaluación de la función de selección entre 3.5 y 5. Se usa una gráfica de
 línea para mostrar el valor de la función de selección para los individuos más
 aptos y se utilizan puntos para los peores individuos de cada generación. Se
 usan puntos porque comúnmente ocurre que en alguna generación, el individuo
-menos apto tenga un valor de selección mucho mayor a 5. Esto produce gráficas
-con picos, que se quieren evitar. El caso común, sin embargo, es que los
-individuos menos aptos también tienden a un punto de convergencia mientras la
-evolución avanza.
+menos apto tenga un valor de selección mucho mayor a 5. El caso común, sin
+embargo, es que los individuos menos aptos también tienden a un punto de
+convergencia mientras la evolución avanza.
 
-Cabe notar que la gráfica para la imagen "Pluto" muestra que hubo una
-convergencia en un relativamente pequeño número de generaciones. Para ver lo
-que pasaba, se cambió la tasa de mutación:cruza de 0.5 a 0.8, resultando en la
-figura \ref{img:plot-pluto2}. Esto resulta en una gráfica
-\emph{``escalonada"}, mostrando una evolución de 57 generaciones que produce una
-tabla con valor de selección similar al del resultado original. Fue consistente
-el encontrar que cualquier distribución distinta a 50/50 producía peores
-resultados.
+Cabe notar que la gráfica para la imagen ``Pluto'' \ref{img:plot-pluto} muestra
+que hubo una convergencia en un número de generaciones relativamente pequeño.
+Para ver lo que pasaba, se cambió la tasa de mutación:cruza de 0.5 a 0.8,
+resultando en la figura \ref{img:plot-pluto2}. Esto resulta en una gráfica
+\emph{``escalonada"}, mostrando una evolución de 57 generaciones que produce
+una tabla con valor de selección similar al del resultado original. Fue
+consistente el encontrar que cualquier distribución distinta a 50/50 producía
+peores resultados.
 
 \begin{figure}[b]
     \includegraphics[width=1.0\textwidth]{plot_diego}
@@ -190,7 +190,7 @@ resultados.
 \section{Comparación de resultados}
 % ============================================================
 
-La tabla \ref{fig:perf_table} una copia de la que se introdujo en el capítulo
+La tabla \ref{fig:perf_table} es una copia de la que se mostró en el capítulo
 \ref{ch:implementacion}. Muestra el desempeño de gp\_encoder en sus
 diferentes modalidades: CPU (single-thread y multi-thread) y GPU (OpenCL).
 
@@ -218,7 +218,7 @@ evolucionada y la compresión "media" de TinyJPEG, descrita en el capítulo
 
 Con la excepción de la imagen de Plutón, gp\_encoder resulta en imágenes codificadas de menor tamaño.
 
-Tanto Con TinyJPEG en calidad media como con los resultados de gp\_encoder, todas las imágenes son indistinguibles de la original, excepto por Klay.
+Tanto con TinyJPEG en calidad media como con los resultados de gp\_encoder, todas las imágenes son indistinguibles de la original, excepto por Klay.
 
 La imagen de Klay es interesante porque gp\_encoder consigue hacerla
 indistinguible de la original, a diferencia de TinyJPEG, que falla a calidad

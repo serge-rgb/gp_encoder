@@ -12,10 +12,10 @@
 int main()
 {
     int w, h, ncomp;
-    unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
+    //unsigned char* data = stbi_load("pluto.bmp", &w, &h, &ncomp, 0);
     //unsigned char* data = stbi_load("in.bmp", &w, &h, &ncomp, 0);
     //unsigned char* data = stbi_load("in_klay.bmp", &w, &h, &ncomp, 0);
-    //unsigned char* data = stbi_load("diego.bmp", &w, &h, &ncomp, 0);
+    unsigned char* data = stbi_load("diego.bmp", &w, &h, &ncomp, 0);
     if ( !data ) {
         puts("Could not load file");
         return EXIT_FAILURE;
@@ -25,6 +25,7 @@ int main()
     if ( !tje_encode_to_file("out.jpg", w, h, ncomp, data) ) {
         return EXIT_FAILURE;
     }
+#if 0
     data = stbi_load("out.jpg", &w, &h, &ncomp, 0);
     if (!data) {
         return EXIT_FAILURE;
@@ -58,5 +59,6 @@ int main()
     }
 
     return EXIT_SUCCESS;
+#endif
 }
 

@@ -56,26 +56,32 @@ codificador \gls{JPEG} que usa esa tabla.
 \subsection{Población}
 
 Se inicializa una población de tablas. En el conjunto se incluye la tabla que
-sólo contiene unos, que llamamos \emph{tabla unitaria}, ya que es la que
-obtiene la mejor calidad posible pero resulta en menor compresión. El resto del
-conjunto se llena de tablas con valores aleatorios entre 1 y 64.
+tiene todos sus coeficientes iguales a 1, denominada \emph{\gls{tabla
+unitaria}}. La tabla unitaria es la que obtiene la mejor calidad posible pero
+resulta en menor compresión. El resto del conjunto se llena de tablas con
+valores aleatorios entre 1 y 64.
 
 La función de selección requiere de un punto de referencia. Antes de iniciar la
-evolución, se comprime la imagen con la tabla unitaria. Se guarda con esto la
-calidad óptima.
+evolución, se comprime la imagen con la tabla unitaria, dándonos un punto de
+referencia para la calidad óptima y para el máximo tamaño.
 
 \subsection{Selección}
 
-La calidad de la compresión de determina haciendo descompresión y comparando la
-imagen resultante con la original píxel por píxel. Las diferencias absolutas se
-suman. No se utiliza MSE (Error cuadrático medio) por la enorme cantidad de
-pixeles y la sensibilidad del algoritmo a errores de precisión.
+La calidad de la compresión se determina haciendo una decodificación y
+comparando la imagen resultante con la original píxel por píxel. Las
+diferencias absolutas se suman. No se utiliza MSE (Error cuadrático medio) por
+la enorme cantidad de pixeles y la sensibilidad del algoritmo a errores de
+precisión. En lugar de implementar un decodificador JPEG, se incluye un paso de
+decodificación en la función principal de procesamiento de bloques. Los
+detalles de este proceso se explican en el capítulo \ref{ch:implementacion}.
 
-El tamaño es más fácil de comparar. Tan sólo vemos cuántos bits pesa la imagen
-resultante comparada con la original.
+El tamaño es más fácil de comparar que la calidad de la imagen. Tan solo es
+necesario ver cuántos bits pesa la imagen resultante comparada con el tamaño
+máximo que se obtiene de la tabla unitaria.
 
-Tenemos dos garantías. Cualquier tabla que no sea la unitaria va a resultar en
-mayor compresión y en menor calidad.
+Tenemos dos garantías. Cualquier tabla de cuantificación comparada con la
+unitaria va a resultar en mayor compresión y en menor calidad, siempre y cuando
+la tabla a comparar no sea en sí una tabla unitaria.
 
 Sea $T$ una tabla de nuestra población y sea $T_0$ la tabla unitaria.
 
@@ -89,24 +95,29 @@ f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(1 + \frac{s(T)}{s(T_0)}\Big)
 imagen. $\alpha$ es una constante que se usa para ajustar la importancia que le
 damos al tamaño sobre la compresión o vice versa.
 
-Nótese que los dos términos se afectan mutuamente. Una tabla que comprime mejor
-va a tener un mayor error, y una tabla que comprime menos resulta en mayor
-fidelidad. Es decir, cuando el primer término disminuye, el segundo crece.
-Cuando el segundo término crece, el primero disminuye.
+Nótese que los dos términos se afectan mutuamente. Una tabla que tiene mayor
+compresión va a tener un mayor error, y una tabla con menor compresión resulta
+en una imagen de mayor calidad. En otras palabras, cuando el primer término
+disminuye, el segundo crece.  Cuando el segundo término crece, el primero
+disminuye.
 
 Nuestra meta es encontrar $T$ tal que $f(T)$ es mínima. La relación entre los
 dos términos permite que el algoritmo converja.
 
-El primer término es siempre mayor o igual a $1$. Al segundo se le suma 1
-porque el valor de $\frac{s(T)}{s(T_0)} \in (0, 1]$. Es una conveniencia al
-seleccionar $\alpha$.
+El primer término es siempre mayor o igual a $1$. A la fracción del segundo
+término se le suma 1 porque el valor de $\frac{s(T)}{s(T_0)} \in (0, 1]$. Esto
+es puramente una una conveniencia para facilitar la búsqueda de un valor de
+$\alpha$ adecuado.
 
 El valor de $\alpha$ controla el proceso de minimización. Mientras mayor sea
-$\alpha$, más peso artificial tiene el tamaño de la imagen. El algoritmo tiende
+$\alpha$, más peso de selección tiene el tamaño de la imagen. El algoritmo tiende
 a 'preferir' minimizar el error contra el tamaño después de cierto umbral de
-$\alpha > 1$.
+$\alpha > 1$. Para valores de $alpha <= 1$, se producen imágenes de muy mala calidad.
 
-Un valor de $\alpha = 2$ resulta en imágenes que son indistinguibles de las originales.
+Habiendo probado varios valores distintos, se encontró que un valor de $\alpha
+= 2$ resulta en imágenes que son indistinguibles de las originales, con un alto
+nivel de compresión.
+
 
 \subsection {Mutación y Reproducción}
 
@@ -118,27 +129,27 @@ población para ser mutada, y 50\% para ser cruzada. En la mayoría de los casos
 esto resultó en una convergencia más rápida con mejores valores al evaluar la
 función de selección.
 
-La primera mitad se muta. Cada entrada de la tabla tiene una probabilidad de
-$\frac{1}{64}$ de mutar. Cuando una entrada $e$ muta, lo hace sumando a su
-valor original
-$e_{nueva} = e_{vieja} + x $ donde $x \in [-4, 4]$ con distribución de
-probabilidad uniforme.
+El proceso de mutación es como sigue: Cada entrada de la tabla tiene una
+probabilidad de $\frac{1}{64}$ de mutar. Cuando una entrada $e$ muta, lo hace
+sumando a su valor original $e_{nueva} = e_{vieja} + x $ donde $x \in [-4, 4]$
+con distribución de probabilidad uniforme.
 
-La segunda mitad es un resultado de reproducir las dos tablas ganadoras. Para
-cada entrada se hace un tiro de moneda. Cada entrada tiene un $50\%$ de
-probabilidad de venir de uno de los dos tablas sobrevivientes.
+El proceso de reproducción siempre ocurre entre las dos tablas ganadoras. Padre
+A y Padre B.  La tabla hijo es el resultado de, para cada entrada, escoger una
+entrada de Padre A o de Padre B. La elección es un tiro de moneda. Para alguno
+de los dos padres, cada entrada tiene un $50\%$ de probabilidad de venir de él.
 
 \subsection {Fin de la evolución}
 
-El algoritmo decide terminar cuando sucede una de dos cosas.
+El algoritmo decide terminar cuando sucede una de dos cosas:
 
 \begin{itemize}
 \item El número de generaciones llega a 100
 \item La diferencia entre el valor de la función \ref{eq:fitness} para el
 individuo más apto es menor a 0.0001 cuatro veces consecutivas. En este caso,
-decidimos que hemos convergido y regresamos la tabla ganadora.
+se decide que la evolución ha convergido.
 \end{itemize}
 
-Este algoritmo genético resulta en tablas de codificación que generan imágenes
-indistinguibles de las originales sin el tamaño excesivo de las tablas
-unitarias.
+Al final de la evolución, se toma la tabla ganadora y se usa como entrada para
+el codificador \gls{JPEG}.
+

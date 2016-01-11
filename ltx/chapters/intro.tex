@@ -3,9 +3,9 @@
 La \gls{Compresión de Datos} es el acto de transformar la respresentación de la
 información con el propósito de reducir su tamaño.
 
-Se le llama \emph{compresión sin pérdida} a la compresión que se hace de manera
-que la información representada se mantenga intacta. Por otro lado, la
-\emph{compresión con pérdida} es una transformación que reduce el tamaño de la
+Se le llama \emph{\gls{compresión sin pérdida}} a la compresión que reduce el tamaño
+de la representación pero deja la información intacta. Por otro lado, la
+\emph{\gls{compresión con pérdida}} es una transformación que reduce el tamaño de la
 representación y que permite un grado de pérdida de información.
 
 Un ejemplo de compresión es el uso de la multiplicación para escribir sumas
@@ -17,12 +17,9 @@ misma información, el acto de comprimir reduce el tamaño de la
 \emph{representación}, dejando intacto el significado.
 
 La Compresión de Datos es una de las ramas más viejas de las Ciencias de la
-Computación. Está sentada sobre fundamentos matemáticos solidificados durante
-el mismo periodo en el cual las Ciencias de la Computación se establecían como
-un campo legítimo de estudio \cite{cs_the_discipline}.
-
-Es un matrimonio entre teoría y práctica que combina el rigor matemático de las
-teorías en las que se basa y el ingenio y la eficacia del implementador.
+Computación. \cite{cs_the_discipline}. Es un matrimonio entre teoría y práctica
+que combina el rigor matemático de las teorías en las que se basa y el ingenio
+de las personas que lo implementan.
 
 \section{Motivación}
 
@@ -31,23 +28,22 @@ iniciando su crecimiento exponencial, un comité de matemáticos e ingenieros,
 llamado "Joint Photographic Experts Group", o \gls{JPEG} estandarizó un formato de
 compresión de imágenes \cite{jpeg-spec}. El formato JPEG, soportando varios
 métodos de compresión, fue adaptado rápidamente y hoy en día es soportado por
-prácticamente todo programa que tenga que leer imágenes. Imágenes JPEG están
-incluidas en millones de páginas web y virtualmente todo navegador lo soporta.
+prácticamente todo programa que tenga que leer imágenes.
 
 Por su naturaleza, los formatos de datos son esclavos a la inercia. Mientras
 nuestro nuevo conocimiento matemático nos da herramientas que podemos utilizar
 para crear técnicas más eficientes y compresión de mayor calidad, los datos
 viejos siguen estando en sus viejos formatos y migrar puede ser difícil o
-imposible. En el caso de compresión con pérdida, migrar datos a nuevos formatos
+imposible. En el caso de \gls{compresión con pérdida}, migrar datos a nuevos formatos
 hace que se pierda parte de la información. Ésta pérdida, en muchos casos, es
 un precio demasiado alto que pagar para obtener las ventajas de nuevos y
-mejores formatos con compresión de datos.
+mejores métodos de compresión de datos.
 
 Como resultado, se puede notar que la adopción de nuevas técnicas de compresión
 tiende a ir de la mano con la migración a nuevos medios tecnológicos, e.g. VHS
 a DVD. Es poco probable que en el corto o mediano plazo veamos una migración
 tecnológica que nos haga cambiar fundamentalmente la manera que guardamos y
-compartimos fotografías. JPEG es la técnica de compresión con pérdida es más
+compartimos fotografías. JPEG es la técnica de \gls{compresión con pérdida} es más
 utilizada en el mundo y no hay razón para pensar que eso va a cambiar en el
 futuro cercano.
 
@@ -56,33 +52,33 @@ dada la dificultad de adoptar nuevos formatos de compresión, la motivación de
 este trabajo viene de la pregunta:  ¿Qué se puede hacer con el poder de sobra
 que tenemos a nuestra disposición?
 
-El resultado este trabajo es una manera de obtener una compresión JPEG de mejor
-calidad a la de codificadores convencionales, usando un algoritmo genético.
+El resultado de este trabajo es una manera de obtener una compresión JPEG de mejor
+calidad a la de codificadores convencionales, mediante el uso de \gls{Cómputo Evolutivo}.
 
 \section{Objetivo}
 
 La compresión JPEG, que será descrita en el capítulo \ref{ch:jpeg_desc}, tiene
-un componente importante para el cual no existe solución óptima. El componente
-al que me refiero es un par de matrices cuadradas de tamaño $8\times8$. La
-elección de qué matrices elegir para comprimir una imagen determina en gran
-parte la calidad y la tasa de compresión.
+un componente importante para el cual no existe solución óptima. Este
+componente es un par de matrices cuadradas de tamaño $8\times8$ llamadas
+\emph{\gls{tablas de cuantificación}}. La elección de qué tablas elegir para
+comprimir una imagen determina en gran parte la calidad y la tasa de compresión.
 
-La especificación JPEG \cite{jpeg-spec} incluye matrices de ejemplo, pero la
-elección de qué par de matrices usar está en las manos de cada codificador
+La especificación JPEG \cite{jpeg-spec} incluye tablas de ejemplo, pero la
+elección de qué par de tablas usar está en las manos de cada codificador
 JPEG. En la mayoría de los casos, cada implementador deja fijas en su
-codificador una lista de pares de matrices que corresponden a diferentes
-niveles de calidad. Las matrices se generan \"a ojo\". Sabiendo cómo funciona
-el algoritmo, y probando la calidad de la compresión para cada matriz sobre un
-conjunto fijo de imágenes que se consideran representativas.
+codificador una lista de pares de tablas que corresponden a diferentes
+niveles de calidad. Las tablas se generan una única vez utilizando heurísticas,
+sabiendo cómo funciona el algoritmo, y probando la calidad de la compresión
+para cada tabla sobre un conjunto fijo de imágenes que se consideran
+representativas.
 
 El enfoque de este trabajo es producir un codificador JPEG que encuentre un par
-de matrices ideal para la imagen particular que se está decidiendo codificar.
+de tablas ideal para la imagen particular que se está decidiendo codificar.
 Se implementó un codificador JPEG diseñado desde cero para adaptarse a un
 algoritmo genético. La implementación hace uso del paralelismo en CPUs y GPUs.
 
 En los siguientes capítulos, se da una descripción del funcionamiento de la
-compresión JPEG y una introducción a los algoritmos genéticos. Después, se da
-una descripción de los detalles de la implementación, seguido de un desglose de
-los resultados y una sección donde se habla de las conclusiones obtenidas.
+compresión JPEG y una introducción a los algoritmos genéticos. Después, se
+describen de los detalles de la implementación y se discuten los resultados.
 
 

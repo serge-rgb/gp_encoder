@@ -4,7 +4,7 @@
 %************************************************
 
 El proyecto presentado en esta tesis aprovecha los saltos tecnológicos que se
-han dado desde la creación de JPEG en 1992 \ref{jpeg-spec} para lograr mejor
+han dado desde la creación de JPEG en 1992 \cite{jpeg-spec} para lograr mejor
 resultados usando un formato ya existente. El algoritmo produce buenos
 resultados consistentemente, y ocasionalmente consigue simultáneamente una
 mejor calidad de imagen y una mayor compresión.
@@ -14,7 +14,7 @@ producir imágenes \emph{indistinguibles} de las originales, sin mencionar el
 hecho de que es imposible medir las características cualitativas del sistema
 visual humano. Se utilizó una métrica estándar de diferencia \emph{pixel por
 pixel} para determinar el error de imagen, pero esta no es la única opción
-disponible. Existe un área de investigación interesada en medir la calidad de
+disponible. Existe un área de investigación dedicada a medir la calidad de
 imágenes tomando en cuenta modelos basados en el sistema visual humano
 \cite{subjective-paper}.
 
@@ -53,8 +53,12 @@ que quiera usar el poder de los GPUs.
 
 Este proyecto aprovechó el hecho de que JPEG cuenta con un problema para el
 cual no existe solución, y fue exitoso en lograr su propósito mediante el uso
-de \gls{Cómputo Evolutivo}. La programación genética fue una gran herramienta
+de \gls{Cómputo Evolutivo}. Los algoritmos genéticos fueron una gran herramienta
 para conseguir una solución heurística al problema de las tablas de
 cuantificación.
 
-% Uso de cómputo evolutivo
+Los algoritmos genéticos se prestan a ser programados con \gls{GPGPU}. La
+necesidad de alto rendimiento y la tendencia a que no importe tener alta
+latencia sugieren que los GPUs pueden ser usados. Si la función de selección es
+una función pura y el problema es demandante, entonces no hay razón para no
+hacer una implementación en el GPU.

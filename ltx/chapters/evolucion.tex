@@ -112,7 +112,7 @@ $\alpha$ adecuado.
 El valor de $\alpha$ controla el proceso de minimización. Mientras mayor sea
 $\alpha$, más peso de selección tiene el tamaño de la imagen. El algoritmo tiende
 a 'preferir' minimizar el error contra el tamaño después de cierto umbral de
-$\alpha > 1$. Para valores de $alpha <= 1$, se producen imágenes de muy mala calidad.
+$\alpha > 1$. Para valores de $\alpha \leq 1$, se producen imágenes de muy mala calidad.
 
 Habiendo probado varios valores distintos, se encontró que un valor de $\alpha
 = 2$ resulta en imágenes que son indistinguibles de las originales, con un alto
@@ -145,9 +145,7 @@ El algoritmo decide terminar cuando sucede una de dos cosas:
 
 \begin{itemize}
 \item El número de generaciones llega a 100
-\item La diferencia entre el valor de la función \ref{eq:fitness} para el
-individuo más apto es menor a 0.0001 cuatro veces consecutivas. En este caso,
-se decide que la evolución ha convergido.
+\item Dado el individuo más apto de generación previa $x_p$ y el de la generación actual, $x_0$, sucede cuatro veces consecutivas que $f(x_p) - f(x_0) \leq 0.0001$, donde $f$ es la función de selección \ref{eq:fitness}.
 \end{itemize}
 
 Al final de la evolución, se toma la tabla ganadora y se usa como entrada para

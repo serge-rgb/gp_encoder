@@ -339,11 +339,21 @@ usuario desea obtener la calidad máxima de imagen, se utilizan tablas de
 cuantificación cuyas constantes son todas 1, en cuyo caso, la única pérdida de
 información es la de redondeo y la de precisión de punto flotante.
 
-En la práctica, se utiliza el hecho de que el sistema de visión humano es menos
-sensible a cambios pequeños en frecuencias altas para escoger constantes
-grandes para frecuencias altas y constantes pequeña para frecuencias bajas.
-Sigue un ejemplo dado en \cite{jpeg-paper} para una tabla de cuantificación
-típica:
+El sistema de visión humano es menos sensible a cambios en la energía de la
+señal en frecuencias bajas que en frecuencias altas. JPEG utiliza esto para
+escoger las constantes de la tabla de cuantificación. Constantes pequeñas para
+frecuencias bajas y constantes más grandes para frecuencias altas. Esto resulta
+en mayor compresión por dos razones:
+
+Primero, la probabilidad de que un coeficiente sea cero es proporcional al
+tamaño de la constante. Para cualquier constante de cuantificación, todos los
+valores menores a ella van a ser cuantificados a cero. El algoritmo JPEG trata
+de manera especial a series de ceros consecutivos.
+
+Segundo, mientras más grande sea el coeficiente de cuantificación de una
+variable, menos son los valores posibles que se pueden tomar después de ser
+cuantificados. Reducir el número de símbolos implica mejor compresión de
+entropía (sección \label{sub:huffman}).
 
 \begin{equation}
     \begin{matrix}
@@ -412,10 +422,12 @@ notó que la compresión delta contribuye con alrededor de $15\%$ de compresión
 extra, comparado con una versión que no usa compresión delta para el
 coeficiente DC.
 
-Los otros 63 coeficientes son denominados \emph{\gls{coeficientes AC}}. Se comprimen
-en tuplas de dos elementos. El segundo elemento es un coeficiente distinto de
-cero, el primer elemento representa el número coeficientes iguales a cero que
-le preceden.
+Los otros 63 coeficientes son denominados \emph{\gls{coeficientes AC}}. Se
+comprimen en tuplas de dos elementos. El segundo elemento de la tupla es un
+coeficiente distinto de cero, el primer elemento representa el número
+coeficientes iguales a cero que le preceden. Cuando ya se codificó el
+coeficiente DC y cero o más coeficientes AC, pero el resto del bloque consiste
+solamente de ceros, se utiliza la tupla especial $(0,0)$.
 
 % descripción breve de Huffman.
 
@@ -432,7 +444,7 @@ resúmen al final de esta sección.
 Los árboles de Huffman se enseñan en la Facultad de Ciencias para la carrera de
 Ciencias de la Computación en el curso de Estructuras Discretas.
 
-Dado una lista de símbolos, (el abecedario, por ejemplo), queremos que los
+Dada una lista de símbolos, (el abecedario, por ejemplo), queremos que los
 símbolos más usados tengan una representación más compacta que los símbolos
 menos usados.
 
@@ -458,7 +470,7 @@ enunciado en inglés \emph{this is an example of a huffman tree}.
 
 Los códigos se generan a partir del camino que se toma para llegar al símbolo
 en el árbol. $0$ para rama izquierda, $1$ para rama derecha. En este ejemplo, a
-la letra 'e' le corresponde el código \verb+000+ y a la letra 'a' \verb+001+.
+la letra 'e' le corresponde el código \verb+000+ y a la letra 'a' \verb+010+.
 Para estas dos letras se está usando 3 ($37.5\%$) de los 8 bits que se
 usan comúnmente para representar letras en inglés.
 

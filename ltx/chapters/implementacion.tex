@@ -1,6 +1,6 @@
 \chapter{Implementación JPEG}\label{ch:implementacion}
 
-Se implementó un codificador JPEG, lanzado al dominio público en github bajo el
+Se implementó un codificador JPEG, lanzado al dominio público en \emph{ Github } bajo el
 nombre de TinyJPEG \cite{tiny_jpeg}.
 
 Encima de TinyJPEG, se desarrolló un proyecto que extiende TinyJPEG para
@@ -16,7 +16,7 @@ define como el proceso de encontrar y arreglar defectos de código.
 puede ser modificado para mejorar el desempeño.
 
 \emph{General Purpose GPU}, o \emph{\gls{GPGPU}} es el término usado para la
-práctica de programar GPUs directamente, a diferencia de el uso original, donde
+práctica de programar GPUs directamente, a diferencia del uso original, donde
 el GPU era un acelerador controlado por una biblioteca de gráficas como OpenGL
 o DirectX.
 
@@ -50,8 +50,11 @@ multi-plataforma y al valor de apoyar estándares abiertos de OpenCL.
 % ============================================================
 
 TinyJPEG es minimalista. Consiste de un archivo de alrededor 1000 líneas. Está
-escrito en el estilo popularizado por Sean Barrett de escribir un solo archivo
-\verb+.h+ con la siguiente estructura:
+escrito en el estilo popularizado por Sean Barrett \footnote{Sean Barrett es un
+programador famoso por escribir el motor de rendering del juego Thief y de sus
+bibliotecas de código libre \emph{stb} para facilitar el desarollo de
+aplicaciones multimedia.} de escribir un solo archivo \verb+.h+ con la
+siguiente estructura:
 
 \label{alg:stb}
 \begin{code}[language=C][h]
@@ -94,7 +97,7 @@ Ambas funciones son \emph{wrappers} sobre la función principal
 interna, que funciona de la siguiente manera:
 
 Se prepara una estructura estática para hacer compresión de Huffman y se
-pre-procesa la tabla según el algoritmo dct descrito en \ref{sec:DCT}. A esto
+pre-procesa la tabla según el algoritmo DCT descrito en \ref{sec:DCT}. A esto
 le llamamos el \emph{paso inicial}.  Cuando terminamos el \emph{paso inicial},
 determinamos el número de bloques que van a ser procesados. JPEG debe funcionar
 con imágenes cuyos tamaños verticales y horizontales no son múltiplos de 8.
@@ -195,13 +198,11 @@ coeficiente DC. Esto introduce un error en el tamaño reportado pero no afecta
 al error reportado. El error que se introduce viene de que se cuentan los bits de
 la representación de los 63 \gls{coeficientes AC}, pero no se cuentan los bits del
 \gls{coeficiente DC}. En las imágenes de prueba que se usaron para este trabajo, el
-tamaño reportado es menor que el tamaño real entre un 10\% y 20\%. El error es
-proporcionalmente más alto para imágenes con más energía en el primer
-coeficiente.
+tamaño reportado es menor que el tamaño real entre un 10\% y 20\%.
 
 La pregunta que se hace es: ¿El error en el reporte de tamaño es significativo?
 
-Las presión que se pone en la evolución es hacia imágenes que son
+La presión que se pone en la evolución es hacia imágenes que son
 indistinguibles de la original. Como el valor de cuantificación del primer
 coeficiente afecta de manera importante a la calidad de imagen comprimida, las
 tablas de la población rápidamente convergen a tener el primer valor de

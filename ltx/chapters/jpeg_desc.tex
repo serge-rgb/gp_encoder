@@ -67,18 +67,18 @@ redundancia puede utilizar Árboles de Huffman o Codificación Aritmética.
 
 El tipo \emph{progresivo} es similar a \emph{baseline}, pero se le agregan
 propiedades deseables. La imagen se comprime en múltiples pasos, cada uno con
-mayor detalle. Con el método \emph{progresivo}, se puede desplegar la imágen
+mayor detalle. Con el método \emph{progresivo}, se puede desplegar la imagen
 sin que se tenga la totalidad de los datos en memoria.
 
-La utilidad de este método es poder dibujar la imágen mientras se está
+La utilidad de este método es poder dibujar la imagen mientras se está
 descargando de Internet. Cuando se está en un entorno con ancho de banda
-limitado, o cuando se descarga una imágen muy grande, es de valor para el
-usuario poder ver versiones de la imágen progresivamente más detalladas
+limitado, o cuando se descarga una imagen muy grande, es de valor para el
+usuario poder ver versiones de la imagen progresivamente más detalladas
 mientras se descarga.
 
 \item \emph{Sin pérdida}
 
-La compresión sin pérdida fue agregada a JPEG ``por que tenían que agregarla''.
+La compresión sin pérdida fue agregada a JPEG ``porque tenían que agregarla''.
 No hubo un análisis riguroso para su diseño \cite{jpeg-spec}. Aunque la
 compresión JPEG sin pérdida no es mala, formatos como PNG son altamente más
 populares y efectivos. Mucho software simplemente no soporta JPEG con
@@ -86,11 +86,11 @@ compresión sin pérdida.
 
 \item \emph{Compresión Jerárquica}
 
-El modo jerárquico codifica la imágen en varias versiones, cada una a
+El modo jerárquico codifica la imagen en varias versiones, cada una a
 diferentes resoluciones. Se guarda en una estructura ``piramidal''. La primera
-imágen está comprimida a resolución completa, y cada imágen sucesiva se guarda
+imagen está comprimida a resolución completa, y cada imagen sucesiva se guarda
 a la mitad de la resolución de la anterior. Esta pirámide se guarda en memoria
-de imágen más pequeña a imágen más grande.
+de imagen más pequeña a imagen más grande.
 
 Este método es útil cuando la resolución de la imagen es muy grande, y la
 aplicación no necesita o no es capaz de utilizar la imagen en su tamaño
@@ -108,11 +108,11 @@ también se le refiere como \emph{DCT-Based Coding}, traducido aquí como
 necesario, se usará el término \emph{JPEG} para referirse a lo mismo que
 \emph{Baseline JPEG}.
 
-La codificación DCT divide a la imágen en bloques de $8\times8$ píxeles. Cada
+La codificación DCT divide a la imagen en bloques de $8\times8$ píxeles. Cada
 bloque de $8\times8$ pasa por una serie de transformaciones y salen
 secuencialmente como datos comprimidos.
 
-El primer paso en el \emph{pipeline} es separar los componentes de la imágen.
+El primer paso en el \emph{pipeline} es separar los componentes de la imagen.
 Las dos maneras más comunes de representar imágenes en computadoras es
 \verb+RGB+ o \verb+RGBA+: En ambos formatos, cada píxel ocupa 32 bits de
 espacio, divididos en componentes de 8 bits. Cada componente corresponde a un
@@ -223,7 +223,7 @@ comprimidos de JPEG.
 
 \subsection{YUV}\label{sub:yuv}
 
-Cada bloque crudo de la imágen se convierte en tres nuevos bloques, cada uno
+Cada bloque crudo de la imagen se convierte en tres nuevos bloques, cada uno
 correspondiente a un componente del modelo de color \gls{YUV}, también
 denominado \verb+YCbCr+
 
@@ -366,15 +366,14 @@ entropía (sección \label{sub:huffman}).
         49 & 64 & 78 & 87 & 103 & 121 & 120 & 101 \\
         72 & 92 & 95 & 98 & 112 & 100 & 103 & 99
     \end{matrix}
-    \label{fig:reference-table}
+    \label{eq:cuantificacion}
 \end{equation}
-\label{eq:cuantificacion}
 
 La tabla \ref{eq:cuantificacion} se usa en la implementación de JPEG.
 
 Nótese que los valores crecen a la derecha y hacia abajo, hacia las frecuencias
 altas, mientras que los valores mínimos se concentran en la esquina superior
-izquierda en las frecuencias bajas (ver imágen \ref{fig:dct}).
+izquierda en las frecuencias bajas (ver imagen \ref{fig:dct}).
 
 Una manera de conseguir distintos niveles de calidad es dividir cada elemento
 de la tabla de cuantificación por una constante.
@@ -412,7 +411,7 @@ información.
 
 El primer coeficiente de cada bloque, denominado \emph{\gls{coeficiente DC}},
 se codifica con \emph{\gls{codificación delta}}. Se mantiene una variable
-delta, inicializada en cero. Para cada bloque depués del primero, la variable
+delta, inicializada en cero. Para cada bloque después del primero, la variable
 delta guarda el valor del primer coeficiente. Cada bloque codifica su primer
 coeficiente como la diferencia entre su propio coeficiente y el coeficiente
 anterior. La razón para esto es que la variación entre coeficientes DC
@@ -425,7 +424,7 @@ coeficiente DC.
 Los otros 63 coeficientes son denominados \emph{\gls{coeficientes AC}}. Se
 comprimen en tuplas de dos elementos. El segundo elemento de la tupla es un
 coeficiente distinto de cero, el primer elemento representa el número
-coeficientes iguales a cero que le preceden. Cuando ya se codificó el
+de coeficientes iguales a cero que le preceden. Cuando ya se codificó el
 coeficiente DC y cero o más coeficientes AC, pero el resto del bloque consiste
 solamente de ceros, se utiliza la tupla especial $(0,0)$.
 
@@ -439,10 +438,7 @@ información independientemente de las características de su medio. JPEG usa
 \emph{prefix trees} en particular, y la gran mayoría de las implementaciones
 JPEG usan Árboles de Huffman. La especificación proporciona una segunda
 alternativa a Huffman: codificación aritmética, de la cual se dará un breve
-resúmen al final de esta sección.
-
-Los árboles de Huffman se enseñan en la Facultad de Ciencias para la carrera de
-Ciencias de la Computación en el curso de Estructuras Discretas.
+resumen al final de esta sección.
 
 Dada una lista de símbolos, (el abecedario, por ejemplo), queremos que los
 símbolos más usados tengan una representación más compacta que los símbolos

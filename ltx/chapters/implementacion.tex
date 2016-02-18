@@ -111,7 +111,7 @@ de 8, entonces el número de bloques es $n = (w + (8 - w \mod 8)) * (h + (8 - h
 término en la multiplicación por solamente $w$ o $h$ respectivamente. Por
 ejemplo, si $w \mod 8 = 0$ entonces $n = w * (h + (8 - h \mod 8))$
 
-Cada bloque se separa en tres bloques \verb+Y+, \verb+U+ \verb+V+ que a los que
+Cada bloque se separa en tres bloques \verb+Y+, \verb+U+ \verb+V+ a los que
 se les aplica la función \verb+encode_MCU()+.
 
 La función \verb+encode_MCU()+ es llamada así por el acrónimo \emph{\gls{MCU}},
@@ -223,10 +223,10 @@ elemento por alguna constante.
 Ya que se tiene un algoritmo que es \emph{casi JPEG}, pero paralelo, se sigue
 con la tarea de cambiar la arquitectura del programa para paralelizarlo en el
 CPU. La razón por la que se implementa el paralelismo en el CPU antes de
-hacerlo en el GPU es principalmente la velocidad de desarrollo. La manera en
-que se implementa la versión paralela en CPU se hace con \emph{plan con maña}.
-El código se moldea para que el flujo de ejecución en el CPU sea muy similar a
-la manera en que trabaja el GPU, intentando llegar al punto de que la
+hacerlo en el GPU es principalmente la velocidad de desarrollo. La versión
+paralela en el CPU se hace pensando en el diseño final para el GPU.  El
+código se moldea para que el flujo de ejecución en el CPU sea muy similar a la
+manera en que trabaja el GPU, intentando llegar al punto de que la
 implementación en el GPU se reduzca a un \emph{copy paste}, y que el esfuerzo
 que se aplique a la implementación del GPU sea solamente un trabajo de
 optimización de bajo nivel.
@@ -349,8 +349,8 @@ en la sección \ref{sec:microopt}.
 \section{Implementación paralela en CPU}
 
 Para describir la versión paralela de \verb+encode_MCU+, primero hay que listar
-la lista de parámetros que toma la función secuencial, que es llamada una vez
-por cada bloque.
+los parámetros que toma la función secuencial, que es llamada una vez por cada
+bloque.
 
 \begin{enumerate}
     \item \verb+mcu+, el \emph{minimum coded unit}. Es decir, el bloque
@@ -359,12 +359,7 @@ por cada bloque.
         crominancia)
     \item \verb+huffman+, apuntadores a las tablas de huffman para coeficientes
         DC y AC.
-    \item \verb+...+, un parámetro para hacer la compresión delta, y un par de
-        parámetros que son detalles de implementación.
 \end{enumerate}
-
-Lo que nos interesa son los primeros tres: El bloque, la tabla de
-cuantificación y las tablas de huffman.
 
 Para todos los bloques, los elementos 2 y 3 se mantienen invariantes. Lo que se
 hace es cambiar la función para que opere sobre un arreglo de bloques de
@@ -383,9 +378,9 @@ que la función tiene que acceder y el índice a donde tiene que escribir su
 resultado.
 
 El algoritmo paralelo trabaja en un patrón \emph{map-reduce}. No en el sentido
-de utilizar un cluster de computadoras para computo paralelo, si no en los
+de utilizar un cluster de computadoras para cómputo paralelo, si no en los
 conceptos de programación funcional que motivaron el título. Es un algoritmo
-estilo \emph{map-reduce} porque la mayor parte del computo se realiza en
+estilo \emph{map-reduce} porque la mayor parte del cómputo se realiza en
 paralelo sobre elementos de un arreglo (correspondiente a la función map) y
 cuando el proceso paralelo termina, se realiza una recolección secuencial para
 obtener  el resultado final (el equivalente a la función \emph{reduce}). Al implementar una
@@ -580,7 +575,7 @@ directamente de la ecuación \ref{eq:dct} y que muestra en la tabla \ref{alg:dct
 
 El algoritmo \ref{alg:dct} no es práctico para un codificador JPEG y mucho
 menos para este proyecto, que ejecuta el algoritmo JPEG cientos de veces para
-una sola imagen. Existen métodos calcular la DCT (y su inversa, la IDCT)
+una sola imagen. Existen métodos para calcular la DCT (y su inversa, la IDCT)
 rápidamente. La discusión presentada aquí sobre el desarrollo de algoritmos
 rápidos DCT es análoga para la inversa, ya que las ecuaciones son muy similares
 (\ref{eq:dct}, \ref{eq:idct}).
@@ -589,7 +584,7 @@ Este proyecto usa el algoritmo \gls{DCT} usado en proyectos como ffmpeg y la
 implementación de referencia de JPEG. Fue originalmente desarrollado por
 \cite{ahmed_dct}.
 
-El algoritmo esta basado en la observación de que la ecuación \ref{eq:dct} es
+El algoritmo está basado en la observación de que la ecuación \ref{eq:dct} es
 lineal, y por lo tanto el cálculo \emph{DCT} se puede expresar como $F(X) =
 A^{T}XA$ Donde $X$ es un bloque de $8\times8$ y A es la matriz:
 
@@ -609,7 +604,7 @@ A^{T}XA$ Donde $X$ es un bloque de $8\times8$ y A es la matriz:
 
 Esta matriz tiene alta redundancia. Por ejemplo, el cuarto elemento del segundo renglón es $cos\frac{7\pi}{16} \approx 0.19509$. Este va a ser el mismo valor para todos los elementos que sean $cos\frac{n\pi}{16}$ con $n \mod 16 = 7$. Dígase $\frac{25\pi}{16}$, y $\frac{39\pi}{16}$.
 
-Para simplificar la representación se usa el módulo 16 como se acaba de mostrar junto con dos técnicas más: la periodicidad del coseno: $cos(x) = cos(x + 2\pi)$ y la propiedad de que es una función par: $cos(-x) = -cos(x)$.
+Para simplificar la representación se usa el módulo 16 como se acaba de mostrar junto con dos técnicas más: la periodicidad del coseno: $\Big( cos(x) = cos(x + 2\pi) \Big)$ y la propiedad de que es una función par: $\Big( cos(-x) = -cos(x) \Big)$.
 
 Se termina con una matriz cuyos elementos tienen 7 posibles valores y sus negativos:
 
@@ -686,7 +681,7 @@ donde $X$ es un renglón del bloque original.
 
 De esta ecuación sacamos directamente el algoritmo final. Avanzamos por las 8 columnas del bloque original, escribiendo a los 8 renglones del bloque DCT.
 
-Para ilustrar la diferencia entre el algoritmo directo y el algoritmo que se describe aquí, se incluyen dos imágenes de una aplicación que carga una imagen de prueba y la codifica con TinyJPEG. Se deshabilita la optimización para que que no se hagan optimizaciones \emph{inline}, pero los resultados son consistentes con niveles altos de optimización.
+Para ilustrar la diferencia entre el algoritmo directo y el algoritmo que se describe aquí, se incluyen dos imágenes de una aplicación que carga una imagen de prueba y la codifica con TinyJPEG. Se deshabilita la optimización para que no se hagan optimizaciones \emph{inline}, pero los resultados son consistentes con niveles altos de optimización.
 
 Nótese que la figura \ref{fig:pre_dct} muestra al algoritmo DCT tomando un total de 98.76\% del tiempo total del programa, mientras que en la figura \ref{fig:post_dct} está reducido a un 12.34\%.
 

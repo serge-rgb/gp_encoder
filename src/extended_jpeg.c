@@ -17,10 +17,15 @@ int tje_encode_to_file_with_qt(const char* dest_path,
 
     TJEState state = { 0 };
 
-    state.fd = fd;
-
     memcpy(state.qt_luma, qt, 64 * sizeof(uint8_t));
     memcpy(state.qt_chroma, qt, 64 * sizeof(uint8_t));
+
+    TJEWriteContext wc = { 0 };
+
+    wc.context = fd;
+    wc.func = tjei_stdlib_func;
+
+    state.write_context = wc;
 
     tjei_huff_expand(&state);
 

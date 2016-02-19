@@ -22,8 +22,8 @@ Las características que los Algoritmos Evolutivos tienen en común son:
 
 \begin{itemize}
 \item Definen una población
-\item Definen una función de selección.
-\item Utilizan mutación y reproducción junto con la función de selección para
+\item Definen una función de aptitud.
+\item Utilizan mutación y reproducción junto con la función de aptitud para
 mejorar la población a lo largo de varias generaciones.
 \end{itemize}
 
@@ -32,7 +32,7 @@ respecto a la manera en que concretizan estas características.
 
 \begin{itemize}
 \item La \emph{Programación Genética} \cite{GenProg} tiene conjuntos de
-programas como su población. Su función de selección es la capacidad de un
+programas como su población. Su función de aptitud es la capacidad de un
 programa para resolver cierto problema. Los programas se representan como
 árboles de sintaxis, y de esta manera se define la mutación y reproducción como
 operaciones en árboles.
@@ -40,7 +40,7 @@ operaciones en árboles.
 pero lo que se evoluciona son los parámetros de los programas, no su
 estructura.
 \item Los \emph{Algoritmos Genéticos} definen genotipos y su correspondiente
-función de selección que evalúa los fenotipos respectivos. Es decir, se opera
+función de aptitud que evalúa los fenotipos respectivos. Es decir, se opera
 sobre el cromosoma pero se evalúa el organismo.
 
 El algoritmo desarrollado entra dentro de la clasificación de Algoritmo
@@ -61,7 +61,7 @@ unitaria}}. La tabla unitaria es la que obtiene la mejor calidad posible pero
 resulta en menor compresión. El resto del conjunto se llena de tablas con
 valores aleatorios entre 1 y 64.
 
-La función de selección requiere de un punto de referencia. Antes de iniciar la
+La función de aptitud requiere de un punto de referencia. Antes de iniciar la
 evolución, se comprime la imagen con la tabla unitaria, dándonos un punto de
 referencia para la calidad óptima y para el máximo tamaño.
 
@@ -85,7 +85,7 @@ la tabla a comparar no sea en sí una tabla unitaria.
 
 Sea $T$ una tabla de nuestra población y sea $T_0$ la tabla unitaria.
 
-Definimos nuestra función de selección como:
+Definimos nuestra función de aptitud como:
 
 \begin{equation}
 f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(1 + \frac{s(T)}{s(T_0)}\Big)
@@ -110,9 +110,10 @@ es puramente una una conveniencia para facilitar la búsqueda de un valor de
 $\alpha$ adecuado.
 
 El valor de $\alpha$ controla el proceso de minimización. Mientras mayor sea
-$\alpha$, más peso de selección tiene el tamaño de la imagen. El algoritmo tiende
+$\alpha$, más peso de aptitud tiene el tamaño de la imagen. El algoritmo tiende
 a 'preferir' minimizar el error contra el tamaño después de cierto umbral de
-$\alpha > 1$. Para valores de $\alpha \leq 1$, se producen imágenes de muy mala calidad.
+$\alpha > 1$. Para valores de $\alpha \leq 1$, se producen imágenes de muy mala
+calidad.
 
 Habiendo probado varios valores distintos, se encontró que un valor de $\alpha
 = 2$ resulta en imágenes que son indistinguibles de las originales, con un alto
@@ -127,7 +128,7 @@ Con las pruebas que se hicieron, se encontró que con el método de cruza y de
 mutación que se está utilizando, la taza más efectiva es dividir 50\% de la
 población para ser mutada, y 50\% para ser cruzada. En la mayoría de los casos
 esto resultó en una convergencia más rápida con mejores valores al evaluar la
-función de selección.
+función de aptitud.
 
 El proceso de mutación es como sigue: Cada entrada de la tabla tiene una
 probabilidad de $\frac{1}{64}$ de mutar. Cuando una entrada $e$ muta, lo hace
@@ -145,7 +146,7 @@ El algoritmo decide terminar cuando sucede una de dos cosas:
 
 \begin{itemize}
 \item El número de generaciones llega a 100
-\item Dado el individuo más apto de generación previa $x_p$ y el de la generación actual, $x_0$, sucede cuatro veces consecutivas que $f(x_p) - f(x_0) \leq 0.0001$, donde $f$ es la función de selección \ref{eq:fitness}.
+\item Dado el individuo más apto de generación previa $x_p$ y el de la generación actual, $x_0$, sucede cuatro veces consecutivas que $f(x_p) - f(x_0) \leq 0.0001$, donde $f$ es la función de aptitud \ref{eq:fitness}.
 \end{itemize}
 
 Al final de la evolución, se toma la tabla ganadora y se usa como entrada para
@@ -154,7 +155,7 @@ el codificador \gls{JPEG}.
 \section{Codificador Evolutivo}
 
 El nombre del proyecto final es \emph{gp\_encoder}. Consta de un algoritmo
-evolutivo que utiliza a DummyJPEG para su función de selección y a TinyJPEG
+evolutivo que utiliza a DummyJPEG para su función de aptitud y a TinyJPEG
 para codificar la imagen resultante.
 
 % ============================================================
@@ -166,8 +167,8 @@ con compresión \emph{baseline} basada en la especificación \cite{jpeg-spec};
 DummyJPEG: la versión modificada de JPEG que sirve para tener una función de
 selección paralelizable, que tiene implementaciones paralelas para CPU y GPU; y
 finalmente, el proyecto completo, que consta de un algoritmo evolutivo descrito
-en el capítulo \ref{ch:evolucion}, que utiliza DummyJPEG en su función de selección y emite
-el resultado usando TinyJPEG.
+en el capítulo \ref{ch:evolucion}, que utiliza DummyJPEG en su función de
+aptitud y emite el resultado usando TinyJPEG.
 
 La biblioteca TinyJPEG, a partir de ser lanzada como código libre, consiguió
 una base de usuarios. Actualmente hay gente usándola en aplicaciones que van
@@ -216,9 +217,9 @@ La imagen ``Ghost'' es una captura de pantalla del Anime \emph{Ghost in the
 Shell}. Es un punto medio entre el ruído de ``Diego'' y el estilo caricaturesco
 de ``Klay''
 
-Finalmente, la imágen ``Pluto'' (figura \ref{fig:ref-pluto}) es una fotografía
+Finalmente, la imagen ``Pluto'' (figura \ref{fig:ref-pluto}) es una fotografía
 publicada por NASA cuando la sonda \emph{New Horizons} pasó cerca de Plutón en
-Septiembre de 2015. La imágen tiene una resolución de $8000\times8000$ y su
+Septiembre de 2015. La imagen tiene una resolución de $8000\times8000$ y su
 principal propósito es mostrar cómo se comportan los diferentes componentes del
 proyecto cuando se presenta una carga de trabajo grande relativamente a las
 demás imágenes.
@@ -253,7 +254,7 @@ demás imágenes.
 \section{Convergencia}
 % ============================================================
 
-Recordando la ecuación que usamos para nuestra función de seleccion:
+Recordando la ecuación que usamos para nuestra función de aptitud:
 
 \begin{equation}
 f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(1 + \frac{s(T)}{s(T_0)}\Big)
@@ -267,25 +268,25 @@ tabla de cuantificación que consiste solo de valores 1, que denominamos
 \emph{baseline} a una compresión sin pérdida. Por lo tanto, el primer parámetro
 de la ecuación está en $[1, \infty)$.
 
-De manera análoga, el tamaño de la imágen resultante al comprimir con la tabla
+De manera análoga, el tamaño de la imagen resultante al comprimir con la tabla
 unitaria es el mayor posible. Entonces, el término $\frac{s(T)}{s(T_0)} \in (0,
 1]$. Se encontró que un buen valor de $\alpha$ para conseguir imágenes de alta
 calidad es 2. Por lo tanto, el segundo término de la ecuación $f(T)$ está en
 $(2, 4]$
 
-En base a esto, se concluye que para la función de selección, con una tabla de
+En base a esto, se concluye que para la función de aptitud, con una tabla de
 cuantificación arbitraria, el mínimo valor posible es 3.
 
 En esta sección se incluyen las gráficas de convergencia para la función de
-selección al correr gp\_encoder con las cuatro imágenes de referencia:
+aptitud al correr gp\_encoder con las cuatro imágenes de referencia:
 \ref{img:plot-diego}, \ref{img:plot-ghost}, \ref{img:plot-klay}, \ref{img:plot-pluto}.
 
 Todas las figuras mostradas están normalizadas a 50 generaciones con un rango
-de evaluación de la función de selección entre 3.5 y 5. Se usa una gráfica de
-línea para mostrar el valor de la función de selección para los individuos más
+de evaluación de la función de aptitud entre 3.5 y 5. Se usa una gráfica de
+línea para mostrar el valor de la función de aptitud para los individuos más
 aptos y se utilizan puntos para los peores individuos de cada generación. Se
 usan puntos porque comúnmente ocurre que en alguna generación, el individuo
-menos apto tenga un valor de selección mucho mayor a 5. El caso común, sin
+menos apto tenga un valor de aptitud mucho mayor a 5. El caso común, sin
 embargo, es que los individuos menos aptos también tienden a un punto de
 convergencia mientras la evolución avanza.
 
@@ -294,7 +295,7 @@ que hubo una convergencia en un número de generaciones relativamente pequeño.
 Para ver lo que pasaba, se cambió la tasa de mutación:cruza de 0.5 a 0.8,
 resultando en la figura \ref{img:plot-pluto2}. Esto resulta en una gráfica
 \emph{``escalonada"}, mostrando una evolución de 57 generaciones que produce
-una tabla con valor de selección similar al del resultado original. Fue
+una tabla con valor de aptitud similar al del resultado original. Fue
 consistente el encontrar que cualquier distribución distinta a 50/50 producía
 peores resultados.
 
@@ -385,7 +386,7 @@ motor del juego que produjo la imagen original.
 \end{figure}
 
 Para finalizar, se incluye la tabla de cuantificación evolucionada para la
-imágen Klay (figura \ref{fig:klay-table}). Vale la pena compararla con la tabla de
+imagen Klay (figura \ref{fig:klay-table}). Vale la pena compararla con la tabla de
 cuantificación de referencia \ref{fig:reference-table} para observar las
 características poco intuitivas de la tabla generada por gp\_encoder, como la
 relativa alta cantidad de coeficientes de valores bajos en las frecuencias

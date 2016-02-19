@@ -83,6 +83,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+
     int w, h, ncomp;
     char* fname =
             "diego.bmp";
@@ -117,11 +118,13 @@ int main()
     DJEState optimal_state = base_state;
     dje_encode_main(&optimal_state, gpu_info, optimal_table);
 
+    // TODO: stretchy buffer!
     uint8_t tables[NUM_TABLES_PER_GENERATION][64];
 
     // Add the optimal table to the initial population.
     memcpy(tables[0], optimal_table, 64 * sizeof(uint8_t));
 
+    // TODO: Add worst possible table?
     // Starting from 1 because tables[0] gets filled with ones.
     for (int i = 1; i < NUM_TABLES_PER_GENERATION; ++i) {
         uint8_t* table = tables[i];
@@ -130,10 +133,10 @@ int main()
         }
     }
 
+    // TODO: stretchy array...
     // Fill initial population.
-    PopulationElement* population = arena_alloc_array(&root_arena,
-                                                      NUM_TABLES_PER_GENERATION,
-                                                      PopulationElement);
+    PopulationElement* population = arena_alloc_array(&root_arena, NUM_TABLES_PER_GENERATION, PopulationElement);
+
     for (int i = 0; i < NUM_TABLES_PER_GENERATION; ++i) {
         population[i] = (PopulationElement) {
             .table = tables[i],
@@ -159,7 +162,6 @@ int main()
     clock_gettime(CLOCK_REALTIME, &ts);
 #endif
 
-
     for (int gen_i = 0; gen_i < num_generations; ++gen_i) {
         // Determine fitness.
         for ( int table_i = 0; table_i < NUM_TABLES_PER_GENERATION; ++table_i ) {
@@ -178,18 +180,20 @@ int main()
                 fitness += 1000;
             }
 
-
             population[table_i].fitness = fitness;
         }
 
         // Sort by fitness.
         qsort(population, NUM_TABLES_PER_GENERATION, sizeof(PopulationElement), pe_comp);
 
+        // TODO: select probabilistically!
         // Select two survivors.
         PopulationElement survivors[2] = {
             population[0], population[1],
         };
 
+        // TODO: Should have mutation, crossover and reproduction. Different concepts.
+        // TODO: Re-test ratios.
         int num_mutated = (int)((NUM_TABLES_PER_GENERATION - 2) * 0.5f);
         // Note: NUM_TABLES_PER_GENERATION = 2 + num_mutated + num_crossed
         int num_crossed = NUM_TABLES_PER_GENERATION - 2 - num_mutated;
@@ -197,6 +201,7 @@ int main()
         int population_index = 2;
         int mutation_wiggle = 4;
 
+        // TODO: Mutation should be a very unusual thing
         for (int i = 0; i < num_mutated; ++i) {
             uint8_t* table = population[population_index++].table;
             uint8_t* parent = (rand() % 2) ? population[0].table : population[1].table;
@@ -211,6 +216,7 @@ int main()
             }
         }
 
+        // TODO: Choose a point, create two descendents.
         for (int i = 0; i < num_crossed; ++i) {
             uint8_t* table = population[population_index++].table;
 
@@ -219,6 +225,8 @@ int main()
                 table[ei] = survivors[dice].table[ei];
             }
         }
+
+        // TODO: Actual reproduction is missing here.
         float winner_fitness = population[0].fitness;
 
         assert (population_index == NUM_TABLES_PER_GENERATION);

@@ -156,8 +156,7 @@ void fdct (float * data)
 
 // take a -128..127 value and stbi__clamp it and convert to 0..255
 
-#if defined(__OPENCL_VERSION__)
-stbi_uc stbi__clamp(int x)
+stbi_uc dje_clamp(int x)
 {
    // trick to use a single test to catch both cases
    if ((unsigned int) x > 255) {
@@ -166,7 +165,6 @@ stbi_uc stbi__clamp(int x)
    }
    return (stbi_uc) x;
 }
-#endif
 
 #define stbi__f2f(x)  ((int) (((x) * 4096 + 0.5)))
 #define stbi__fsh(x)  ((x) << 12)
@@ -263,13 +261,13 @@ static void idct_block(__private uint8_t* out, int out_stride, __private short* 
         x3 += 65536 + (128<<17);
         // tried computing the shifts into temps, or'ing the temps to see
         // if any were out of range, but that was slower
-        o[0] = stbi__clamp((x0+t3) >> 17);
-        o[7] = stbi__clamp((x0-t3) >> 17);
-        o[1] = stbi__clamp((x1+t2) >> 17);
-        o[6] = stbi__clamp((x1-t2) >> 17);
-        o[2] = stbi__clamp((x2+t1) >> 17);
-        o[5] = stbi__clamp((x2-t1) >> 17);
-        o[3] = stbi__clamp((x3+t0) >> 17);
-        o[4] = stbi__clamp((x3-t0) >> 17);
+        o[0] = dje_clamp((x0+t3) >> 17);
+        o[7] = dje_clamp((x0-t3) >> 17);
+        o[1] = dje_clamp((x1+t2) >> 17);
+        o[6] = dje_clamp((x1-t2) >> 17);
+        o[2] = dje_clamp((x2+t1) >> 17);
+        o[5] = dje_clamp((x2-t1) >> 17);
+        o[3] = dje_clamp((x3+t0) >> 17);
+        o[4] = dje_clamp((x3-t0) >> 17);
     }
 }

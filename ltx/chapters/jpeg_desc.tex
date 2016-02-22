@@ -78,19 +78,20 @@ mientras se descarga.
 
 \item \emph{Sin pérdida}
 
-La compresión sin pérdida fue agregada a JPEG ``porque tenían que agregarla''.
-No hubo un análisis riguroso para su diseño \cite{jpeg-spec}. Aunque la
-compresión JPEG sin pérdida no es mala, formatos como PNG son altamente más
-populares y efectivos. Mucho software simplemente no soporta JPEG con
-compresión sin pérdida.
+Aunque el estándar JPEG incluye la posibilidad de compresión sin pérdida, el
+artículo en el que se presenta JPEG \cite{jpeg-paper} hace notar que no hubo un
+análisis riguroso para su diseño.
+
+La compresión JPEG sin pérdida no es mala, pero formatos como PNG o TGA son más
+populares y efectivos. Aunque está incluida en la especificación, mucho
+software simplemente no soporta JPEG con compresión sin pérdida.
 
 \item \emph{Compresión Jerárquica}
 
 El modo jerárquico codifica la imagen en varias versiones, cada una a
 diferentes resoluciones. Se guarda en una estructura ``piramidal''. La primera
 imagen está comprimida a resolución completa, y cada imagen sucesiva se guarda
-a la mitad de la resolución de la anterior. Esta pirámide se guarda en memoria
-de imagen más pequeña a imagen más grande.
+a la mitad de la resolución de la anterior.
 
 Este método es útil cuando la resolución de la imagen es muy grande, y la
 aplicación no necesita o no es capaz de utilizar la imagen en su tamaño

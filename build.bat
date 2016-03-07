@@ -18,6 +18,6 @@ set includes=/I ../src /I ../src/tiny_jpeg /I ../src/libserg /I ../third_party
 
 IF NOT EXIST build mkdir build
 pushd build
-::cl /nologo /FC /Wall /wd4464 /WX /Zi /Od /fp:fast %includes% %defines% %suppressed% ..\src\jpeg_test.c OpenCL.lib
-cl /nologo /FC /Wall /WX /Zi /Ox %includes% %defines% %suppressed% ..\src\main.c ..\src\extended_jpeg.c OpenCL.lib /Fe:JpegEvolve.exe
+cl /nologo /FC /Wall /wd4464 /WX /Zi /Od /fp:fast %includes% %defines% %suppressed% ..\src\jpeg_test.c OpenCL.lib
+::cl /nologo /FC /Wall /WX /Zi /Ox %includes% %defines% %suppressed% ..\src\main.c ..\src\extended_jpeg.c OpenCL.lib /Fe:JpegEvolve.exe
 popd

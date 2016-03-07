@@ -236,17 +236,23 @@ optimización de bajo nivel.
 Las arquitecturas de GPU, en el momento que se escribe esto, trabajan con
 instrucciones SIMT (\emph{Single Instruction, Multiple Threads}).
 
-Supercomputadoras vectoriales como la \emph{Cray} se introdujeron en los 70s y
-gradualmente perdieron popularidad mientras computadoras con microprocesadores
-x86 bajaron de precio.
+Supercomputadoras vectoriales como la \emph{Cray} se introdujeron en los 70s
+pero gradualmente perdieron popularidad mientras computadoras con
+microprocesadores x86 bajaron de precio. Las computadoras de escritorio serían
+completamente escalares hasta el final de los 90s, y las súper-computadoras
+seguirían siendo por un tiempo grupos de procesadores x86.
 
 En 1998 AMD introdujo instrucciones vectoriales con su tecnología \emph{3D
 Now}, seguido por Intel en 1999 cuando introdujo SSE (Streaming SIMD
-extensions). Ambas tecnologías son extensiones al conjunto de instrucciones x86.
+extensions). Ambas tecnologías son extensiones al conjunto de instrucciones x86
+que introducen cómputo vectorial. Unos años más tarde se empezaría a
+popularizar los procesadores \emph{multi-core}. Ambos desarrollos, que
+introducen cómputo paralelo a los procesadores para consumidor son el resultado
+de el desacelere de la velocidad escalar y una demanda constante de mayor desempeño.
 
-En los noventas fue cuando nacieron los aceleradores gráficos: tarjetas que se
-dedican a rasterizar triángulos rápidamente para aplicaciones multimedia,
-principalmente videojuegos.
+Otra respuesta a esta demanda para mayor desempeño nació en los noventas: Los
+aceleradores gráficos, o GPUs. Tarjetas que se dedican a rasterizar triángulos
+rápidamente para aplicaciones multimedia, principalmente videojuegos.
 
 Aunque al principio los GPUs estaban diseñados alrededor de APIs como OpenGL y
 DirectX, con funcionalidad fija, poco a poco fueron adquiriendo la habilidad de
@@ -254,54 +260,73 @@ ser programables. Primero con \emph{shaders}, que permitieron meter código en
 un par de partes clave del proceso de rasterización, y más tarde con OpenCL y
 CUDA, que permiten escribir programas para el GPU en un dialecto de C.
 
-El modelo de ejecución de OpenCL corresponde directamente a las arquitecturas GPU
-actuales y funciona de la siguiente manera.
+El modelo de ejecución de OpenCL corresponde directamente a las arquitecturas
+GPU actuales. Para describir su funcionamiento, en este documento se usa la
+terminología de OpenCL y AMD. Nvidia tiene términos diferentes para los mismos
+conceptos, la tabla \ref{fig:equiv} describe las equivalencias.
+
+Esta descripción se enfoca en la arquitectura Kepler de Nvidia y cómo le
+corresponden los conceptos de OpenCL.
 
 Un programa OpenCL opera con \emph{work items}. Un work item puede pensarse
-como un thread, pero lo que es realmente es una \emph{``fibra"} en un
-\emph{``cable"} que ejecuta instrucciones vectoriales. En la arquitecturas
-modernas de Nvidia, la longitud de los vectores es de 32 elementos.
+como una \emph{``fibra"} en un \emph{``cable"} que ejecuta instrucciones
+vectoriales. En la arquitecturas modernas de Nvidia, la longitud de los
+vectores es de 32 elementos. Es decir, cada cable tiene 32 fibras.
 
 A estos \emph{``cables"} se les denomina \emph{wavefronts}.
 
 La tarjeta de video tiene un calendarizador implementado en hardware que
-trabaja con granularidad de \emph{wavefronts} individuales.  Los \emph{work
+trabaja con granularidad de \emph{wavefronts} individuales. Los \emph{work
 items} corren \emph{kernels}, que son funciones escritas en el
-dialecto de C de OpenCL para ser ejecutadas en el GPU.
+dialecto de C de OpenCL para ser ejecutadas en el GPU. Un kernel de OpenCL se
+ve como código en C, pero hay que imaginarse que en lugar de un sólo apuntador
+de instrucciones avanzando secuencialmente, se está lidiando con 32 apuntadores
+de instrucciones (las fibras del cable en la analogía que se usa). Este es un
+paradigma diferente. Por ejemplo, los saltos dinámicos se convierten en algo
+caro, ya que mientras un subconjunto de los 32 apuntadores de instrucciones
+procesa un camino de ejecución, el resto debe esperar. Un salto que se toma el
+50\% del tiempo es causa un \emph{slowdown} de 2x.
 
 Un \emph{work item} es parte de un \emph{work group}. El tamaño del \emph{work
 group} es decisión del programador, puede ser de 1, 2 o 3 dimensiones y su
-tamaño puede variar, aunque es buena práctica escoger un múltiplo del tamaño
-vectorial (32 en Kepler y Maxwell). Hay que encontrar el tamaño apropiado de
-\emph{work group} para minimizar contención de memoria y maximizar el
+tamaño puede variar, aunque es buena práctica escoger un múltiplo del tamaño de
+los wavefronts (32 en Kepler y Maxwell). Hay que encontrar el tamaño apropiado
+para los \emph{work groups} para minimizar contención de memoria y maximizar el
 rendimiento (se usa la palabra rendimiento como traducción directa de de
-\emph{throughput}).
+\emph{throughput}). Los GPUs están diseñados para sacrificar latencia por
+rendimiento.
 
-El \emph{work group} es una abstracción que se provee para proporcionar al
-\emph{\gls{kernel}} con índices relativos a la dimensión y tamaño del espacio de
-\emph{work groups}. Esto es útil para que el programador diseñe el algoritmo
-para utilizar la jerarquía de memoria eficientemente y evitar ejecución
-condicional. Es útil usar referencias oficiales \cite{maxwell-tuning}, pero los
-recursos gratis, como GPU Tech Conf \cite{gtc}, una conferencia anual sobre
-GPUs, son una buena fuente de información para aprender a obtener el mayor
-desempeño
-posible de las arquitecturas actuales.
+Nótese que el concepto de \emph{work group} es una abstracción que se provee
+para facilitar la programación en OpenCL. Crear work groups de cierto tamaño y
+dimensiones ayuda a visualizar problemas. Sin embargo, es importante tener
+siempre en cuenta que un work group siempre es ejecutado por un wavefront.
 
-El resto de la descripción se va a enfocar en la arquitectura Kepler de Nvidia y cómo le corresponden los conceptos de OpenCL.
+Cada generación de GPUs tiene diferentes características de desempeño. Es útil
+usar referencias oficiales \cite{maxwell-tuning}, pero los recursos gratis,
+como GPU Tech Conf (GTC) \cite{gtc}, una conferencia anual sobre GPUs, son una
+buena fuente de información para aprender a obtener el mayor desempeño posible
+de las arquitecturas actuales.
 
 En la microarquitectura del GPU, los \emph{wavefronts} son ejecutados en
 procesadores vectoriales llamados \emph{Processing Elements}. Cada Processing
 Element tiene un número limitado de registros y puede ejecutar un wavefront a la vez.
 
-Cada Processing Element es miembro de un \emph{Compute Unit}, que tiene un caché L1 que comparten sus Processing Elements.
+Cada Processing Element es miembro de un \emph{Compute Unit}, que tiene un caché L1.
 
-El GPU contiene un número de Compute Units, quienes comparten un caché L2 y una memoria global. En el ejemplo en la figura \ref{fig:kepler1} es un GPU con 15 Compute Units.
+El GPU contiene un número de Compute Units, quienes comparten un caché L2 y una
+memoria global. En el ejemplo en la figura \ref{fig:kepler1} es un GPU con 15
+Compute Units.
 
 Desde el punto de vista del modelo OpenCL solo existe la memoria local y
 memoria global. En la práctica, la memoria local corresponde a los registros
 del Processing Element y al cache L1. La memoria global corresponde a la
 memoria global del GPU, pero la microarquitectura puede encargarse de ``subir''
 y ``bajar''  accesos de memoria global por la jerarquía de memoria física.
+
+Durante la ejecución de un kernel. A diferencia de los CPUs, no hay garantía de
+coherencia cuando se escribe a memoria. OpenCL provee mecanismos de
+sincronización de memoria para cuando es absolutamente necesario, pero en la
+práctica resultan en un golpe fuerte al desempeño.
 
 La arquitectura de los GPUs está diseñada para lidiar con problemas de
 contención de memoria. Cuando algún work item dentro de un wavefront está
@@ -329,7 +354,7 @@ Element.
     \label{fig:kepler2}
 \end{figure}
 
-\begin{figure}[hb]
+\begin{figure}[ht]
     \includegraphics[width=4.5625in]{fputc}
     \caption{TinyJPEG: 48\%. fputc: 4.8\%}
 \end{figure}
@@ -346,6 +371,20 @@ cuantificación. Si organizáramos el trabajo de manera que cada workgroup traba
 con un solo bloque, cada wavefront pasaría la mayor parte del tiempo esperando saltos
 condicionales. El problema de los saltos condicionales se discute más adelante
 en la sección \ref{sec:microopt}.
+
+\begin {figure}
+    \begin{tabular}{ | l | r | }
+    \hline
+    OpenCL             & Nvidia y CUDA \\
+    \hline
+    Work Item          & Thread \\
+    Work Group         & Thread block \\
+    Processing Element & CUDA Core \\
+    Compute Unit       & Streaming Multiprocessor (SMX) \\
+    \hline
+    \end{tabular}
+    \label{fig:equiv}
+\end{figure}
 
 \section{Implementación paralela en CPU}
 
@@ -461,11 +500,9 @@ global o en memoria constante.
 
 En la sección \ref{sec:gpgpu} no se habló de memoria constante porque es
 operacionalmente igual a la memoria global. La ventaja de usar memoria
-constante es que es más probable, por la garantía de no-escritura, que los
-contenidos de memoria suban por la jerarquía de memoria.
+constante es que es más fácil de optimizar para el driver, por la garantía de no-escritura.
 
 La firma del kernel \verb+encode_MCU+ es:
-
 
 \begin{code}[language=C][h]
 __kernel void
@@ -883,22 +920,21 @@ fval = (fval > 0)? floorf(fval + 0.5f) : ceilf(fval - 0.5f);
 Esta es una implementación clásica de redondeo, escrita de acuerdo a la
 especificación JPEG.
 
-Usando \verb+perf+, se puede visualizar el problema:
+Usando \verb+perf+, se puede visualizar el problema (imagen \ref{fig:mispred}):
 
-\begin{figure}[hb]
+\begin{figure}[h]
     \includegraphics[width=5.16666in]{round_slow}
     \caption{Mis-predicción de salto}
+    \label {fig:mispred}
 \end{figure}
 
 Ambos caminos del salto condicional inducido por el operador \verb+?:+ toman
-alrededor de 9 ciclos de CPU, con un total de 18. En el momento en que se
-encontró este problema, 18 ciclos de reloj en \verb+encode_MCU+ eran un cuello
-de botella.
+alrededor de 9\% de los ciclos de CPU totales para esta función, con un total de 18\%.
 
 Esa información no es suficiente para decidir que el problema es
 mis-predicción, pero se puede atacar al problema como si fuera un problema de
 mis-predicción. Si se hace más rápido, entonces suponemos que el problema era
-el branch.
+el salto.
 
 En este caso, sabemos que $fval \in [-1024, 1024]$. Esta información nos
 permite evitar el salto haciendo una suma, $(fval + 1024) \in [0, 2048]$. Si

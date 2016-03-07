@@ -4,18 +4,14 @@
 %************************************************
 
 % ============================================================
-\section{Introducción a Cómputo Evolutivo}
+\section{Introducción al Cómputo Evolutivo}
 % ============================================================
 
-   Reemplazar
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 El \gls{Cómputo Evolutivo} es una rama de la Inteligencia Artificial que se define
 por los tipos de algoritmos en los que se enfoca. Son algoritmos que utilizan
-el concepto de la selección natural para resolver problemas de cómputo. Son
+el concepto de evolución y selección natural para resolver problemas de cómputo. Son
 problemas de optimización en el sentido matemático. Es decir, se concentran en
 encontrar un máximo local o un mínimo local utilizando heurísticas.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 % ============================================================
 \section{Algoritmos Evolutivos}
@@ -24,54 +20,198 @@ encontrar un máximo local o un mínimo local utilizando heurísticas.
 Las características que los Algoritmos Evolutivos tienen en común son:
 
 \begin{itemize}
-\item Definen una población
-\item Definen una función de aptitud.
-\item Utilizan mutación y reproducción junto con la función de aptitud para
-mejorar la población a lo largo de varias generaciones.
+   \item Definen una población.
+   \item Definen un método de selección.
+   \item Utilizan mutación y recombinación junto con el método de selección para
+      mejorar la población a lo largo de varias generaciones.
 \end{itemize}
 
 Aunque comparten la misma idea, se definen distintos tipos de algoritmos con
 respecto a la manera en que concretizan estas características.
 
 \begin{itemize}
-\item La \emph{Programación Genética} \cite{GenProg} tiene conjuntos de
-programas como su población. Su función de aptitud es la capacidad de un
-programa para resolver cierto problema. Los programas se representan como
-árboles de sintaxis, y de esta manera se define la mutación y reproducción como
-operaciones en árboles.
-\item La \emph{Programación Evolutiva} es similar a la Programación Genética
-pero lo que se evoluciona son los parámetros de los programas, no su
-estructura.
-\item Los \emph{Algoritmos Genéticos} definen genotipos y su correspondiente
-función de aptitud que evalúa los fenotipos respectivos. Es decir, se opera
-sobre el cromosoma pero se evalúa el organismo.
-
-El algoritmo desarrollado entra dentro de la clasificación de Algoritmo
-Genético. El fenotipo es una tabla de cuantificación y el genotipo es un
-codificador \gls{JPEG} que usa esa tabla.
-
+   \item La \emph{Programación Genética} \cite{GenProg} tiene conjuntos de
+      programas como su población. Su función de aptitud es la capacidad de un
+      programa para resolver cierto problema. Los programas se representan como
+      árboles de sintaxis, y de esta manera se define la mutación y recombinación como
+      operaciones en árboles.
+   \item La \emph{Programación Evolutiva} es similar a la Programación Genética
+      pero lo que evoluciona son los parámetros de los programas, no su
+      estructura. Usualmente se utilizan para evolucionar máquinas de
+      predicción. Las poblaciones consisten de máquinas de estado finito. El
+      método de selección consiste de evaluar la función delta de cada miembro
+      de la población para un conjunto de entradas de entrenamiento. Para cada
+      elemento de una entrada, se compara la evaluación de la función delta con
+      el valor de la siguiente entrada. Los miembros de la población más aptos son
+      los que producen mejores predicciones.
+   \item Los \emph{Algoritmos Genéticos} definen sus soluciones con
+      representaciones genéticas. En una representación genética, una solución,
+      el fenotipo, es representada por una arreglo de valores, su genotipo.
+      Usualmente estas representaciones son arreglos de bits, pero pueden ser
+      arreglos de cualquier tipo. Ya que la representación de cada miembro es
+      un arreglo, las operaciones de recombinación y mutación son simples de
+      implementar.
 \end{itemize}
 
+El algoritmo que se presenta en la sección \ref{sec:GA} es un algoritmo
+genético. La población consiste de codificadores JPEG, que son representados
+genéticamente por sus respectivas tablas de cuantificación.
+
+Al comienzo de la sección se describió la estructura común de un algoritmo
+evolutivo. A continuación se definen de una manera general, con un enfoque hacia
+los algoritmos genéticos.
+
+Un algoritmo evolutivo itera sobre una población, produciendo nuevas
+generaciones hasta que se cumpla un criterio de terminación.
+
+\subsection { Inicialización de la Población }
+
+La manera en que se inicializa la población depende del conocimiento que se tiene
+\emph{a priori} sobre el espacio de búsqueda. Si el espacio es grande y no se
+conocen las características de buenas soluciones, cada miembro se inicializa al
+azar. En el caso de la evolución genética, esto significa un arreglo de valores
+aleatorios. Si se cuenta con información que puede ser de ayuda, inicializar la
+población al azar probablemente no es la mejor idea. De ser posible, es bueno
+escoger una población inicial cuyos miembros tengan una mayor probabilidad de
+estar cerca de mínimos o máximos locales distintos. Tener a \emph{toda} la
+población cerca de un mínimo o máximo puede ser contraproducente, ya que es posible que el
+proceso evolutivo no encuentre mejores soluciones. Le llamamos cromosoma a la
+representación genética de un elemento de la población.
+
+\subsection { Función de aptitud }
+
+Existe una función que recibe un miembro de la población y regresa un valor
+numérico.  No es un requerimiento que la función de aptitud regrese un número,
+basta con que el dominio de la función tenga un orden parcial. El propósito del
+cada iteración del algoritmo evolutivo es encontrar nuevos miembros del espacio
+de búsqueda con el propósito de minimizar o maximizar la función de aptitud. En
+cuestión de desempeño, la función de aptitud es donde un algoritmo evolutivo va
+a pasar la mayor parte de su tiempo.
+
+Al principio de cada iteración, se evalúa la aptitud de cada miembro de la población.
+
+\subsection { Método de selección }
+
+Cada iteración reemplaza la generación actual con una nueva. Esto se hace
+tomando elementos de la vieja generación y generando nuevos elementos
+utilizando operadores evolutivos.
+
+Hay distintas maneras en las que se escogen los \emph{supervivientes} de cada
+generación.
+
+El método más simple es el \emph{Método Elitista}, en el que siempre se escogen
+los elementos más aptos. Como menciona Koza \cite{koza} en la introducción de su
+libro de programación genética, este método tiene la desventaja de que
+disminuye la diversidad. Por ejemplo, es posible que para alguna generación,
+exista algún elemento en particular que no tenga alta aptitud, pero pueda
+convertirse en una nueva y mejor solución con una mutación simple. El método
+Elitista no le da oportunidad a este tipo de elementos.
+
+El \emph{Método de Ruleta} hace que la probabilidad de seleccionar un elemento en
+particular sea proporcional a su aptitud. Si $f$ es la función de aptitud y la
+población es de $N$ elementos, entonces para un elemento $e_i$, su probabilidad
+de ser seleccionado es $P(e_i) = f(e_i) / \sum_{k=0}^{N} f(e_k)$.
+
+El \emph{Método de Rango} (traducido del Inglés \emph{rank selection}) es similar al
+de la Ruleta, pero en lugar de que la probabilidad sea proporcional a la
+aptitud, es proporcional al \emph{orden}. La población se ordena de menor
+aptitud a mayor aptitud. La probabilidad para que cada elemento sea
+seleccionado crece linealmente.
+
+\subsection { Operadores evolutivos }
+
+Hay dos maneras en las que se generan nuevos miembros para la nueva generación:
+
+\begin{itemize}
+      \item Recombinación
+      \item Mutación
+\end{itemize}
+
+La recombinación toma dos padres y a partir de ellos genera uno o más nuevos
+elementos. Para una representación genética, Koza \cite{koza} recomienda
+escoger un \emph{Punto de Cruza} (un índice dentro del cromosoma) y generar dos
+hijos. Un hijo tiene la primera parte del primer padre y la segunda parte del
+segundo padre. El segundo hijo tiene la segunda parte del primer padre y la
+primera parte del segundo padre.
+
+La mutación consiste de seleccionar un padre y efectuar un cambio al azar. Para
+algoritmos genéticos, esto normalmente significa escoger algún elemento del
+cromosoma y cambiarlo. Si la codificación es binaria, basta con cambiar un 1 a
+un 0 o viceversa.
+
+La recombinación ayuda a encontrar elementos más aptos con la esperanza de que
+al recombinar, el nuevo elemento tenga lo mejor de ambos padres. La mutación
+agrega diversidad, aumentando la probabilidad de que el proceso evolutivo
+encuentre nuevas y mejores soluciones fuera de un mínimo o máximo local.
+
+\subsection { Criterio de terminación }
+
+El algoritmo necesita terminar. Puede elegirse un número máximo de generaciones
+para evitar que corra indefinidamente. Se puede elegir un umbral de aptitud tal
+que una solución que lo cruce pueda sea considerada suficientemente buena.
+También puede medirse la velocidad a la que cambia la aptitud generación tras
+generación. Se puede escoger un umbral tal que si los elementos más aptos de
+dos o más generaciones sucesivas tienen una diferencia entre sus aptitudes
+dentro del umbral, el algoritmo decida que ha convergido y termine.
+
 % ============================================================
-\section{Método para la evolución de codificadores JPEG}
+\section{Método para la evolución de codificadores JPEG} \label{sec:GA}
 % ============================================================
 
 \subsection{Población}
 
-Se inicializa una población de tablas. En el conjunto se incluye la tabla que
-tiene todos sus coeficientes iguales a 1, denominada \emph{\gls{tabla
-unitaria}}. La tabla unitaria es la que obtiene la mejor calidad posible pero
-resulta en menor compresión. El resto del conjunto se llena de tablas con
-valores aleatorios entre 1 y 64.
+El espacio de búsqueda consiste de tablas de cuantificación de $8\times8$. Cada
+coeficiente de una tabla válida es un número positivo de 8 bits. El tamaño del
+espacio de búsqueda es entonces $256^{64}$.
 
-La función de aptitud requiere de un punto de referencia. Antes de iniciar la
-evolución, se comprime la imagen con la tabla unitaria, dándonos un punto de
-referencia para la calidad óptima y para el máximo tamaño.
+El tamaño de la población que se eligió es de 48 tablas de cuantificación. Se
+eligió este número para mantener el desempeño del algoritmo en un nivel
+aceptable.
 
-\subsection{Selección}
+La tabla que tiene todos sus coeficientes iguales a 1, denominada
+\emph{\gls{tabla unitaria}}, tiene dos propiedades que nos interesan. Primero,
+la tabla unitaria es la que obtiene la mejor calidad posible en las imágenes
+resultantes, ya que minimiza la pérdida de información. La segunda propiedad es
+que la tabla unitaria produce la imagen más grande posible con JPEG
+\emph{baseline}. Como la tabla unitaria presenta los dos extremos de calidad y
+tamaño, se incluye en la población inicial.
+
+El resto del conjunto se llena de tablas con valores aleatorios entre 1 y 25.
+Este límite se eligió al observar las tablas obtenidas al correr el algoritmo
+con una población inicial aleatoria y observar que las tablas raramente tienen
+coeficientes mayores a 30. Acotar los posibles valores de cada coeficiente
+ayuda a encontrar mejores soluciones en menos tiempo.
+
+Antes de iniciar la evolución, se comprime la imagen con la tabla unitaria,
+dando un punto de referencia para la calidad óptima y para el máximo tamaño.
+Esto es necesario para la función de aptitud \ref{eq:fitness}.
+
+\subsection{ Selección }
+
+Para el método de selección, se usa una distribución de probabilidad de Pareto,
+que es un tipo de Ley Potencial.
+
+La función general para la distribución de probabilidad de Pareto es $\frac{
+\alpha x_m^{\alpha} } { x^{\alpha + 1} }$ donde $x_m$ es el valor mínimo y
+$\alpha$ es un entero positivo. Mientras $\alpha$ crece, es más alta la
+probabilidad del valor mínimo.
+
+Con un valor mínimo de 1 y $\alpha=1$, la función de distribución acumulativa
+es $F(x) = 1 - (1/x)$ con $x$ un entero positivo. Si generamos un entero
+positivo $x$ con una función pseudo-aleatoria uniforme, $F(x)$ resulta en un
+número aleatorio en la distribución de probabilidad de Pareto en $[0, 1]$.
+
+La población se ordena según aptitud en orden descendente. Para seleccionar un
+elemento, se toma un valor aleatorio de Pareto $P$, y obtenemos $i = \lfloor P*N
+- 1 \rfloor$, donde $N$ es el tamaño de la población, $i \in [0, N-1]$ es el índice del
+arreglo para el elemento seleccionado.
+
+Con una distribución de probabilidad de Pareto, es altamente probable que el elemento seleccionado esté al inicio del arreglo, pero siempre existe una probabilidad de escoger cualquier elemento de la población.
+
+\subsection { Función de aptitud }
 
 La calidad de la compresión se determina haciendo una decodificación y
-comparando la imagen resultante con la original píxel por píxel. Las
+comparando la imagen resultante con la original pixel por pixel. Las
 diferencias absolutas se suman. No se utiliza MSE (Error cuadrático medio) por
 la enorme cantidad de pixeles y la sensibilidad del algoritmo a errores de
 precisión. En lugar de implementar un decodificador JPEG, se incluye un paso de
@@ -80,75 +220,81 @@ detalles de este proceso se explican en el capítulo \ref{ch:implementacion}.
 
 El tamaño es más fácil de comparar que la calidad de la imagen. Tan solo es
 necesario ver cuántos bits pesa la imagen resultante comparada con el tamaño
-máximo que se obtiene de la tabla unitaria.
+máximo, obtenido con la tabla unitaria.
 
-Tenemos dos garantías. Cualquier tabla de cuantificación comparada con la
+Se tienen dos garantías. Cualquier tabla de cuantificación comparada con la
 unitaria va a resultar en mayor compresión y en menor calidad, siempre y cuando
 la tabla a comparar no sea en sí una tabla unitaria.
 
-Sea $T$ una tabla de nuestra población y sea $T_0$ la tabla unitaria.
+Sea $T$ una tabla de la población y sea $T_0$ la tabla unitaria.
 
-Definimos nuestra función de aptitud como:
+Definimos la función de aptitud como:
 
 \begin{equation}
-f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(1 + \frac{s(T)}{s(T_0)}\Big)
+f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(\frac{s(T)}{s(T_0)}\Big)
 \end{equation}\label{eq:fitness}
 
-\dots donde $e(T)$ es el error de compresión y $s(T)$ es el tamaño de la
-imagen. $\alpha$ es una constante que se usa para ajustar la importancia que le
-damos al tamaño sobre la compresión o vice versa.
+donde $e(T)$ es el error de compresión y $s(T)$ es el tamaño de la
+imagen. $\alpha$ es una constante que se usa para ajustar la importancia que se le
+da al tamaño sobre la compresión o vice versa.
 
-Nótese que los dos términos se afectan mutuamente. Una tabla que tiene mayor
+Es importante notar que los dos términos se afectan mutuamente. Una tabla que tiene mayor
 compresión va a tener un mayor error, y una tabla con menor compresión resulta
 en una imagen de mayor calidad. En otras palabras, cuando el primer término
-disminuye, el segundo crece.  Cuando el segundo término crece, el primero
+disminuye, el segundo crece. Cuando el segundo término crece, el primero
 disminuye.
 
-Nuestra meta es encontrar $T$ tal que $f(T)$ es mínima. La relación entre los
+La meta es encontrar $T$ tal que $f(T)$ es mínima. La relación entre los
 dos términos permite que el algoritmo converja.
 
-El primer término es siempre mayor o igual a $1$. A la fracción del segundo
-término se le suma 1 porque el valor de $\frac{s(T)}{s(T_0)} \in (0, 1]$. Esto
-es puramente una una conveniencia para facilitar la búsqueda de un valor de
-$\alpha$ adecuado.
-
 El valor de $\alpha$ controla el proceso de minimización. Mientras mayor sea
-$\alpha$, más peso de aptitud tiene el tamaño de la imagen. El algoritmo tiende
-a 'preferir' minimizar el error contra el tamaño después de cierto umbral de
-$\alpha > 1$. Para valores de $\alpha \leq 1$, se producen imágenes de muy mala
-calidad.
+$\alpha$, más peso de aptitud tiene el tamaño de la imagen.
 
 Habiendo probado varios valores distintos, se encontró que un valor de $\alpha
-= 2$ resulta en imágenes que son indistinguibles de las originales, con un alto
+= 10$ resulta en imágenes que son indistinguibles de las originales, con un alto
 nivel de compresión.
 
+\subsection {Mutación y Recombinación}
 
-\subsection {Mutación y Reproducción}
+En cada iteración, se genera una nueva población basada en la anterior.
 
-Cada generación, sobreviven las dos mejores tablas. El resto se parte en dos.
+Cada nuevo elemento tiene una probabilidad de 70\% de ser obtenido por mutación
+de un elemento de la generación anterior, un 25\% de ser el resultado de
+recombinación de dos elementos, y un 5\% de ser una copia directa de un
+elemento de la generación anterior. Todos los elementos de la generación
+anterior se escogen con el método de selección descrito anteriormente.
 
-Con las pruebas que se hicieron, se encontró que con el método de cruza y de
-mutación que se está utilizando, la taza más efectiva es dividir 50\% de la
-población para ser mutada, y 50\% para ser cruzada. En la mayoría de los casos
-esto resultó en una convergencia más rápida con mejores valores al evaluar la
-función de aptitud.
+El método de dar un 5\% de probabilidad de obtener una copia directa se hace
+siguiendo la descripción de Koza de algoritmos evolutivos. En lugar de mantener
+la mejor solución a lo largo de la evolución, se deja que el algoritmo intente
+mantenerla en la población. La elección de probabilidades de 70\% y 25\% entre
+mutación y recombinación se hizo heurísticamente. Para este problema no se
+encontraron buenos resultados usando la recombinación como principal
+herramienta para obtener nuevas soluciones. Sin embargo, una probabilidad de
+recombinación de 25\% resulta en poblaciones con aptitud más minimizada,
+comparando con el caso en el que no se realiza recombinación.
 
-El proceso de mutación es como sigue: Cada entrada de la tabla tiene una
-probabilidad de $\frac{1}{64}$ de mutar. Cuando una entrada $e$ muta, lo hace
-sumando a su valor original $e_{nueva} = e_{vieja} + x $ donde $x \in [-4, 4]$
-con distribución de probabilidad uniforme.
+El proceso de mutación es como sigue: Se escoge un coeficiente de la tabla y se
+le suma un valor en $[-4, 4]$ con probabilidad uniforme. Si el coeficiente es
+negativo como resultado de la mutación, se corrige a 1, porque JPEG asume que
+las tablas consisten de enteros positivos. Se hace lo mismo para valores
+grandes. Si el coeficiente resulta mayor a 255, se corrige a 255.
 
-El proceso de reproducción siempre ocurre entre las dos tablas ganadoras. Padre
-A y Padre B.  La tabla hijo es el resultado de, para cada entrada, escoger una
-entrada de Padre A o de Padre B. La elección es un tiro de moneda. Para alguno
-de los dos padres, cada entrada tiene un $50\%$ de probabilidad de venir de él.
+El proceso de recombinación ocurre primero seleccionando dos tablas. El método
+de selección incluye un mecanismo para evitar seleccionar la misma tabla dos
+veces. Teniéndose los dos padres, Padre A y Padre B, La tabla hijo es el
+resultado de, para cada coeficiente, escoger el valor correspondiente del Padre
+A o del Padre B, con un $50\%$ de probabilidad de venir de cualquiera de ellos.
 
-\subsection {Fin de la evolución}
+Se intentó el método de punto de cruza descrito por Koza, pero el método
+descrito aquí resultó ser más efectivo para este problema.
 
-El algoritmo decide terminar cuando sucede una de dos cosas:
+\subsection { Criterio de terminación }
+
+El algoritmo decide terminar cuando sucede alguno de los siguientes casos:
 
 \begin{itemize}
-\item El número de generaciones llega a 100
+\item El número de generaciones llega a 500
 \item Dado el individuo más apto de generación previa $x_p$ y el de la generación actual, $x_0$, sucede cuatro veces consecutivas que $f(x_p) - f(x_0) \leq 0.0001$, donde $f$ es la función de aptitud \ref{eq:fitness}.
 \end{itemize}
 
@@ -190,7 +336,7 @@ OpenCL de DummyJPEG. Sin embargo, no ha dado problemas para las pruebas que se
 han hecho durante el desarrollo de gp\_encoder.
 
 Para el propósito de mostrar resultados en este documento, se utilizan cuatro
-imágenes de ejemplo. Más adelante mostramos las imágenes y damos las razones
+imágenes de ejemplo. Más adelante se muestran las imágenes y se dan las razones
 por las cuales fueron elegidas.
 
 Uno de los puntos débiles de JPEG es que no es bueno lidiando con
@@ -257,50 +403,40 @@ demás imágenes.
 \section{Convergencia}
 % ============================================================
 
-Recordando la ecuación que usamos para nuestra función de aptitud:
+Recordando la ecuación que usamos para la función de aptitud:
 
 \begin{equation}
-f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(1 + \frac{s(T)}{s(T_0)}\Big)
+f(T) = \frac{e(T)}{e(T_0)} + \alpha \Big(\frac{s(T)}{s(T_0)}\Big)
 \end{equation}\label{eq:fitness-repeated}
 
 Se desea obtener la cota mínima.
 
 Se sabe que $e(T_0)$ es siempre menor o igual a $e(T)$, ya que $T_0$ es la
-tabla de cuantificación que consiste solo de valores 1, que denominamos
-\emph{tabla unitaria}, que resulta en lo más cercano en JPEG con compresión
-\emph{baseline} a una compresión sin pérdida. Por lo tanto, el primer parámetro
+tabla unitaria, que produce el menor error posible. Por lo tanto, el primer término
 de la ecuación está en $[1, \infty)$.
 
 De manera análoga, el tamaño de la imagen resultante al comprimir con la tabla
 unitaria es el mayor posible. Entonces, el término $\frac{s(T)}{s(T_0)} \in (0,
 1]$. Se encontró que un buen valor de $\alpha$ para conseguir imágenes de alta
-calidad es 2. Por lo tanto, el segundo término de la ecuación $f(T)$ está en
-$(2, 4]$
+calidad es 10. Por lo tanto, el segundo término de la ecuación $f(T)$ está en
+el intervalo $(0, 10]$
 
-En base a esto, se concluye que para la función de aptitud, con una tabla de
-cuantificación arbitraria, el mínimo valor posible es 3.
+Esto nos da una cota mínima de 1, pero alcanzar una aptitud de 1 es imposible
+ya que requeriría una imagen comprimida de tamaño 0. Para el conjunto de
+prueba, los mejores valores de aptitud siempre fueron mayores a 4.
 
 En esta sección se incluyen las gráficas de convergencia para la función de
 aptitud al correr gp\_encoder con las cuatro imágenes de referencia:
 \ref{img:plot-diego}, \ref{img:plot-ghost}, \ref{img:plot-klay}, \ref{img:plot-pluto}.
 
-Todas las figuras mostradas están normalizadas a 50 generaciones con un rango
-de evaluación de la función de aptitud entre 3.5 y 5. Se usa una gráfica de
+Todas las figuras mostradas están normalizadas a 500 generaciones con un rango
+de evaluación de la función de aptitud entre 4 y 11. Se usa una gráfica de
 línea para mostrar el valor de la función de aptitud para los individuos más
 aptos y se utilizan puntos para los peores individuos de cada generación. Se
 usan puntos porque comúnmente ocurre que en alguna generación, el individuo
-menos apto tenga un valor de aptitud mucho mayor a 5. El caso común, sin
+menos apto tenga un valor de aptitud mucho mayor a 11. El caso común, sin
 embargo, es que los individuos menos aptos también tienden a un punto de
 convergencia mientras la evolución avanza.
-
-Cabe notar que la gráfica para la imagen ``Pluto'' \ref{img:plot-pluto} muestra
-que hubo una convergencia en un número de generaciones relativamente pequeño.
-Para ver lo que pasaba, se cambió la tasa de mutación:cruza de 0.5 a 0.8,
-resultando en la figura \ref{img:plot-pluto2}. Esto resulta en una gráfica
-\emph{``escalonada"}, mostrando una evolución de 57 generaciones que produce
-una tabla con valor de aptitud similar al del resultado original. Fue
-consistente el encontrar que cualquier distribución distinta a 50/50 producía
-peores resultados.
 
 \begin{figure}[b]
     \includegraphics[width=1.0\textwidth]{plot_diego}
@@ -324,12 +460,6 @@ peores resultados.
     \includegraphics[width=1.0\textwidth]{plot_pluto}
     \caption{Convergencia para imagen ``Pluto"}
     \label{img:plot-pluto}
-\end{figure}
-
-\begin{figure}
-    \includegraphics[width=1.0\textwidth]{plot_pluto_tweak}
-    \caption{Convergencia para imagen Pluto con una tasa de mutación a cruza diferente}
-    \label{img:plot-pluto2}
 \end{figure}
 
 % ============================================================
@@ -362,25 +492,32 @@ originales con su versión comprimida con la tabla de cuantificación
 evolucionada y la compresión "media" de TinyJPEG, descrita en el capítulo
 \ref{ch:implementacion}.
 
-Con la excepción de la imagen de Plutón, gp\_encoder resulta en imágenes codificadas de menor tamaño.
+Con todas las imágenes, gp\_encoder produce en imágenes codificadas de menor
+tamaño.
 
-Tanto con TinyJPEG en calidad media como con los resultados de gp\_encoder, todas las imágenes son indistinguibles de la original, excepto por Klay.
+Un problema que por sí solo es un área de investigación \cite{subjective-paper}
+es juzgar la calidad percibida de imágenes dada la pérdida de información. Para
+este trabajo, se compara la compresión de TinyJPEG a calidad media, que usa la
+tabla de cuantificación que se presenta en la especificación de JPEG
+multiplicada por la constante $\frac{1}{10}$.
 
-La imagen de Klay es interesante porque gp\_encoder consigue hacerla
-indistinguible de la original, a diferencia de TinyJPEG, que falla a calidad
-media. Encima de lograr esto, el nivel de compresión es 1.56X mejor. 419K de
-TinyJPEG contra 268K de gp\_encoder. Esto sugiere que el algoritmo evolutivo
-desarrollado en este proyecto es una estrategia viable para aplicaciones que
-requieran usar JPEG incluso cuando el tipo de imágenes con las que se está
-tratando no son ideales para el formato.
+Tanto con TinyJPEG en calidad media como con los resultados de gp\_encoder,
+todas las imágenes son indistinguibles de la original, salvo por la imagen
+Klay, que se discute adelante. Si ambos codificadores producen imágenes
+indistinguibles de la original, entonces el codificador que produzca la imagen más
+pequeña es el mejor de los dos.
 
-Para ilustrar la diferencia entre la imagen Klay comprimida con TinyJPEG y la
-resultante de gp\_encoder, se incluye la imagen \ref{img:banding}, con TinyJPEG
-a la izquierda y gp\_encoder a la derecha. A la izquierda puede observarse un
-efecto de bandas de color más marcado que el que aparece en el lado derecho.
-Cabe notar que las bandas de color del lado derecho también aparecen en la
-imagen original, y son el resultado de no aplicar \emph{dithering} dentro del
-motor del juego que produjo la imagen original.
+La imagen Klay, con ambos codificadores, produce defectos al ser comprimida.
+Cabe notar que los defectos no fueron distinguibles para un grupo de personas
+no familiarizadas con compresión. Para ilustrar la diferencia entre la
+imagen Klay comprimida con TinyJPEG y la resultante de gp\_encoder, se incluye
+la imagen \ref{img:banding}, con TinyJPEG a la izquierda y gp\_encoder a la
+derecha. A la izquierda puede observarse un efecto de bandas de color más
+marcado que el que aparece en el lado derecho. La imagen original presenta bandas de
+color, sin embargo, la imagen resultante de gp\_encoder no agrega nuevas
+bandas, a diferencia de TinyJPEG. Desde este punto de vista, la imagen que
+produce gp\_encoder tiene mayor calidad que la de TinyJPEG. Por otro lado, el
+Fenómeno de Gibbs es menos notorio en la imagen producida por TinyJPEG.
 
 \begin{figure}
     \includegraphics[width=400pt, height=200pt]{banding}
@@ -415,10 +552,10 @@ altas.
         \hline
         Nombre & Original & TinyJPEG & gp\_encoder \\
         \hline
-        Diego & 2.3M & 355K & 328K \\
-        Ghost & 2.6M & 562K & 366K \\
-        Klay  & 9.1M & 419K & 268K \\
-        Pluto & 192M & 26M & 31M  \\
+        Diego & 2.3M & 355K & 264K \\
+        Ghost & 2.6M & 562K & 361K \\
+        Klay  & 9.1M & 419K & 221K \\
+        Pluto & 192M & 26M  & 19M  \\
         \hline
     \end{tabular}
     \caption{Tamaños de imagen original y con compresión}

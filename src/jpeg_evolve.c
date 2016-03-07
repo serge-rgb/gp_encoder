@@ -131,9 +131,9 @@ int main()
     int w, h, ncomp;
     char* fname =
             //"diego.bmp";
-            "pluto.bmp";
+            //"pluto.bmp";
             //"in.bmp";
-            //"in_klay.bmp";
+            "in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
     if ( !data ) {
@@ -174,7 +174,7 @@ int main()
         }
         else for ( int ti = 1; ti < 64; ++ti )
         {
-            e.table[ti] = 1 + (rand() % 3);
+            e.table[ti] = 1 + (rand() % 25);
         }
         e.table[0] = 1;
 
@@ -317,7 +317,9 @@ int main()
                 if (val <= 0) {
                     val = 1;
                 }
-                assert(val <= 255);
+                else if ( val > 255 ) {
+                    val = 255;
+                }
                 e.table[idx] = (uint8_t)val;
                 sb_push(population, e);
             } break;

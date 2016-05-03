@@ -1,6 +1,6 @@
 \chapter{Introducción}\label{ch:introduction}
 
-La \gls{Compresión de Datos} es el acto de transformar la respresentación de la
+La \gls{compresión de datos} es el acto de transformar la respresentación de la
 información con el propósito de reducir su tamaño.
 
 Se le llama \emph{\gls{compresión sin pérdida}} a la compresión que reduce el tamaño
@@ -12,12 +12,12 @@ Un ejemplo de compresión es el uso de la multiplicación para escribir sumas
 repetidas de una manera más corta, o de la exponenciación, que comprime de la
 misma manera la multiplicación repetida.
 
-$ a + a + a + a + a $ se comprime con $ 5 * a $. Ambas ecuaciones contienen la
+$ a + a + a + a + a $ se comprime con $ 5 * a $. Ambas ecuaciones representan la
 misma información, el acto de comprimir reduce el tamaño de la
 \emph{representación}, dejando intacto el significado.
 
-La Compresión de Datos es una de las ramas más viejas de las Ciencias de la
-Computación. \cite{cs_the_discipline}. Es un matrimonio entre teoría y práctica
+La compresión de catos es una de las ramas más viejas de las ciencias de la
+computación. \cite{cs_the_discipline}. Es un matrimonio entre teoría y práctica
 que combina el rigor matemático de las teorías en las que se basa y el ingenio
 de las personas que lo implementan.
 
@@ -25,17 +25,17 @@ de las personas que lo implementan.
 
 A principios de la década de 1990, cuando la popularidad de Internet estaba
 iniciando su crecimiento exponencial, un comité de matemáticos e ingenieros,
-llamado "Joint Photographic Experts Group", o \gls{JPEG} estandarizó un formato de
+llamado ``Joint Photographic Experts Group", o \gls{JPEG} estandarizó un formato de
 compresión de imágenes \cite{jpeg-spec}. El formato JPEG, soportando varios
 métodos de compresión, fue adaptado rápidamente y hoy en día es soportado por
 prácticamente todo programa que tenga que leer imágenes.
 
-Por su naturaleza, los formatos de datos son esclavos a la inercia. Mientras
+Por su naturaleza, los formatos de datos son esclavos de la inercia. Mientras
 nuestro nuevo conocimiento matemático nos da herramientas que podemos utilizar
 para crear técnicas más eficientes y compresión de mayor calidad, los datos
 viejos siguen estando en sus viejos formatos y migrar puede ser difícil o
 imposible. En el caso de \gls{compresión con pérdida}, migrar datos a nuevos formatos
-hace que se pierda parte de la información. Ésta pérdida, en muchos casos, es
+hace que se pierda parte de la información. Esta pérdida, en muchos casos, es
 un precio demasiado alto que pagar para obtener las ventajas de nuevos y
 mejores métodos de compresión de datos.
 
@@ -44,16 +44,17 @@ tiende a ir de la mano con la migración a nuevos medios tecnológicos, e.g. VHS
 a DVD. Es poco probable que en el corto o mediano plazo veamos una migración
 tecnológica que nos haga cambiar fundamentalmente la manera que guardamos y
 compartimos fotografías. JPEG es la técnica de \gls{compresión con pérdida} más
-utilizada en el mundo y no hay razón para pensar que eso va a cambiar en el
-futuro cercano.
+utilizada en el mundo \footnote{Se utiliza en el 73.6\% de las páginas de
+Internet. \cite{wtc_link} } y no hay razón para
+pensar que eso va a cambiar en el futuro cercano.
 
-Dado que las computadoras son mucho más rápidas de lo que eran en los 90s, y
+Dado que las computadoras son mucho más rápidas de lo que eran en los 90, y
 dada la dificultad de adoptar nuevos formatos de compresión, la motivación de
 este trabajo viene de la pregunta:  ¿Qué se puede hacer con el poder de sobra
 que tenemos a nuestra disposición?
 
 El resultado de este trabajo es una manera de obtener una compresión JPEG de mejor
-calidad a la de codificadores convencionales, mediante el uso de \gls{Cómputo Evolutivo}.
+calidad a la de codificadores convencionales, mediante el uso de \gls{cómputo evolutivo}.
 
 \section{Objetivo}
 
@@ -75,9 +76,9 @@ representativas.
 El enfoque de este trabajo es producir un codificador JPEG que encuentre un par
 de tablas ideal para la imagen particular que se está decidiendo codificar.
 Se implementó un codificador JPEG diseñado desde cero para adaptarse a un
-algoritmo genético. La implementación hace uso del paralelismo en CPUs y GPUs.
+algoritmo genético. La implementación hace uso del paralelismo en CPU y GPU.
 
-En los siguientes capítulos, se da una descripción del funcionamiento de la
+En los siguientes capítulos se da una descripción del funcionamiento de la
 compresión JPEG y una introducción a los algoritmos genéticos. Después, se
 describen los detalles de la implementación y se discuten los resultados.
 

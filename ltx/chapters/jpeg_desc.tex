@@ -2,7 +2,7 @@
 \chapter{Descripción de compresión JPEG con pérdida}\label{ch:jpeg_desc}
 %************************************************
 
-\section{Introducciones Breves de Términos Matemáticos}
+\section{Introducción Breve de Términos Matemáticos}
 
 A continuación se dan introducciones breves a conceptos que serán utilizados y
 explicados a mayor detalle en el capítulo \ref{ch:implementacion}
@@ -18,26 +18,26 @@ artículo de Claude E.  Shannon ``A Mathematical Theory of Communication''
 % actualmente son los Códigos de Huffman y la Codificación Aritmética.
 
 Dos años después de la publicación de Shannon, David Huffman inventó lo que hoy
-conocemos como Codificación Huffman \cite{Huffman}. Los \gls{Códigos de Huffman} son
+conocemos como codificación huffman \cite{Huffman}. Los \gls{códigos de Huffman} son
 códigos de prefijos que minimizan la longitud de los códigos individuales. Se
 mantienen hasta hoy como la técnica más aprovechada en algoritmos de compresión
 sin pérdida.
 
 Después de Huffman, el método más popular para reducir redundancia es la
-\gls{Codificación Aritmética}. Es un método más sofisticado que consigue mejores
-resultados. Entre $5\%$ y $10\%$ según el estándar JPEG \cite{jpeg-spec}. La
-especificación de la compresión JPEG incluye la capacidad de utilizar
-codificación aritmética, pero en la práctica no tiende a ser usada. Las razones
-tienen que ver con el alto número de patentes relacionados a la Codificación
-Aritmética. \cite{jpeg_patents}.
+\gls{codificación aritmética}. Es un método más sofisticado que consigue
+mejores resultados. Entre $5\%$ y $10\%$ según el estándar JPEG
+\cite{jpeg-spec}. La especificación de la compresión JPEG incluye la capacidad
+de utilizar codificación aritmética, pero en la práctica tiende a no ser usada.
+Las razones tienen que ver con el alto número de patentes relacionados a la
+codificación aritmética. \cite{jpeg_patents}.
 
-En 1974, Nasir Ahmed publicó un artículo describiendo su Transformada de Coseno
-Discreta \emph{(DCT)}, por sus siglas en Inglés \cite{ahmed_dct}. La \gls{DCT} es un
+En 1974, Nasir Ahmed publicó un artículo describiendo su transformada de coseno
+discreta (\emph{DCT}, por sus siglas en inglés) \cite{ahmed_dct}. La \gls{DCT} es un
 caso particular de la transformada de Fourier, restringida a los números
 reales.
 
 La compresión JPEG, como usualmente se usa, está basada en códigos de Huffman y en
-la Transformada de Coseno Discreta.
+la transformada de coseno discreta.
 
 % ============================================================
 \section{Tipos de compresión}
@@ -61,20 +61,18 @@ se enfoca este trabajo. Por brevedad, a menos de que se especifique lo
 contrario, cuando el resto de este documento hable de compresión JPEG, estará
 hablando del tipo \emph{baseline}. La compresión está basada en la Transformada
 de Coseno Discreta para filtrar información innecesaria, y para reducir
-redundancia puede utilizar Árboles de Huffman o Codificación Aritmética.
+redundancia puede utilizar árboles de Huffman o codificación aritmética.
 
 \item \emph{Progresivo}
 
 El tipo \emph{progresivo} es similar a \emph{baseline}, pero se le agregan
 propiedades deseables. La imagen se comprime en múltiples pasos, cada uno con
 mayor detalle. Con el método \emph{progresivo}, se puede desplegar la imagen
-sin que se tenga la totalidad de los datos en memoria.
-
-La utilidad de este método es poder dibujar la imagen mientras se está
-descargando de Internet. Cuando se está en un entorno con ancho de banda
-limitado, o cuando se descarga una imagen muy grande, es de valor para el
-usuario poder ver versiones de la imagen progresivamente más detalladas
-mientras se descarga.
+sin que se tenga la totalidad de los datos en memoria. Esto es útil para poder
+dibujar la imagen mientras se está descargando de Internet. Cuando se está en
+un entorno con ancho de banda limitado, o cuando se descarga una imagen muy
+grande, es de valor para el usuario poder ver versiones de la imagen
+progresivamente más detalladas mientras se descarga.
 
 \item \emph{Sin pérdida}
 
@@ -117,13 +115,13 @@ El primer paso en el \emph{pipeline} es separar los componentes de la imagen.
 Las dos maneras más comunes de representar imágenes en computadoras es
 \verb+RGB+ o \verb+RGBA+: En ambos formatos, cada píxel ocupa 32 bits de
 espacio, divididos en componentes de 8 bits. Cada componente corresponde a un
-color o al valor de opacidad, comúnmente denominado \emph{alpha}. \verb+RGB+
+color o al valor de opacidad, comúnmente denominado \emph{alfa}. \verb+RGB+
 corresponde al byte \verb+RRGGBBXX+, con \verb+RR+ representando rojo,
 \verb+GG+ representando verde y \verb+BB+ representando azul. Aunque a veces
 decimos que \verb+RGB+ es un formato de 24 bits, especificamos el byte
 \verb+XX+ por convención, ya que siempre se utilizan 32 bits (4 bytes) para
 representar RGB. \verb+RGBA+ es análogo a \verb+RGB+. Le corresponden los 4
-bytes \verb+RRGGBBAA+, donde el último byte se usa para el valor \emph{alpha}.
+bytes \verb+RRGGBBAA+, donde el último byte se usa para el valor \emph{alfa}.
 
 % \subsection{Endianness}
 
@@ -168,16 +166,16 @@ bytes \verb+RRGGBBAA+, donde el último byte se usa para el valor \emph{alpha}.
 
 \subsection{La DCT}
 
-La transformada discreta de coseno, \emph{DCT} por sus siglas en Inglés, puede
-representar $N$ puntos como una suma con pesos de funciones cosenoidales de
-diferentes frecuencias. Es popular en compresión porque las señales que
-comprimimos tienden a tener una representación con bajas frecuencias
-predominantes. Por ejemplo, es más común una imagen de un cielo azul que una
-que tiene ruido blanco. Una imagen de un cielo azul tiene muy poca variación,
-que al aplicar \emph{DCT} resulta en un peso alto para frecuencias bajas y
-pesos más cercanos a cero para frecuencias más altas.
+La transformada discreta de coseno puede representar $N$ puntos como una suma
+con pesos de funciones cosenoidales de diferentes frecuencias. Es popular en
+compresión porque las señales que comprimimos tienden a tener una
+representación con bajas frecuencias predominantes. Por ejemplo, es más común
+una imagen de un cielo azul que una que tiene ruido blanco. Una imagen de un
+cielo azul tiene muy poca variación, que al aplicar \emph{DCT} resulta en un
+peso alto para frecuencias bajas y pesos más cercanos a cero para frecuencias
+más altas.
 
-En JPEG, se divide la imagen en bloques de $8\times8$ y se utiliza una
+En JPEG se divide la imagen en bloques de $8\times8$ y se utiliza una
 \emph{DCT} de $8\times8$:
 
 \begin{equation}\label{eq:dct}
@@ -213,7 +211,7 @@ información perder}.
 \subsection{La vida de un bloque}\label{sub:vida}
 
 
-JPEG trabaja dividiendo a la imagen en bloques cuadrados de 8 píxeles de ancho
+JPEG trabaja dividiendo a la imagen en bloques cuadrados de 8 pixeles de ancho
 y alto. Si el tamaño de la imagen no es un múltiplo de ocho, se redondea al
 siguiente múltiplo de ocho. El decodificador hace lo mismo y sabe ignorar los
 píxeles sobrantes.
@@ -232,8 +230,8 @@ Un modelo de color es una manera abstracta de representar colores. \verb+RGB+
 representa colores como combinaciones de tres colores primarios. \verb+YUV+ los
 representa en tres componentes, uno para Luminancia y dos de Crominancia.
 
-\gls{Luminancia}, también llamado Luma o \verb+Y+, es la intensidad de la imagen. La
-\gls{Crominancia}, también llamada Chroma describe el color de la imagen y se
+\gls{luminancia}, también llamado luma o \verb+Y+, es la intensidad de la imagen. La
+\gls{crominancia}, también llamada chroma, describe el color de la imagen y se
 codifica con dos componentes \verb+U+ o \verb+Cb+ y \verb+V+ o \verb+Cr+, donde
 $U = Azul - Luminancia$ y $V = Rojo - Luminancia$.
 
@@ -263,12 +261,13 @@ es mucho más sensible a cambios de intensidad en la imagen que a cambios de
 color. Esto se aprovechaba en los días de la televisión analógica para utilizar
 más ancho de banda en Luma que en Chroma, y el mismo principio se utiliza en
 JPEG, cuya especificación incluye la opción de usar resoluciones más bajas para
-los canales de chroma que el de luma. La implementación de \verb+tiny_jpeg+ usa
-la misma resolución para los tres canales.
+los canales chroma que los luma.
+
+% TO-DO: MOVER ESTE PARRAFO A IMPLEMENTACION
+La implementación de \verb+tiny_jpeg+ usa la misma resolución para los tres canales.
 
 Los tres bloques correspondientes a \verb+Y+, \verb+U+, y \verb+V+ son escritos
 al archivo en ese orden después de ser transformados independientemente.
-
 
 \subsection{Aplicación de DCT y Cuantificación}\label{sub:vida_dct}
 
@@ -286,7 +285,7 @@ A cada bloque se le aplica la Transformada Discreta de Coseno de $8\times8$. El
 resultado son 64 coeficientes para las 64 funciones base. Como se muestra en la
 figura \ref{fig:dct}, la frecuencia se incrementa hacia la derecha y abajo. Por
 eso a partir de este momento se itera el bloque en un patrón de zig-zag
-\ref{fig:zigzag}. Empezando en la esquina superior izquierda y acabando en la
+\ref{fig:zigzag}, empezando en la esquina superior izquierda y acabando en la
 inferior derecha.
 
 \begin{figure}[h]
@@ -305,27 +304,28 @@ redondear valores de punto flotante. Aunque esos efectos de pérdida de
 información no son negligibles, la principal manera en que se elige qué
 información perder son las \gls{tablas de cuantificación}.
 
-Para cada codificador, usualmente elegido por heurísticas \emph{ a priori }, le
-corresponde al menos dos tablas de cuantificación de 64 elementos. El propósito
-de estas tablas es decidir cuanta información queremos perder para diferentes
+A cada codificador, usualmente elegido por heurísticas \emph{ a priori }, le
+corresponden al menos dos tablas de cuantificación de 64 elementos. El propósito
+de estas tablas es decidir cuánta información queremos perder para diferentes
 coeficientes DCT. \emph{Cuantificación} es el proceso de convertir un conjunto
-de valores a otro conjunto más pequeño. Para JPEG, usamos división entera para
+de valores a otro conjunto más pequeño. Para JPEG usamos división entera para
 cuantificar los elementos de cada bloque. El concepto se puede explicar con un
 ejemplo:
 
 Supongamos que tenemos el conjunto de valores $ \{ 1, 5, 103, 128, 242 \} $ que
 queremos cuantificar usando división entera: Todos los elementos $e_i$ se
 reducen a $ n_i \text{ tal que } e_i = n_i * c + r \text{ con } n \in ℕ \text{
-y } c \text{ la constante de cuantificación }$. Para nuestro ejemplo, escogemos
-$ c = 100 $. Con esta constante, el conjunto se cuantifica a $ \{ 0, 1, 2 \}$ .
+y } c \text{ la constante de cuantificación}$. Para nuestro ejemplo, escogemos
+$ c = 100 $. Con esta constante, el conjunto se cuantifica a $ \{ 0, 1, 2\}$,
+como se puede apreciar en la ecuación \ref{eq:modulo}.
 
-\begin{eqnarray*}
-    1 = 0 * 100 + 1 \\
-    5 = 0 * 100 + 5 \\
-    103 = 1 * 100 + 3 \\
-    128 = 1 * 100 + 28. \\
-    242 = 2 * 100 + 42.
-\end{eqnarray*}
+\begin{align}
+    1 = 0 * 100 + 1 \nonumber \\
+    5 = 0 * 100 + 5 \nonumber \\
+    103 = 1 * 100 + 3 \nonumber \\
+    128 = 1 * 100 + 28. \nonumber \\
+    242 = 2 * 100 + 42. \label{eq:modulo}
+\end{align}
 
 Se puede observar que mientras más grande sea la constante de cuantificación,
 más elementos van a reducirse. También se puede ver que cuantificar con una
@@ -342,7 +342,7 @@ información es la de redondeo y la de precisión de punto flotante.
 
 El sistema de visión humano es menos sensible a cambios en la energía de la
 señal en frecuencias bajas que en frecuencias altas. JPEG utiliza esto para
-escoger las constantes de la tabla de cuantificación. Constantes pequeñas para
+escoger las constantes de la tabla de cuantificación, constantes pequeñas para
 frecuencias bajas y constantes más grandes para frecuencias altas. Esto resulta
 en mayor compresión por dos razones:
 
@@ -354,7 +354,7 @@ de manera especial a series de ceros consecutivos.
 Segundo, mientras más grande sea el coeficiente de cuantificación de una
 variable, menos son los valores posibles que se pueden tomar después de ser
 cuantificados. Reducir el número de símbolos implica mejor compresión de
-entropía (sección \label{sub:huffman}).
+entropía (sección \ref{sub:huffman}).
 
 \begin{equation}
     \begin{matrix}
@@ -404,9 +404,9 @@ número.
 Como ejemplo, digamos que queremos escribir el número 3. Se puede representar
 en binario como \verb+11+, con dos bits. Sin embargo, en C, típicamente usamos
 8, 16, 32 o 64 bits para representar números. Usando VLI, podemos escribir el
-número 2 seguido de los dos bits que representan 3. Combinado con codificación
-Huffman, esta técnica ayuda a reducir el tamaño de la representación de la
-información.
+número 2 -- la longitud en bits de la representación del número 3, seguido
+de los dos bits 1,1. Entonces surge la pregunta  ¿Cómo se codifica el 2? Las
+longitudes se escriben usando codificación de entropía.
 
 \subsection{Coeficientes AC y DC}\label{sub:acdc}
 
@@ -416,28 +416,31 @@ delta, inicializada en cero. Para cada bloque después del primero, la variable
 delta guarda el valor del primer coeficiente. Cada bloque codifica su primer
 coeficiente como la diferencia entre su propio coeficiente y el coeficiente
 anterior. La razón para esto es que la variación entre coeficientes DC
-consecutivos tiende a ser pequeña. En los experimentos hechos para paralelizar
+consecutivos tiende a ser pequeña.
+
+% To-do quitar por completo o mover a evolucion
+En los experimentos hechos para paralelizar
 el algoritmo evolutivo, descrito en el capítulo \ref{ch:implementacion}, se
 notó que la compresión delta contribuye con alrededor de $15\%$ de compresión
-extra, comparado con una versión que no usa compresión delta para el
+adicional, comparado con una versión que no usa compresión delta para el
 coeficiente DC.
 
-Los otros 63 coeficientes son denominados \emph{\gls{coeficientes AC}}. Se
+Los otros 63 coeficientes se denominan \emph{\gls{coeficientes AC}}. Se
 comprimen en tuplas de dos elementos. El segundo elemento de la tupla es un
-coeficiente distinto de cero, el primer elemento representa el número
+coeficiente distinto de cero y el primer elemento representa el número
 de coeficientes iguales a cero que le preceden. Cuando ya se codificó el
 coeficiente DC y cero o más coeficientes AC, pero el resto del bloque consiste
 solamente de ceros, se utiliza la tupla especial $(0,0)$.
 
 % descripción breve de Huffman.
 
-\subsection{Codificación Huffman}\label{sub:huffman}
+\subsection{Codificación Huffman} \label{sub:huffman}
 
 El paso final en la vida de un bloque es utilizar \emph{codificación de
 entropía}, que es el nombre que le damos a los algoritmos que codifican
 información independientemente de las características de su medio. JPEG usa
-\emph{prefix trees} en particular, y la gran mayoría de las implementaciones
-JPEG usan Árboles de Huffman. La especificación proporciona una segunda
+\emph{árboles de prefijos} en particular, y la gran mayoría de las implementaciones
+JPEG usan arboles de Huffman. La especificación proporciona una segunda
 alternativa a Huffman: codificación aritmética, de la cual se dará un breve
 resumen al final de esta sección.
 
@@ -445,29 +448,29 @@ Dada una lista de símbolos, (el abecedario, por ejemplo), queremos que los
 símbolos más usados tengan una representación más compacta que los símbolos
 menos usados.
 
-En el Inglés, la letra \emph{ e } es la más común y la \emph{ z } es la menos
+En inglés, la letra \emph{ e } es la más común y la \emph{ z } es la menos
 frecuente.  \cite{Espanol} La diferencia en frecuencias es de tres órdenes de
 magnitud, con una frecuencia de alrededor de 12\% para la \emph{e} y de 0.07\%
 para la \emph{z}.
 % Esto es un ejemplo de yo estando perfectamente mal:
 %Esto es un ejemplo de la Ley de Benford en acción \cite{Benford}
 
-Los \gls{Códigos de Huffman} ordenan una lista de símbolos y le asigna a cada uno un
+Los \gls{códigos de Huffman} ordenan una lista de símbolos y le asigna a cada uno un
 código respectivo de longitud creciente.
 
-Para generar los códigos, se usa un Árbol de Huffman, que es un árbol binario
+Para generar los códigos, se usa un árbol de Huffman, que es un árbol binario
 de prefijos. La figura \ref{fig:huffman} muestra un árbol de Huffman para el
 enunciado en inglés \emph{this is an example of a huffman tree}.
 
 \begin{figure}[h]
     \includegraphics[width=1.0\textwidth]{Huffman}
-    \caption{Ejemplo de un Árbol de Huffman}
+    \caption{Ejemplo de un árbol de Huffman}
     \label{fig:huffman}
 \end{figure}
 
 Los códigos se generan a partir del camino que se toma para llegar al símbolo
 en el árbol. $0$ para rama izquierda, $1$ para rama derecha. En este ejemplo, a
-la letra 'e' le corresponde el código \verb+000+ y a la letra 'a' \verb+010+.
+la letra `e' le corresponde el código \verb+000+ y a la letra `a' \verb+010+.
 Para estas dos letras se está usando 3 ($37.5\%$) de los 8 bits que se
 usan comúnmente para representar letras en inglés.
 
@@ -478,12 +481,12 @@ referencia.
 % imagen, al costo extra de tiempo de codificación y de complejidad de
 % implementación.
 
-La segunda opción que nos da la especificación es la \emph{\gls{Codificación
-Aritmética}}. No es popular, ya que hay muchas patentes relacionadas a la
+La segunda opción que nos da la especificación es la \emph{\gls{codificación
+aritmética}}. No es popular, ya que hay muchas patentes relacionadas a la
 técnica, pero para compresión es un método superior.
 
-Aunque los Árboles de Huffman son óptimos para comprimir símbolos
-separadamente, la Codificación Aritmética obtiene mejores resultados porque
+Aunque los árboles de Huffman son óptimos para comprimir símbolos
+separadamente, la codificación aritmética obtiene mejores resultados porque
 codifica varios símbolos como coeficientes de polinomios. A cada símbolo le
 corresponde un entero único relacionado a la frecuencia en la que ocurre en el
 mensaje, y ese número se usa como el coeficiente. El grado del polinomio es la
@@ -492,9 +495,9 @@ longitud del mensaje.
 \subsection{Resumen de la vida de un bloque}
 
 Lo que se hace en JPEG es convertir la imagen a \verb+YUV+, partirla en bloques
-de $8\times8$ para cada componente, aplicar DCT a cada bloque, cuantificar, y
-finalmente, aplicar Codificación de Huffman o Aritmética. Los bloques son
-escritos secuencialmente a disco en formato \verb+YUV YUV YUV (...)+. Este
+de $8\times8$ para cada componente, aplicar DCT a cada bloque, cuantificar y,
+finalmente, aplicar codificación de Huffman o aritmética. Los bloques se
+escriben secuencialmente a disco en formato \verb+YUV YUV YUV (...)+. Este
 trabajo se enfoca en usar heurísticas para encontrar tablas de cuantificación
 de manera individual para cada imagen a codificar.
 

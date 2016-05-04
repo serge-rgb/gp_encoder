@@ -1,22 +1,26 @@
 \chapter{Implementación JPEG}\label{ch:implementacion}
 
-Se implementó un codificador JPEG, lanzado al dominio público en \emph{ Github } bajo el
-nombre de TinyJPEG \cite{tiny_jpeg}.
+Este trabajo empezó como un proyecto motivado por curiosidad para averiguar
+cómo funciona JPEG. La idea de usar el GPU salió de notar que el algoritmo
+separa a la imagen en bloques que parecían ser independientes. En realidad no
+lo son, pero como se verá mas adelante, se encontró una manera de hacer un
+codificador paralelo. El progreso culminó en lo que se describe en este
+trabajo. El proyecto final se le llamó \emph{gp\_encoder} y su código está en
+github \cite{gp_encoder}.
 
-Encima de TinyJPEG, se desarrolló un proyecto que extiende TinyJPEG para
-implementar el algoritmo evolutivo \cite{gp_encoder}.
+El codificador JPEG fue lanzado al dominio público en \emph{ Github } bajo el
+nombre de TinyJPEG \cite{tiny_jpeg}.
 
 En este capítulo se describen los detalles de ambos proyectos.
 
-\section {Términos}
-Se van a usar los términos \emph{\gls{debugging}} y \emph{\gls{profiling}} por
-su ubiquidad en la literatura. \emph{debugging} se traduce como depurar y se
-define como el proceso de encontrar y arreglar defectos de código.
-\emph{profiling} es el proceso de encontrar los puntos en los que un programa
-puede ser modificado para mejorar el desempeño.
+\section {Términos} Se usan los términos \emph{\gls{depurar}} y
+\emph{\gls{profiling}}. Depurar, en computación, se refiere al proceso de
+encontrar y arreglar defectos de código. \emph{profiling} es el proceso de
+encontrar los puntos en los que un programa puede ser modificado para mejorar
+el desempeño.
 
 \emph{General Purpose GPU}, o \emph{\gls{GPGPU}} es el término usado para la
-práctica de programar GPUs directamente, a diferencia del uso original, donde
+práctica de programar GPU directamente, a diferencia del uso original, donde
 el GPU era un acelerador controlado por una biblioteca de gráficas como OpenGL
 o DirectX.
 
@@ -41,7 +45,7 @@ lenguaje para GPGPU, llamado CUDA, que tiene mejor soporte para debugging y
 profiling que OpenCL para sus tarjetas de video. Sin embargo, las herramientas
 siguen siendo primitivas comparadas con lo que se tiene en el CPU. En cualquier
 caso, uno termina haciendo hipótesis, experimentos y mediciones para optimizar la
-solución, aún teniendo herramientas sofisticadas. Se escogió OpenCL porque los
+solución, aun teniendo herramientas sofisticadas. Se escogió OpenCL porque los
 méritos relativos de facilidad de desarrollo de CUDA no le ganan al soporte
 multi-plataforma y al valor de apoyar estándares abiertos de OpenCL.
 
@@ -70,7 +74,8 @@ siguiente estructura:
 \end{code}
 
 De esta manera, uno puede incluir \verb+#include <tiny_jpeg.h>+ como cualquier
-\emph{header} de C, pero en uno de los archivos del proyecto, se hace esto:
+encabezado de C, pero en uno de los archivos del proyecto, para definir la
+implementación completa, se hace lo siguiente.
 
 \label{alg:stb_impl}
 \begin{code}[language=C][h]
@@ -78,9 +83,9 @@ De esta manera, uno puede incluir \verb+#include <tiny_jpeg.h>+ como cualquier
     #include <tiny_jpeg.h>
 \end{code}
 
-para definir la implementación completa. El propósito de esta técnica es
-facilitar la distribución de bibliotecas en un lenguaje que no cuenta con un
-sistema de distribución digital, o siquiera un sistema de módulos.
+El propósito de esta técnica es facilitar la distribución de bibliotecas en un
+lenguaje que no cuenta con un sistema de distribución digital, o siquiera un
+sistema de módulos.
 
 Se exponen dos funciones como interfaz pública:
 
@@ -93,28 +98,28 @@ La primera comprime con la tabla unitaria y la segunda ofrece tres posibles
 niveles de calidad: ``alto", ``mediano", y ``bajo". Todos correspondientes
 únicamente al uso de tres tablas de cuantificación.
 
-Ambas funciones son \emph{wrappers} sobre la función principal
-interna, que funciona de la siguiente manera:
+Ambas funciones son envolturas sobre la función principal interna, que funciona
+de la siguiente manera:
 
 Se prepara una estructura estática para hacer compresión de Huffman y se
 pre-procesa la tabla según el algoritmo DCT descrito en \ref{sec:DCT}. A esto
 le llamamos el \emph{paso inicial}.  Cuando terminamos el \emph{paso inicial},
-determinamos el número de bloques que van a ser procesados. JPEG debe funcionar
-con imágenes cuyos tamaños verticales y horizontales no son múltiplos de 8.
-Para esto la especificación sólo nos pide como codificador redondear al
-siguiente múltiplo de 8. Al decodificador le pide ignorar los datos extra. Para
+determinamos el número de bloques que van a ser procesados. JPEG debe poder
+funcionar con imágenes cuyos tamaños verticales y horizontales no sean múltiplos
+de 8. Para esto la especificación sólo nos pide como codificador redondear al
+siguiente múltiplo de 8. Al decodificador le pide ignorar los datos adicionales. Para
 evitar \gls{artefactos}, como convención se repite en el bloque el color del
-último píxel de la imagen para cada columna extra y para cada renglón extra. Si
+último píxel de la imagen para cada columna adicional y para cada renglón adicional. Si
 $w$ es el ancho de la imagen y $h$ es el alto, y ninguno de los dos es múltiplo
 de 8, entonces el número de bloques es $n = (w + (8 - w \mod 8)) * (h + (8 - h
 \mod 8))$. Cuando $w$ o $h$ es múltiplo de ocho, entonces se sustituye el
 término en la multiplicación por solamente $w$ o $h$ respectivamente. Por
 ejemplo, si $w \mod 8 = 0$ entonces $n = w * (h + (8 - h \mod 8))$
 
-Cada bloque se separa en tres bloques \verb+Y+, \verb+U+ \verb+V+ a los que
+Cada bloque se separa en tres bloques \verb+Y+, \verb+U+, \verb+V+, a los que
 se les aplica la función \verb+encode_MCU()+.
 
-La función \verb+encode_MCU()+ es llamada así por el acrónimo \emph{\gls{MCU}},
+La función \verb+encode_MCU()+ se llama así por el acrónimo \emph{\gls{MCU}},
 \emph{Minimum Coded Unit}. JPEG puede especificar un factor para describir los
 bloques \verb+U+ y \verb+V+ con menos resolución, por nuestra relativa falta de
 sensibilidad a la crominancia contra la luminancia, pero TinyJPEG no utiliza
@@ -122,7 +127,7 @@ esto. Otra posibilidad es usar diferentes tablas de codificación para
 lumninancia y crominancia. TinyJPEG sí utiliza esto, escogiendo tablas con
 mayor compresión para los bloques de crominancia.
 
-Se usa un par de \verb+for loops+ para extraer los bloques, y cada bloque se pasa como
+Se usa un par de iteraciones para extraer los bloques, y cada bloque se pasa como
 parámetro a la función \verb+encode_MCU+. En pseudo-código:
 
 \begin{code}[language=C][h]
@@ -143,12 +148,12 @@ parámetro a la función \verb+encode_MCU+. En pseudo-código:
 
 A primera vista, el algoritmo JPEG se ve ``embarazosamente paralelo". Una
 motivación para este trabajo fue la observación de que el algoritmo trabaja
-dividiendo la imágenes en cuadros de $8\times8$, y el hecho de que los GPUs
+dividiendo la imágenes en cuadros de $8\times8$ y el hecho de que los GPU
 actuales trabajan con instrucciones vectoriales de 32 elementos. Actualmente,
 cuando se hace \gls{GPGPU}, se considera buena práctica que el tamaño de las
 unidades de trabajo sean un múltiplo de la longitud de las instrucciones de la
 arquitectura. Por esto, los bloques de 64 elementos se prestan a ser procesados
-por GPUs actuales.
+por GPU actuales.
 
 Desafortunadamente, el algoritmo JPEG no es paralelo. Aplicar codificación
 delta al coeficiente DC introduce una dependencia de datos entre cada bloque de
@@ -162,7 +167,7 @@ no hubiera decidido tratar de manera diferente a los \gls{coeficientes AC} y DC,
 algoritmo sería completamente paralelo.
 
 Se quiere darle la vuelta al problema, y la manera en que se hace es creando
-un "Dummy JPEG": Un algoritmo que es \emph{casi} JPEG, pero que no es correcto.
+un ``Dummy JPEG": Un algoritmo que es \emph{casi} JPEG, pero que no es correcto.
 
 La implementación de DummyJPEG empieza como un clon directo de TinyJPEG. Lo
 primero que se hace es cambiar las función que escribe a disco por una función
@@ -204,7 +209,7 @@ La pregunta que se hace es: ¿El error en el reporte de tamaño es significativo
 
 La presión que se pone en la evolución es hacia imágenes que son
 indistinguibles de la original. Como el valor de cuantificación del primer
-coeficiente afecta de manera importante a la calidad de imagen comprimida, las
+coeficiente afecta de manera importante la calidad de imagen comprimida, las
 tablas de la población rápidamente convergen a tener el primer valor de
 cuantificación igual a 1. Esto quiere decir que para casi cualquier conjunto de
 tablas que vayamos a comparar, su coeficiente DC es igual. Por lo tanto,
@@ -212,12 +217,12 @@ siempre se introduce el mismo error en el reporte de los tamaños de las
 imágenes resultantes. Esto nos permite despreocuparnos de no tomar en cuenta el
 primer coeficiente.
 
-Otra cosa que se hace es \emph{solo calcular bloques de luminancia}. Los
-bloques de crominancia usualmente usan una tabla secundaria, y el propósito es
+Otra cosa que se hace es \emph{solo calcular bloques de luminancia}, ya que los
+bloques de crominancia usualmente usan una tabla secundaria y el propósito es
 evolucionar una sola tabla. Podemos deshacernos de $66\%$ del trabajo si
 descartamos los dos componentes de crominancia. Más tarde, cuando se finalice
-la evolución, podemos usar la misma tabla para los tres componentes, o bajar la
-calidad de la tabla para los componentes de crominancia multiplicando cada
+la evolución, podemos usar la misma tabla para los tres componentes o bajar la
+calidad de la tabla para los componentes de crominancia, multiplicando cada
 elemento por alguna constante.
 
 Ya que se tiene un algoritmo que es \emph{casi JPEG}, pero paralelo, se sigue
@@ -226,8 +231,8 @@ CPU. La razón por la que se implementa el paralelismo en el CPU antes de
 hacerlo en el GPU es principalmente la velocidad de desarrollo. La versión
 paralela en el CPU se hace pensando en el diseño final para el GPU.  El
 código se moldea para que el flujo de ejecución en el CPU sea muy similar a la
-manera en que trabaja el GPU, intentando llegar al punto de que la
-implementación en el GPU se reduzca a un \emph{copy paste}, y que el esfuerzo
+manera en que trabaja el GPU, intentando llegar al punto en que la
+implementación en el GPU se reduzca a un \emph{copy paste}, pero que el esfuerzo
 que se aplique a la implementación del GPU sea solamente un trabajo de
 optimización de bajo nivel.
 
@@ -236,25 +241,25 @@ optimización de bajo nivel.
 Las arquitecturas de GPU, en el momento que se escribe esto, trabajan con
 instrucciones SIMT (\emph{Single Instruction, Multiple Threads}).
 
-Supercomputadoras vectoriales como la \emph{Cray} se introdujeron en los 70s
-pero gradualmente perdieron popularidad mientras computadoras con
+Supercomputadoras vectoriales como la \emph{Cray} se introdujeron en la década
+de 1970 pero gradualmente perdieron popularidad, mientras computadoras con
 microprocesadores x86 bajaron de precio. Las computadoras de escritorio serían
-completamente escalares hasta el final de los 90s, y las súper-computadoras
+completamente escalares hasta el final de los 90, y las súper-computadoras
 seguirían siendo por un tiempo grupos de procesadores x86.
 
 En 1998 AMD introdujo instrucciones vectoriales con su tecnología \emph{3D
 Now}, seguido por Intel en 1999 cuando introdujo SSE (Streaming SIMD
 extensions). Ambas tecnologías son extensiones al conjunto de instrucciones x86
-que introducen cómputo vectorial. Unos años más tarde se empezaría a
+que introducen cómputo vectorial. Unos años más tarde se empezarían a
 popularizar los procesadores \emph{multi-core}. Ambos desarrollos, que
-introducen cómputo paralelo a los procesadores para consumidor son el resultado
-de el desacelere de la velocidad escalar y una demanda constante de mayor desempeño.
+introducen cómputo paralelo a los procesadores para consumidor, son el resultado
+de la desaceleración de la velocidad escalar y una demanda constante de mayor desempeño.
 
 Otra respuesta a esta demanda para mayor desempeño nació en los noventas: Los
-aceleradores gráficos, o GPUs. Tarjetas que se dedican a rasterizar triángulos
+aceleradores gráficos o GPU, tarjetas que se dedican a rasterizar triángulos
 rápidamente para aplicaciones multimedia, principalmente videojuegos.
 
-Aunque al principio los GPUs estaban diseñados alrededor de APIs como OpenGL y
+Aunque al principio los GPU estaban diseñados alrededor de  las API como OpenGL y
 DirectX, con funcionalidad fija, poco a poco fueron adquiriendo la habilidad de
 ser programables. Primero con \emph{shaders}, que permitieron meter código en
 un par de partes clave del proceso de rasterización, y más tarde con OpenCL y
@@ -293,7 +298,7 @@ tamaño puede variar, aunque es buena práctica escoger un múltiplo del tamaño
 los wavefronts (32 en Kepler y Maxwell). Hay que encontrar el tamaño apropiado
 para los \emph{work groups} para minimizar contención de memoria y maximizar el
 rendimiento (se usa la palabra rendimiento como traducción directa de de
-\emph{throughput}). Los GPUs están diseñados para sacrificar latencia por
+\emph{throughput}). Los GPU están diseñados para sacrificar latencia por
 rendimiento.
 
 Nótese que el concepto de \emph{work group} es una abstracción que se provee
@@ -301,9 +306,9 @@ para facilitar la programación en OpenCL. Crear work groups de cierto tamaño y
 dimensiones ayuda a visualizar problemas. Sin embargo, es importante tener
 siempre en cuenta que un work group siempre es ejecutado por un wavefront.
 
-Cada generación de GPUs tiene diferentes características de desempeño. Es útil
+Cada generación de GPU tiene diferentes características de desempeño. Es útil
 usar referencias oficiales \cite{maxwell-tuning}, pero los recursos gratis,
-como GPU Tech Conf (GTC) \cite{gtc}, una conferencia anual sobre GPUs, son una
+como GPU Tech Conf (GTC) \cite{gtc}, una conferencia anual sobre GPU, son una
 buena fuente de información para aprender a obtener el mayor desempeño posible
 de las arquitecturas actuales.
 
@@ -323,12 +328,12 @@ del Processing Element y al cache L1. La memoria global corresponde a la
 memoria global del GPU, pero la microarquitectura puede encargarse de ``subir''
 y ``bajar''  accesos de memoria global por la jerarquía de memoria física.
 
-Durante la ejecución de un kernel. A diferencia de los CPUs, no hay garantía de
+Durante la ejecución de un kernel. A diferencia de los CPU, no hay garantía de
 coherencia cuando se escribe a memoria. OpenCL provee mecanismos de
 sincronización de memoria para cuando es absolutamente necesario, pero en la
 práctica resultan en un golpe fuerte al desempeño.
 
-La arquitectura de los GPUs está diseñada para lidiar con problemas de
+La arquitectura de los GPU está diseñada para lidiar con problemas de
 contención de memoria. Cuando algún work item dentro de un wavefront está
 esperando a que se efectúe una operación de memoria, o está esperando a otro
 miembro del wavefront a causa de un salto condicional, el calendarizador hace
@@ -545,7 +550,7 @@ es relativamente fácil si uno sigue al pie de la letra la especificación de
 OpenCL 1.1 \cite{opencl-spec}
 
 Afortunadamente, la estrategia de hacer la implementación paralela en el CPU,
-pensando en GPUs, para después migrar el trabajo al GPU fue exitosa. La
+pensando en GPU, para después migrar el trabajo al GPU fue exitosa. La
 implementación paralela en GPU requirió de sólo el mínimo esfuerzo necesario,
 dejando tiempo para hacer las micro-optimizaciones que se describen en la
 sección \ref{sec:microopt}.
@@ -576,7 +581,7 @@ Más adelante se describen las características de las cuatro imágenes de prueb
 rápida, en el caso de la imagen ``Plutón", que mide 192MB, el beneficio del GPU
 crece por un factor de alrededor de 5X comparándolo con la modalidad CPU con un
 thread. Es posible que la razón sea que el trabajo a realizar crece
-proporcionalmente con el tamaño de la imagen, y los GPUs están diseñados para
+proporcionalmente con el tamaño de la imagen, y los GPU están diseñados para
 rendimiento, no latencia. Se puede especular sobre la razón verdadera. Puede
 que el hecho de que haya más wavefronts en vuelo permita que los Compute Units
 tengan una mayor utilización, mientras que el menor número de wavefronts para
@@ -763,7 +768,7 @@ programa con micro-optimización.
 
 En la microarquitectura de un GPU, accesos a la memoria global usualmente
 resultan en que la memoria sea copiada automáticamente a memoria local, de la
-misma manera que se utilizan cachés en CPUs para lidiar con la latencia de la
+misma manera que se utilizan cachés en CPU para lidiar con la latencia de la
 memoria principal. Sin embargo, no siempre podemos contar con que esto va a
 suceder.
 
@@ -804,16 +809,17 @@ local vs memoria global.
 Logramos una mejora de entre 16\% y 22\% haciendo lo que a primera vista parece
 más trabajo. Cabe notar que no se logra la misma mejora copiando otros
 parámetros de entrada, como las tablas Huffman. Es posible que se obtiene este
-extra desempeño porque se está cargando a memoria local \emph{toda} la memoria
-del bloque que va a accesarse por ese work item, mientras que el acceso a las
-tablas de Huffman es mucho más aleatorio y son arreglos mucho más grandes.
+desempeño adicional porque se está cargando a memoria local \emph{toda} la
+memoria del bloque que va a accesarse por ese work item, mientras que el acceso
+a las tablas de Huffman es mucho más aleatorio y son arreglos mucho más
+grandes.
 
 \subsection{GPU: Saltos condicionales}
 
 Un \emph{ salto condicional } es en lo que se convierte un \verb+if+ cuando
 se compila a código máquina. Para observar por qué los saltos condicionales
 (usualmente llamados \emph{branches} para ahorrar teclas) son un problema en
-GPUs, vale la pena hacer un ejemplo.
+GPU, vale la pena hacer un ejemplo.
 
 Supóngase que un wavefront ejecuta el siguiente código:
 
@@ -899,7 +905,7 @@ Para terminar las notas de micro-optimización, se va a discutir un truco en la
 implementación de TinyJPEG que trata con predicción de \emph{branches} (i.e.
 saltos condicionales, o bloques \verb+if+)
 
-Los CPUs son muy buenos ejecutando \emph{branches} cuando pueden predecir su
+Los CPU son muy buenos ejecutando \emph{branches} cuando pueden predecir su
 comportamiento. Agner Fog \cite{agner} tiene muy buenos recursos para estar al
 día con la manera en que los procesadores de Intel predicen branches. El
 concepto es que cuando el CPU piensa que un branch va a ser ejecutado, lo

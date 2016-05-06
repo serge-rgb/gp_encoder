@@ -49,6 +49,7 @@ solución, aun teniendo herramientas sofisticadas. Se escogió OpenCL porque los
 méritos relativos de facilidad de desarrollo de CUDA no le ganan al soporte
 multi-plataforma y al valor de apoyar estándares abiertos de OpenCL.
 
+
 % ============================================================
 \section{Arquitectura}
 % ============================================================
@@ -273,38 +274,39 @@ conceptos, la tabla \ref{table:equiv} describe las equivalencias.
 Esta descripción se enfoca en la arquitectura Kepler de Nvidia y cómo le
 corresponden los conceptos de OpenCL.
 
-Un programa OpenCL opera con \emph{work items}. Un work item puede pensarse
+Un programa OpenCL opera con \emph{work items}. Un \emph{work item} puede pensarse
 como una \emph{``fibra"} en un \emph{``cable"} que ejecuta instrucciones
-vectoriales. En la arquitecturas modernas de Nvidia, la longitud de los
+vectoriales. En la arquitectura moderna de Nvidia, la longitud de los
 vectores es de 32 elementos. Es decir, cada cable tiene 32 fibras.
 
 A estos \emph{``cables"} se les denomina \emph{wavefronts}.
 
 La tarjeta de video tiene un calendarizador implementado en hardware que
 trabaja con granularidad de \emph{wavefronts} individuales. Los \emph{work
-items} corren \emph{kernels}, que son funciones escritas en el
-dialecto de C de OpenCL para ser ejecutadas en el GPU. Un kernel de OpenCL se
-ve como código en C, pero hay que imaginarse que en lugar de un sólo apuntador
-de instrucciones avanzando secuencialmente, se está lidiando con 32 apuntadores
-de instrucciones (las fibras del cable en la analogía que se usa). Este es un
-paradigma diferente. Por ejemplo, los saltos dinámicos se convierten en algo
-caro, ya que mientras un subconjunto de los 32 apuntadores de instrucciones
-procesa un camino de ejecución, el resto debe esperar. Un salto que se toma el
-50\% del tiempo es causa un \emph{slowdown} de 2x.
+items} corren \emph{kernels}, que son funciones escritas en el dialecto de C de
+OpenCL para ser ejecutadas en el GPU. Un kernel de OpenCL se ve como código en
+C, pero hay que imaginarse que en lugar de un sólo apuntador de instrucciones
+avanzando secuencialmente, se está lidiando con 32 apuntadores de instrucciones
+(las fibras del cable en la analogía que se usa). Este es un paradigma
+diferente. Por ejemplo, los saltos dinámicos se convierten en algo caro, ya que
+mientras un subconjunto de los 32 apuntadores de instrucciones procesa un
+camino de ejecución, el resto debe esperar. Un salto que se toma el 50\% del
+tiempo es causa una reducción de velocidad de 2x.
 
-Un \emph{work item} es parte de un \emph{work group}. El tamaño del \emph{work
-group} es decisión del programador, puede ser de 1, 2 o 3 dimensiones y su
-tamaño puede variar, aunque es buena práctica escoger un múltiplo del tamaño de
-los wavefronts (32 en Kepler y Maxwell). Hay que encontrar el tamaño apropiado
-para los \emph{work groups} para minimizar contención de memoria y maximizar el
-rendimiento (se usa la palabra rendimiento como traducción directa de de
-\emph{throughput}). Los GPU están diseñados para sacrificar latencia por
-rendimiento.
+Un \emph{work item} es parte de un \emph{work item}. El tamaño del
+\emph{work group} es decisión del programador, puede ser de 1, 2 o 3
+dimensiones y su tamaño puede variar, aunque es buena práctica escoger un
+múltiplo del tamaño de los wavefronts (32 en Kepler y Maxwell). Hay que
+encontrar el tamaño apropiado para los \emph{work items} para minimizar
+contención de memoria y maximizar el rendimiento (se usa la palabra rendimiento
+como traducción directa de de \emph{throughput}). Los GPU están diseñados para
+sacrificar latencia por rendimiento.
 
-Nótese que el concepto de \emph{work group} es una abstracción que se provee
-para facilitar la programación en OpenCL. Crear work groups de cierto tamaño y
-dimensiones ayuda a visualizar problemas. Sin embargo, es importante tener
-siempre en cuenta que un work group siempre es ejecutado por un wavefront.
+Nótese que el concepto de \emph{work item} es una abstracción que se
+provee para facilitar la programación en OpenCL. Crear \emph{work items} de
+cierto tamaño y dimensiones ayuda a visualizar problemas. Sin embargo, es
+importante tener siempre en cuenta que un \emph{work item} siempre es ejecutado
+por un \emph{wavefront}.
 
 Cada generación de GPU tiene diferentes características de desempeño. Es útil
 usar referencias oficiales \cite{maxwell-tuning}, pero los recursos gratis,
@@ -313,18 +315,18 @@ buena fuente de información para aprender a obtener el mayor desempeño posible
 de las arquitecturas actuales.
 
 En la microarquitectura del GPU, los \emph{wavefronts} son ejecutados en
-procesadores vectoriales llamados \emph{Processing Elements}. Cada Processing
-Element tiene un número limitado de registros y puede ejecutar un wavefront a la vez.
+procesadores vectoriales llamados \emph{Processing Elements}. Cada \emph{ Processing
+Element } tiene un número limitado de registros y puede ejecutar un \emph{wavefront} a la vez.
 
-Cada Processing Element es miembro de un \emph{Compute Unit}, que tiene un caché L1.
+Cada \emph{ Processing Element } es miembro de un \emph{Compute Unit}, que tiene un caché L1.
 
-El GPU contiene un número de Compute Units, quienes comparten un caché L2 y una
+El GPU contiene un número de \emph{ Compute Units }, quienes comparten un caché L2 y una
 memoria global. En el ejemplo en la figura \ref{fig:kepler1} es un GPU con 15
-Compute Units.
+\emph{ Compute Units }.
 
 Desde el punto de vista del modelo OpenCL solo existe la memoria local y
 memoria global. En la práctica, la memoria local corresponde a los registros
-del Processing Element y al cache L1. La memoria global corresponde a la
+del \emph{ Processing Element } y al cache L1. La memoria global corresponde a la
 memoria global del GPU, pero la microarquitectura puede encargarse de ``subir''
 y ``bajar''  accesos de memoria global por la jerarquía de memoria física.
 
@@ -334,18 +336,17 @@ sincronización de memoria para cuando es absolutamente necesario, pero en la
 práctica resultan en un golpe fuerte al desempeño.
 
 La arquitectura de los GPU está diseñada para lidiar con problemas de
-contención de memoria. Cuando algún work item dentro de un wavefront está
+contención de memoria. Cuando algún \emph{work item} dentro de un \emph{wavefront} está
 esperando a que se efectúe una operación de memoria, o está esperando a otro
-miembro del wavefront a causa de un salto condicional, el calendarizador hace
-que el \emph{compute unit} ejecute otro wavefront que esté listo para ser
+miembro del \emph{wavefront} a causa de un salto condicional, el calendarizador hace
+que el \emph{compute unit} ejecute otro \emph{wavefront} que esté listo para ser
 ejecutado. Esto ocurre muy rápidamente, no hay un costo alto de cambio de
-contexto como al que estamos acostumbrados con threads en sistemas operativos.
+contexto como al que estamos acostumbrados con hilos en sistemas operativos.
 
 Las figuras \ref{fig:kepler1} y \ref{fig:kepler2}, tomadas de la plática de
 Nvidia ``Inside Kepler" \cite{kepler-slides}, ayudan a visualizar cómo
 corresponde el modelo OpenCL a una arquitectura GPU. En el caso de Kepler,
-podemos ver un SMX como un Compute Unit, y cada Cuda Core como un Processing
-Element.
+podemos ver un SMX como un \emph{ Compute Unit }, y cada \emph{ Cuda Core } como un \emph{ Processing Element }.
 
 \begin{figure}[h]
     \includegraphics[width=1.0\textwidth]{kepler_1}
@@ -368,12 +369,12 @@ El kernel para nuestra función de selección va a hacer el trabajo de la funci�
 \verb+encode_MCU+, que se encarga de tomar bloques de $8\times8$, codificarlos
 y reportar el tamaño, y luego decodificarlos y reportar el error.
 
-El kernel de DummyJPEG está diseñado para que cada work item se encargue de un
-bloque. Esto quiere decir que cada work group puede estar procesando bloques
+El kernel de DummyJPEG está diseñado para que cada \emph{work item} se encargue de un
+bloque. Esto quiere decir que cada \emph{work item} puede estar procesando bloques
 completamente distintos. Esto se hace porque cada bloque puede tener un número
 arbitrario de ceros una vez que se ha aplicado la \gls{DCT} y se ha aplicado la
 cuantificación. Si organizáramos el trabajo de manera que cada workgroup trabaje
-con un solo bloque, cada wavefront pasaría la mayor parte del tiempo esperando saltos
+con un solo bloque, cada \emph{wavefront} pasaría la mayor parte del tiempo esperando saltos
 condicionales. El problema de los saltos condicionales se discute más adelante
 en la sección \ref{sec:microopt}.
 
@@ -388,6 +389,7 @@ en la sección \ref{sec:microopt}.
     Compute Unit       & Streaming Multiprocessor (SMX) \\
     \hline
     \end{tabular}
+    \caption{Equivalencias Entre Términos usados en OpenCL y CUDA}
     \label{table:equiv}
 \end{figure}
 
@@ -454,7 +456,7 @@ En el cpu, la parte \emph{map} del algoritmo se ve así:
     }
 \end{code}
 
-Para múltiples threads, se utilizan threads trabajadores que consumen unidades
+Para múltiples \emph{ threads }, se utilizan \emph{ threads } trabajadores que consumen unidades
 de trabajo. Como se muestra con el siguiente pseudo código:
 
 \begin{code}[language=C][h]
@@ -556,7 +558,7 @@ dejando tiempo para hacer las micro-optimizaciones que se describen en la
 sección \ref{sec:microopt}.
 
 El algoritmo funciona correctamente en tres modalidades: Un thread, Múltiples
-threads, y GPU. Para un conjunto de imágenes de prueba, la tabla
+\emph{ threads }, y GPU. Para un conjunto de imágenes de prueba, la tabla
 \ref{table:perf_table_orig} muestra el tiempo en segundos que cada modalidad toma
 para realizar la evolución de la tabla de cuantificación y escribir el JPEG
 resultante.
@@ -583,10 +585,10 @@ crece por un factor de alrededor de 5X comparándolo con la modalidad CPU con un
 thread. Es posible que la razón sea que el trabajo a realizar crece
 proporcionalmente con el tamaño de la imagen, y los GPU están diseñados para
 rendimiento, no latencia. Se puede especular sobre la razón verdadera. Puede
-que el hecho de que haya más wavefronts en vuelo permita que los Compute Units
+que el hecho de que haya más wavefronts en vuelo permita que los \emph{ Compute Units }
 tengan una mayor utilización, mientras que el menor número de wavefronts para
 las imágenes más pequeñas cause problemas de utilización cuando muchos
-wavefronts están ejecutando código con saltos condicionales, como el proceso en
+\emph{wavefront}s están ejecutando código con saltos condicionales, como el proceso en
 JPEG en el que se busca el útlimo elemento del bloque que no es cero. Otra
 explicación sería que con imágenes grandes, el calendarizador puede hacer un
 mejor trabajo dándole la vuelta a problemas de contención de memoria.
@@ -772,9 +774,9 @@ misma manera que se utilizan cachés en CPU para lidiar con la latencia de la
 memoria principal. Sin embargo, no siempre podemos contar con que esto va a
 suceder.
 
-Cuando se sabe que un work item va a trabajar con un trozo de memoria de cierto
+Cuando se sabe que un \emph{work item} va a trabajar con un trozo de memoria de cierto
 tamaño, ocasionalmente es buena idea forzar una copia a memoria local para
-reducir el tiempo que el work item está esperando a memoria principal. El
+reducir el tiempo que el \emph{work item} está esperando a memoria principal. El
 siguiente pseudocódigo es una optimización común en OpenCL.
 
 \label{alg:gpgpu-memcpy}
@@ -810,7 +812,7 @@ Logramos una mejora de entre 16\% y 22\% haciendo lo que a primera vista parece
 más trabajo. Cabe notar que no se logra la misma mejora copiando otros
 parámetros de entrada, como las tablas Huffman. Es posible que se obtiene este
 desempeño adicional porque se está cargando a memoria local \emph{toda} la
-memoria del bloque que va a accesarse por ese work item, mientras que el acceso
+memoria del bloque que va a accesarse por ese \emph{work item}, mientras que el acceso
 a las tablas de Huffman es mucho más aleatorio y son arreglos mucho más
 grandes.
 
@@ -821,7 +823,7 @@ se compila a código máquina. Para observar por qué los saltos condicionales
 (usualmente llamados \emph{branches} para ahorrar teclas) son un problema en
 GPU, vale la pena hacer un ejemplo.
 
-Supóngase que un wavefront ejecuta el siguiente código:
+Supóngase que un \emph{wavefront} ejecuta el siguiente código:
 
 \begin{code}[language=C][h]
     if (mi_variable) {
@@ -833,21 +835,21 @@ Supóngase que un wavefront ejecuta el siguiente código:
 \end{code}
 
 También supóngase que \verb+mi_variable+ es \verb+true+ para el 90\% de los work
-items.  Cuando se llega al \verb+if+, 90\% de los work items van a ejecutar
+items.  Cuando se llega al \verb+if+, 90\% de los \emph{work items} van a ejecutar
 \verb+funcion_a+, mientras que el 10\% restante va a ejecutar \verb+funcion_b+.
 El problema está en que no se puede ejecutar \verb+funcion_c+ hasta que todos
-los work items en el wavefront hayan terminado de ejecutar el bloque if. Esto
-quiere decir que si \verb+funcion_b+ es muy cara, el 90\% del wavefront va a
+los \emph{work items} en el \emph{wavefront} hayan terminado de ejecutar el bloque if. Esto
+quiere decir que si \verb+funcion_b+ es muy cara, el 90\% del \emph{wavefront} va a
 estar sin hacer trabajo, esperando a que el 10\% restante termine de ejecutar
 \verb+function_b+.
 
-El kernel de DummyJPEG no puede hacer mucho para evitar que haya wavefronts
+El kernel de DummyJPEG no puede hacer mucho para evitar que haya \emph{wavefront}s
 esperando saltos condicionales. Esto es por la naturaleza del algoritmo JPEG.
 El procesamiento de un bloque requiere contar el número de coeficientes que son
 cero, y para hacer esto es necesario iterar por todo el bloque. Encima de esto,
 cada bloque tiene una cantidad de trabajo proporcional al número de
-coeficientes que no son cero. Esto implica que cualquier wavefront de DummyJPEG
-va a esperar al work item que tenga el menor número de ceros que procesar y por
+aoeficientes que no son cero. Esto implica que cualquier \emph{wavefront} de DummyJPEG
+va a esperar al \emph{work item} que tenga el menor número de ceros que procesar y por
 lo tanto más trabajo que hacer.
 
 Estar conscientes de que la palabra \verb+if+ puede ser la parte más costosa

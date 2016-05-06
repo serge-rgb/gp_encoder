@@ -107,13 +107,13 @@ también se le refiere como \emph{DCT-Based Coding}, traducido aquí como
 necesario, se usará el término \emph{JPEG} para referirse a lo mismo que
 \emph{Baseline JPEG}.
 
-La codificación DCT divide a la imagen en bloques de $8\times8$ píxeles. Cada
+La codificación DCT divide a la imagen en bloques de $8\times8$ pixeles. Cada
 bloque de $8\times8$ pasa por una serie de transformaciones y salen
 secuencialmente como datos comprimidos.
 
 El primer paso en el \emph{pipeline} es separar los componentes de la imagen.
 Las dos maneras más comunes de representar imágenes en computadoras es
-\verb+RGB+ o \verb+RGBA+: En ambos formatos, cada píxel ocupa 32 bits de
+\verb+RGB+ o \verb+RGBA+: En ambos formatos, cada pixel ocupa 32 bits de
 espacio, divididos en componentes de 8 bits. Cada componente corresponde a un
 color o al valor de opacidad, comúnmente denominado \emph{alfa}. \verb+RGB+
 corresponde al byte \verb+RRGGBBXX+, con \verb+RR+ representando rojo,
@@ -128,7 +128,7 @@ bytes \verb+RRGGBBAA+, donde el último byte se usa para el valor \emph{alfa}.
 % % Nota para edicion: DWORD es usado por intel & MS. No introducir nuestra propia pinche notación...
 
 % Cabe notar que diferentes plataformas tienen diferentes convenciones para
-% guardar colores en memoria. Windows espera que le mandemos píxeles en órden
+% guardar colores en memoria. Windows espera que le mandemos pixeles en órden
 % \verb+BGRA+, ya que al inspeccionar la memoria se ve en el órden más familiar
 % de \verb+ARGB+ (Microsoft no ha dicho públicamente por qué reordenaron los
 % componentes de color pero no el de opacidad).
@@ -214,7 +214,7 @@ información perder}.
 JPEG trabaja dividiendo a la imagen en bloques cuadrados de 8 pixeles de ancho
 y alto. Si el tamaño de la imagen no es un múltiplo de ocho, se redondea al
 siguiente múltiplo de ocho. El decodificador hace lo mismo y sabe ignorar los
-píxeles sobrantes.
+pixeles sobrantes.
 
 Cada bloque pasa por varias etapas antes de ser escrito a memoria como bits
 comprimidos de JPEG.

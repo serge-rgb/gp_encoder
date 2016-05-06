@@ -268,7 +268,7 @@ CUDA, que permiten escribir programas para el GPU en un dialecto de C.
 El modelo de ejecución de OpenCL corresponde directamente a las arquitecturas
 GPU actuales. Para describir su funcionamiento, en este documento se usa la
 terminología de OpenCL y AMD. Nvidia tiene términos diferentes para los mismos
-conceptos, la tabla \ref{fig:equiv} describe las equivalencias.
+conceptos, la tabla \ref{table:equiv} describe las equivalencias.
 
 Esta descripción se enfoca en la arquitectura Kepler de Nvidia y cómo le
 corresponden los conceptos de OpenCL.
@@ -341,7 +341,7 @@ que el \emph{compute unit} ejecute otro wavefront que esté listo para ser
 ejecutado. Esto ocurre muy rápidamente, no hay un costo alto de cambio de
 contexto como al que estamos acostumbrados con threads en sistemas operativos.
 
-Las imágenes \ref{fig:kepler1} y \ref{fig:kepler2}, tomadas de la plática de
+Las figuras \ref{fig:kepler1} y \ref{fig:kepler2}, tomadas de la plática de
 Nvidia ``Inside Kepler" \cite{kepler-slides}, ayudan a visualizar cómo
 corresponde el modelo OpenCL a una arquitectura GPU. En el caso de Kepler,
 podemos ver un SMX como un Compute Unit, y cada Cuda Core como un Processing
@@ -388,7 +388,7 @@ en la sección \ref{sec:microopt}.
     Compute Unit       & Streaming Multiprocessor (SMX) \\
     \hline
     \end{tabular}
-    \label{fig:equiv}
+    \label{table:equiv}
 \end{figure}
 
 \section{Implementación paralela en CPU}
@@ -527,7 +527,7 @@ trabajando.
     // Obtener el indice de bloque en OpenCL
     int block_i = (int)get_global_id(0);
 \end{code}
-{p
+{
 La gran mayoría del esfuerzo en implementar la versión paralela en GPU es en
 hacer la inicialización necesaria para que OpenCL establezca una línea de
 comunicación entre el CPU y el GPU. Para referencia, ver los archivos
@@ -557,7 +557,7 @@ sección \ref{sec:microopt}.
 
 El algoritmo funciona correctamente en tres modalidades: Un thread, Múltiples
 threads, y GPU. Para un conjunto de imágenes de prueba, la tabla
-\ref{fig:perf_table_orig} muestra el tiempo en segundos que cada modalidad toma
+\ref{table:perf_table_orig} muestra el tiempo en segundos que cada modalidad toma
 para realizar la evolución de la tabla de cuantificación y escribir el JPEG
 resultante.
 
@@ -573,7 +573,7 @@ resultante.
         \hline
     \end{tabular}
     \caption{Tabla de desempeño para gp\_encoder}
-    \label{fig:perf_table_orig}
+    \label{table:perf_table_orig}
 \end{figure}
 
 Más adelante se describen las características de las cuatro imágenes de prueba
@@ -788,7 +788,7 @@ siguiente pseudocódigo es una optimización común en OpenCL.
 \end{code}
 
 En el caso de nuestro kernel, esta optimización resulta efectiva cuando
-copiamos el \gls{MCU} (512 bytes). En la tabla \ref{fig:gpucopy} se compara el tiempo
+copiamos el \gls{MCU} (512 bytes). En la tabla \ref{table:gpucopy} se compara el tiempo
 total de nuestro programa, con tres imágenes de prueba, haciendo una copia
 local vs memoria global.
 
@@ -803,7 +803,7 @@ local vs memoria global.
         \hline
     \end{tabular}
     \caption{Comparación de desempeño para copia local de bloques}
-    \label{fig:gpucopy}
+    \label{table:gpucopy}
 \end{figure}
 
 Logramos una mejora de entre 16\% y 22\% haciendo lo que a primera vista parece
@@ -862,7 +862,7 @@ llamadas a fwrite. Las implementaciones de fwrite tratan de evitar llamadas a
 sistema, pero de cualquier manera, el uso de este buffer reduce dramáticamente
 el costo de escritura.
 
-La imagen \ref{fig:fwrite} muestra el costo de fwrite en TinyJPEG con buffering
+La figura \ref{fig:fwrite} muestra el costo de fwrite en TinyJPEG con buffering
 deshabilitado.
 
 \begin{figure}[hb]
@@ -926,7 +926,7 @@ fval = (fval > 0)? floorf(fval + 0.5f) : ceilf(fval - 0.5f);
 Esta es una implementación clásica de redondeo, escrita de acuerdo a la
 especificación JPEG.
 
-Usando \verb+perf+, se puede visualizar el problema (imagen \ref{fig:mispred}):
+Usando \verb+perf+, se puede visualizar el problema (figura \ref{fig:mispred}):
 
 \begin{figure}[h]
     \includegraphics[width=5.16666in]{round_slow}

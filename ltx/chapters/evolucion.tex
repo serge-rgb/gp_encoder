@@ -466,9 +466,10 @@ convergencia mientras la evolución avanza.
 \section{Comparación de resultados}
 % ============================================================
 
-La tabla \ref{fig:perf_table} es una copia de la que se mostró en el capítulo
-\ref{ch:implementacion}. Muestra el desempeño de gp\_encoder en sus
-diferentes modalidades: CPU (single-thread y multi-thread) y GPU (OpenCL).
+La tabla \ref{table:perf_table} es una copia de la que se mostró en el capítulo
+\ref{ch:implementacion}. Muestra el desempeño de gp\_encoder en sus diferentes
+modalidades: CPU (single-thread y multi-thread) y GPU (OpenCL). Se vuelve a
+incluír para la conveniencia del lector.
 
 \begin{figure}[h!]
     \begin{tabular}{ |l c c c c r| }
@@ -482,12 +483,12 @@ diferentes modalidades: CPU (single-thread y multi-thread) y GPU (OpenCL).
         \hline
     \end{tabular}
     \caption{Tabla de desempeño para gp\_encoder}
-    \label{fig:perf_table}
+    \label{table:perf_table}
 \end{figure}
 
 El algoritmo evolutivo se desarrolló con el propósito de generar imágenes
 indistinguibles de las originales pero con una buena tasa de compresión. En la
-tabla \ref{fig:size-table} comparamos los tamaños de las imágenes de prueba
+figura \ref{fig:size-table} comparamos los tamaños de las imágenes de prueba
 originales con su versión comprimida con la tabla de cuantificación
 evolucionada y la compresión "media" de TinyJPEG, descrita en el capítulo
 \ref{ch:implementacion}.
@@ -527,7 +528,7 @@ Fenómeno de Gibbs es menos notorio en la imagen producida por TinyJPEG.
 
 Para finalizar, se incluye la tabla de cuantificación evolucionada para la
 imagen Klay (figura \ref{fig:klay-table}). Vale la pena compararla con la tabla de
-cuantificación de referencia \ref{fig:reference-table} para observar las
+cuantificación de referencia \ref{table:reference-table} para observar las
 características poco intuitivas de la tabla generada por gp\_encoder, como la
 relativa alta cantidad de coeficientes de valores bajos en las frecuencias
 altas.

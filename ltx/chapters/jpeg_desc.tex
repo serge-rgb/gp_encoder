@@ -285,7 +285,7 @@ A cada bloque se le aplica la Transformada Discreta de Coseno de $8\times8$. El
 resultado son 64 coeficientes para las 64 funciones base. Como se muestra en la
 figura \ref{fig:dct}, la frecuencia se incrementa hacia la derecha y abajo. Por
 eso a partir de este momento se itera el bloque en un patrón de zig-zag
-\ref{fig:zigzag}, empezando en la esquina superior izquierda y acabando en la
+(figura \ref{fig:zigzag}), empezando en la esquina superior izquierda y acabando en la
 inferior derecha.
 
 \begin{figure}[h]
@@ -367,14 +367,14 @@ entropía (sección \ref{sub:huffman}).
         49 & 64 & 78 & 87 & 103 & 121 & 120 & 101 \\
         72 & 92 & 95 & 98 & 112 & 100 & 103 & 99
     \end{matrix}
-    \label{eq:cuantificacion}
-\end{equation} \label{fig:reference-table}
+    \label{table:reference-table}
+\end{equation}
 
-La tabla \ref{eq:cuantificacion} se usa en la implementación de JPEG.
+La tabla \ref{table:reference-table} se usa en la implementación de JPEG.
 
 Nótese que los valores crecen a la derecha y hacia abajo, hacia las frecuencias
 altas, mientras que los valores mínimos se concentran en la esquina superior
-izquierda en las frecuencias bajas (ver imagen \ref{fig:dct}).
+izquierda en las frecuencias bajas (ver figura \ref{fig:dct}).
 
 Una manera de conseguir distintos niveles de calidad es dividir cada elemento
 de la tabla de cuantificación por una constante.

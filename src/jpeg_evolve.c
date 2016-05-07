@@ -130,10 +130,10 @@ int main()
 
     int w, h, ncomp;
     char* fname =
-            //"diego.bmp";
+            "diego.bmp";
             //"pluto.bmp";
             //"in.bmp";
-            "in_klay.bmp";
+            //"in_klay.bmp";
     unsigned char* data = stbi_load(fname, &w, &h, &ncomp, 0);
 
     if ( !data ) {
@@ -272,9 +272,12 @@ int main()
 
         // ---- Create new population
 
+        /* int prob_mutation = 70; */
+        /* int prob_crossover = 25; */
+        /* int prob_reproduction = 5; */
 #if 1
-        int prob_mutation = 70;
-        int prob_crossover = 25;
+        int prob_mutation = 80;
+        int prob_crossover = 15;
         int prob_reproduction = 5;
 
         for ( size_t ei = 0; ei < INITIAL_GENERATION_COUNT; ++ei ) {
@@ -309,20 +312,23 @@ int main()
 #endif
 
             switch (process_select) {
-            case MUTATION: {
-                PopulationElement e = grab_element(old_population, 0, NULL);
-                size_t idx = rand() % 64;
-                int val = e.table[idx];
-                val += -4 + rand() % 8;
-                if (val <= 0) {
-                    val = 1;
-                }
-                else if ( val > 255 ) {
-                    val = 255;
-                }
-                e.table[idx] = (uint8_t)val;
-                sb_push(population, e);
-            } break;
+            case MUTATION:
+                {
+                    PopulationElement e = grab_element(old_population, 0, NULL);
+                    size_t idx = rand() % 64;
+                    int val = e.table[idx];
+                    val += -4 + rand() % 8;
+                    if (val <= 0)
+                    {
+                        val = 1;
+                    }
+                    else if ( val > 255 )
+                    {
+                        val = 255;
+                    }
+                    e.table[idx] = (uint8_t)val;
+                    sb_push(population, e);
+                } break;
             case CROSSOVER: {
 
 #if 0
@@ -335,11 +341,11 @@ int main()
                 size_t crosspoint = rand() % 64;
                 for ( int i = 0; i < 64; ++i ) {
                     if ( ei < crosspoint ) {
-                        children[0].table[i] = parents[0].table[i];
-                        children[1].table[i] = parents[1].table[i];
+                        children[0].table[djei_zig_zag[i]] = parents[0].table[djei_zig_zag[i]];
+                        children[1].table[djei_zig_zag[i]] = parents[1].table[djei_zig_zag[i]];
                     } else {
-                        children[0].table[i] = parents[1].table[i];
-                        children[1].table[i] = parents[0].table[i];
+                        children[0].table[djei_zig_zag[i]] = parents[1].table[djei_zig_zag[i]];
+                        children[1].table[djei_zig_zag[i]] = parents[0].table[djei_zig_zag[i]];
                     }
                 }
                 sb_push(population, children[0]);
@@ -350,9 +356,10 @@ int main()
                 PopulationElement parents[2];
                 parents[0] = grab_element(old_population, 0, &idx);
                 parents[1] = grab_element(old_population, idx+1, NULL);
-                for ( int i = 0; i < 64; ++i ) {
+                for ( int i = 0; i < 64; ++i )
+                {
                     int d = rand() % 2;
-                    child.table[i] = parents[d].table[i];
+                    child.table[djei_zig_zag[i]] = parents[d].table[djei_zig_zag[i]];
                 }
                 sb_push(population, child);
 #endif

@@ -25,7 +25,7 @@ El término \emph{multihilo} se usa para referirse a la arquitectura CPU que
 puede ejecutar múltiples hilos de ejecución en un mismo procesador.
 
 \emph{General Purpose GPU}, o \emph{\gls{GPGPU}} es el término usado para la
-práctica de programar GPU directamente, a diferencia del uso original, donde
+práctica de programar los GPU directamente, a diferencia del uso original, donde
 el GPU era un acelerador controlado por una biblioteca de gráficas como OpenGL
 o DirectX.
 
@@ -154,12 +154,12 @@ parámetro a la función \verb+encode_MCU+. En pseudo-código:
 
 A primera vista, el algoritmo JPEG se ve ``embarazosamente paralelo". Una
 motivación para este trabajo fue la observación de que el algoritmo trabaja
-dividiendo la imágenes en cuadros de $8\times8$ y el hecho de que los GPU
+dividiendo la imágenes en bloques de $8\times8$ y el hecho de que los GPU
 actuales trabajan con instrucciones vectoriales de 32 elementos. Actualmente,
 cuando se hace \gls{GPGPU}, se considera buena práctica que el tamaño de las
 unidades de trabajo sean un múltiplo de la longitud de las instrucciones de la
 arquitectura. Por esto, los bloques de 64 elementos se prestan a ser procesados
-por GPU actuales.
+por los GPU actuales.
 
 Desafortunadamente, el algoritmo JPEG no es paralelo. Aplicar codificación
 delta al coeficiente DC introduce una dependencia de datos entre cada bloque de
@@ -301,7 +301,7 @@ tiempo es causa una reducción de velocidad de 2x.
 Un \emph{work item} es parte de un \emph{work item}. El tamaño del
 \emph{work group} es decisión del programador, puede ser de 1, 2 o 3
 dimensiones y su tamaño puede variar, aunque es buena práctica escoger un
-múltiplo del tamaño de los wavefronts (32 en Kepler y Maxwell). Hay que
+múltiplo del tamaño de los \emph{ wavefronts } (32 en Kepler y Maxwell). Hay que
 encontrar el tamaño apropiado para los \emph{work items} para minimizar
 contención de memoria y maximizar el rendimiento (se usa la palabra rendimiento
 como traducción directa de de \emph{throughput}). Los GPU están diseñados para
@@ -320,18 +320,18 @@ buena fuente de información para aprender a obtener el mayor desempeño posible
 de las arquitecturas actuales.
 
 En la microarquitectura del GPU, los \emph{wavefronts} son ejecutados en
-procesadores vectoriales llamados \emph{Processing Elements}. Cada \emph{ Processing
-Element } tiene un número limitado de registros y puede ejecutar un \emph{wavefront} a la vez.
+procesadores vectoriales llamados \emph{processing elements}. Cada \emph{ processing
+element } tiene un número limitado de registros y puede ejecutar un \emph{wavefront} a la vez.
 
-Cada \emph{ Processing Element } es miembro de un \emph{Compute Unit}, que tiene un caché L1.
+Cada \emph{ processing element } es miembro de un \emph{compute unit}, que tiene un caché L1.
 
-El GPU contiene un número de \emph{ Compute Units }, quienes comparten un caché L2 y una
+El GPU contiene un número de \emph{ compute units }, quienes comparten un caché L2 y una
 memoria global. En el ejemplo en la figura \ref{fig:kepler1} es un GPU con 15
-\emph{ Compute Units }.
+\emph{ compute units }.
 
 Desde el punto de vista del modelo OpenCL solo existe la memoria local y
 memoria global. En la práctica, la memoria local corresponde a los registros
-del \emph{ Processing Element } y al cache L1. La memoria global corresponde a la
+del \emph{ processing element } y al cache L1. La memoria global corresponde a la
 memoria global del GPU, pero la microarquitectura puede encargarse de ``subir''
 y ``bajar''  accesos de memoria global por la jerarquía de memoria física.
 
@@ -351,7 +351,7 @@ contexto como al que estamos acostumbrados con hilos en sistemas operativos.
 Las figuras \ref{fig:kepler1} y \ref{fig:kepler2}, tomadas de la plática de
 Nvidia ``Inside Kepler" \cite{kepler-slides}, ayudan a visualizar cómo
 corresponde el modelo OpenCL a una arquitectura GPU. En el caso de Kepler,
-podemos ver un SMX como un \emph{ Compute Unit }, y cada \emph{ Cuda Core } como un \emph{ Processing Element }.
+podemos ver un SMX como un \emph{ compute unit }, y cada \emph{ cuda core } como un \emph{ processing element }.
 
 \begin{figure}[h]
     \includegraphics[width=1.0\textwidth]{kepler_1}
@@ -361,7 +361,7 @@ podemos ver un SMX como un \emph{ Compute Unit }, y cada \emph{ Cuda Core } como
 
 \begin{figure}[h]
     \includegraphics[width=1.0\textwidth]{kepler_2}
-    \caption{Processing Elements Dentro de un Compute Unit}
+    \caption{processing elements Dentro de un compute unit}
     \label{fig:kepler2}
 \end{figure}
 
@@ -504,7 +504,7 @@ El producir trabajo se reduce a esto:
 Una vez que la implementación paralela funciona en el CPU, es hora de hacer la
 implementación OpenCL de DummyJPEG. Como OpenCL usa un dialecto de C, se puede
 reutilizar código entre las dos implementaciones de DummyJPEG. Se usa el mismo
-código para la DCT y la IDCT. El kernel no es exactamente un \emph{copy paste},
+código para la DCT y la IDCT. El kernel no es exactamente una copia exacta,
 pero la implementación es bastante parecida. Los únicos cambios que se realizan
 son en la firma de la función, que tiene sintaxis de OpenCL para especificar
 que la función es un kernel y para definir si los parámetros están en memoria
@@ -512,7 +512,8 @@ global o en memoria constante.
 
 En la sección \ref{sec:gpgpu} no se habló de memoria constante porque es
 operacionalmente igual a la memoria global. La ventaja de usar memoria
-constante es que es más fácil de optimizar para el driver, por la garantía de no-escritura.
+constante es que es más fácil de optimizar para el manejador, por la garantía
+de no-escritura.
 
 La firma del kernel \verb+encode_MCU+ es:
 
@@ -549,7 +550,7 @@ parámetros del kernel son apuntadores a localidades de memoria global en el GPU
 que se crean con OpenCL como objetos llamados \emph{OpenCL buffers}. Algunos de
 ellos, como las tablas de Huffman, no cambian durante el programa. Otros, como
 la tabla de cuantificación, cambia con cada llamada al kernel. Se tiene que
-asegurar no tener \emph{memory leaks} y de no borrar buffers mientras están
+asegurar no tener fugas de memoria y de no borrar \emph{buffers} mientras están
 siendo usados.
 
 Aunque no es una API ideal, el trabajo de inicialización y de manejo de memoria
@@ -567,15 +568,31 @@ El algoritmo funciona correctamente en tres modalidades: Un hilo, multihilo, y G
 para realizar la evolución de la tabla de cuantificación y escribir el JPEG
 resultante.
 
+% \begin{figure}[h]
+%     \begin{tabular}{ |l c c c c r| }
+%         \hline
+%         Nombre &  Un Hilo & Multihilo & GPU & Aceleración MT & Aceleración GPU \\
+%         \hline
+%         Diego & 10.796s & 5.210s & 1.391s  & 2.072X & 7.76X \\
+%         Ghost & 13.706s & 6.607s & 1.760s  & 2.257X & 7.78X \\
+%         Klay & 40.526s & 22.279s & 4.785s  & 1.819X & 8.46X \\%, 4.65
+%         Plutón & 558.83s & 204.120s & 13.940s & 2.73X & 40.08X \\ % 14.64
+%         \hline
+%     \end{tabular}
+%     \caption{Tabla de desempeño para gp\_encoder}
+%     \label{table:perf_table_orig_}
+% \end{figure}
+
 \begin{figure}[h]
-    \begin{tabular}{ |l c c c c r| }
+    \begin{tabular}{ |l c c c r | }
         \hline
-        Nombre &  Un Hilo & Multihilo & GPU & Speedup MT & Speedup GPU \\
+                        & Diego & Ghost & Klay & Plutón \\
         \hline
-        Diego & 10.796s & 5.210s & 1.391s  & 2.072X & 7.76X \\
-        Ghost & 13.706s & 6.607s & 1.760s  & 2.257X & 7.78X \\
-        Klay & 40.526s & 22.279s & 4.785s  & 1.819X & 8.46X \\%, 4.65
-        Plutón & 558.83s & 204.120s & 13.940s & 2.73X & 40.08X \\ % 14.64
+        Un Hilo         & 10.796s  & 13.706s   & 40.526s &   558.83s  \\
+        Multihilo       &  5.210s  & 6.607s    & 22.279s &  204.120s  \\
+        GPU             &   1.391s & 1.760s   & 4.785s   &  13.940s   \\
+        Aceleración MT  &  2.072X  & 2.257X  & 1.819X    &  2.73X    \\
+        Aceleración GPU &   7.76X  & 7.78X  & 8.46X      &  40.08X   \\
         \hline
     \end{tabular}
     \caption{Tabla de desempeño para gp\_encoder}
@@ -589,13 +606,14 @@ crece por un factor de alrededor de 5X comparándolo con la modalidad CPU con un
 hilo. Es posible que la razón sea que el trabajo a realizar crece
 proporcionalmente con el tamaño de la imagen, y los GPU están diseñados para
 rendimiento, no latencia. Se puede especular sobre la razón verdadera. Puede
-que el hecho de que haya más wavefronts en vuelo permita que los \emph{ Compute Units }
-tengan una mayor utilización, mientras que el menor número de wavefronts para
-las imágenes más pequeñas cause problemas de utilización cuando muchos
-\emph{wavefront}s están ejecutando código con saltos condicionales, como el proceso en
-JPEG en el que se busca el útlimo elemento del bloque que no es cero. Otra
-explicación sería que con imágenes grandes, el calendarizador puede hacer un
-mejor trabajo dándole la vuelta a problemas de contención de memoria.
+que el hecho de que haya más \emph{ wavefronts } siendo procesados permita que los
+\emph{ compute units } tengan una mayor utilización, mientras que el menor
+número de \emph{ wavefronts } para las imágenes más pequeñas cause problemas de
+utilización cuando muchos \emph{wavefronts} están ejecutando código con saltos
+condicionales, como el proceso en JPEG en el que se busca el último elemento
+del bloque que no es cero. Otra explicación sería que con imágenes grandes, el
+calendarizador puede hacer un mejor trabajo dándole la vuelta a problemas de
+contención de memoria.
 
 
 % ============================================================
@@ -620,7 +638,7 @@ simple para la \emph{DCT}:
 \end{figure}
 
 \verb+tiny_jpeg+ contiene dos implementaciones de \emph{DCT}, la que se deriva
-directamente de la ecuación \ref{eq:dct} y que muestra en la tabla \ref{alg:dct}.
+directamente de la ecuación \ref{eq:dct} y que muestra en el algoritmo \ref{alg:dct}.
 
 El algoritmo \ref{alg:dct} no es práctico para un codificador JPEG y mucho
 menos para este proyecto, que ejecuta el algoritmo JPEG cientos de veces para
@@ -634,8 +652,8 @@ implementación de referencia de JPEG. Fue originalmente desarrollado por
 \cite{ahmed_dct}.
 
 El algoritmo está basado en la observación de que la ecuación \ref{eq:dct} es
-lineal, y por lo tanto el cálculo \emph{DCT} se puede expresar como $F(X) =
-A^{T}XA$ Donde $X$ es un bloque de $8\times8$ y A es la matriz:
+lineal y, por lo tanto el cálculo \emph{DCT} se puede expresar como $F(X) =
+A^{T}XA$, donde $X$ es un bloque de $8\times8$ y A es la matriz:
 
 \begin{equation}
     \label{eq:dct-matrix}
@@ -653,9 +671,9 @@ A^{T}XA$ Donde $X$ es un bloque de $8\times8$ y A es la matriz:
 
 Esta matriz tiene alta redundancia. Por ejemplo, el cuarto elemento del segundo renglón es $cos\frac{7\pi}{16} \approx 0.19509$. Este va a ser el mismo valor para todos los elementos que sean $cos\frac{n\pi}{16}$ con $n \mod 16 = 7$. Dígase $\frac{25\pi}{16}$, y $\frac{39\pi}{16}$.
 
-Para simplificar la representación se usa el módulo 16 como se acaba de mostrar junto con dos técnicas más: la periodicidad del coseno: $\Big( cos(x) = cos(x + 2\pi) \Big)$ y la propiedad de que es una función par: $\Big( cos(-x) = -cos(x) \Big)$.
+Para simplificar la representación se usa el módulo 16 como se acaba de mostrar, junto con dos técnicas más: la periodicidad del coseno $\Big( cos(x) = cos(x + 2\pi) \Big)$ y la propiedad de que es una función par $\Big( cos(-x) = -cos(x) \Big)$.
 
-Se termina con una matriz cuyos elementos tienen 7 posibles valores y sus negativos:
+Se tiene entonces una matriz $A$ cuyos elementos tienen 7 posibles valores y sus negativos:
 
 \begin{equation}
     \label{eq:dct-matrix-simple}
@@ -683,7 +701,10 @@ donde
     f = \frac{2}{\sqrt{2}}cos\frac{7\pi}{16}
 \end{eqnarray*}
 
+Sea $X$ un renglón del bloque original.
+
 Si aplicamos la ecuación $F(X) = A^{T}XA$ se va a observar que toda columna de la matriz $Y = F(X)$ se ve así:
+
 
 \begin{equation}
     \label{eq:dct-row}
@@ -726,11 +747,9 @@ Si aplicamos la ecuación $F(X) = A^{T}XA$ se va a observar que toda columna de 
         \end {bmatrix}
 \end{equation*}
 
-donde $X$ es un renglón del bloque original.
-
 De esta ecuación sacamos directamente el algoritmo final. Avanzamos por las 8 columnas del bloque original, escribiendo a los 8 renglones del bloque DCT.
 
-Para ilustrar la diferencia entre el algoritmo directo y el algoritmo que se describe aquí, se incluyen dos imágenes de una aplicación que carga una imagen de prueba y la codifica con TinyJPEG. Se deshabilita la optimización para que no se hagan optimizaciones \emph{inline}, pero los resultados son consistentes con niveles altos de optimización.
+Para ilustrar la diferencia entre el algoritmo directo y el algoritmo que se describe aquí, se incluyen dos imágenes de una aplicación que carga una imagen de prueba y la codifica con TinyJPEG. Se deshabilita la optimización para que no se hagan optimizaciones en línea, pero los resultados son consistentes con niveles altos de optimización.
 
 Nótese que la figura \ref{fig:pre_dct} muestra al algoritmo DCT tomando un total de 98.76\% del tiempo total del programa, mientras que en la figura \ref{fig:post_dct} está reducido a un 12.34\%.
 
@@ -774,7 +793,7 @@ programa con micro-optimización.
 
 En la microarquitectura de un GPU, accesos a la memoria global usualmente
 resultan en que la memoria sea copiada automáticamente a memoria local, de la
-misma manera que se utilizan cachés en CPU para lidiar con la latencia de la
+misma manera que se utilizan cachés en los CPU para lidiar con la latencia de la
 memoria principal. Sin embargo, no siempre podemos contar con que esto va a
 suceder.
 
@@ -798,10 +817,10 @@ copiamos el \gls{MCU} (512 bytes). En la tabla \ref{table:gpucopy} se compara el
 total de nuestro programa, con tres imágenes de prueba, haciendo una copia
 local vs memoria global.
 
-\begin{figure}[h]
+\begin{table}[h]
     \begin{tabular}{ |l c c r| }
         \hline
-        Imagen & Memoria local & Memoria global & \emph{speedup} \\
+        Imagen & Memoria local & Memoria global & Aceleración\\
         \hline
         Klay & 3.85 & 4.5 & 1.168 \\
         Diego & 1.18 & 1.44 & 1.22 \\
@@ -810,22 +829,21 @@ local vs memoria global.
     \end{tabular}
     \caption{Comparación de desempeño para copia local de bloques}
     \label{table:gpucopy}
-\end{figure}
+\end{table}
 
 Logramos una mejora de entre 16\% y 22\% haciendo lo que a primera vista parece
 más trabajo. Cabe notar que no se logra la misma mejora copiando otros
 parámetros de entrada, como las tablas Huffman. Es posible que se obtiene este
 desempeño adicional porque se está cargando a memoria local \emph{toda} la
-memoria del bloque que va a accesarse por ese \emph{work item}, mientras que el acceso
+memoria del bloque que va a accederse por ese \emph{work item}, mientras que el acceso
 a las tablas de Huffman es mucho más aleatorio y son arreglos mucho más
 grandes.
 
 \subsection{GPU: Saltos condicionales}
 
-Un \emph{ salto condicional } es en lo que se convierte un \verb+if+ cuando
-se compila a código máquina. Para observar por qué los saltos condicionales
-(usualmente llamados \emph{branches} para ahorrar teclas) son un problema en
-GPU, vale la pena hacer un ejemplo.
+Un \emph{ salto condicional } es en lo que se convierte un \verb+if+ cuando se
+compila a código máquina. Para observar por qué los saltos condicionales son un
+problema en los GPU, vale la pena hacer un ejemplo.
 
 Supóngase que un \emph{wavefront} ejecuta el siguiente código:
 
@@ -847,10 +865,10 @@ quiere decir que si \verb+funcion_b+ es muy cara, el 90\% del \emph{wavefront} v
 estar sin hacer trabajo, esperando a que el 10\% restante termine de ejecutar
 \verb+function_b+.
 
-El kernel de DummyJPEG no puede hacer mucho para evitar que haya \emph{wavefront}s
+El kernel de DummyJPEG no puede hacer mucho para evitar que haya \emph{wavefronts}
 esperando saltos condicionales. Esto es por la naturaleza del algoritmo JPEG.
 El procesamiento de un bloque requiere contar el número de coeficientes que son
-cero, y para hacer esto es necesario iterar por todo el bloque. Encima de esto,
+cero y, para hacer esto, es necesario iterar por todo el bloque. Encima de esto,
 cada bloque tiene una cantidad de trabajo proporcional al número de
 aoeficientes que no son cero. Esto implica que cualquier \emph{wavefront} de DummyJPEG
 va a esperar al \emph{work item} que tenga el menor número de ceros que procesar y por
@@ -865,10 +883,10 @@ del programa es una de las diferencias más claras cuando se hace programación
 
 TinyJPEG mantiene un \emph{buffer} de 1024 bytes que se usa para minimizar
 llamadas a fwrite. Las implementaciones de fwrite tratan de evitar llamadas a
-sistema, pero de cualquier manera, el uso de este buffer reduce dramáticamente
+sistema pero, de cualquier manera, el uso de este \emph{ buffer } reduce dramáticamente
 el costo de escritura.
 
-La figura \ref{fig:fwrite} muestra el costo de fwrite en TinyJPEG con buffering
+La figura \ref{fig:fwrite} muestra el costo de fwrite en TinyJPEG con \emph{buffering}
 deshabilitado.
 
 \begin{figure}[hb]
@@ -882,13 +900,13 @@ Este reporte de la herramienta \verb+perf+, parte de Linux Perf Tools
 Plutón de 192 MB y la codifica con TinyJPEG. Lo que se muestra es que hay dos
 funciones de TinyJPEG consumiendo el 48.2\% del tiempo. También muestra que la
 función \verb+fputc+ consume 4.8\% del tiempo total. Con esto concluímos que si
-solo tomamos en cuenta el tiempo que se pasa codificando la imagen, se está
+sólo tomamos en cuenta el tiempo que se pasa codificando la imagen, se está
 gastando el 9.1\% del tiempo llamando a fwrite, (que a su vez llama a putc).
 
 No se incluye un reporte de TinyJPEG con \emph{buffering} porque al usar un
-buffer de 1024 bytes, eliminamos por completo el costo de \verb+fwrite+.
+\emph{ buffer } de 1024 bytes, eliminamos por completo el costo de \verb+fwrite+.
 
-La implementación de un buffer es muy simple. Este código viene directamente de TinyJPEG:
+La implementación de un \emph{ buffer } es muy simple. Este código viene directamente de TinyJPEG:
 
 \begin{code}[language=C][h]
     // Buffer TJE_BUFFER_SIZE in memory and flush when ready
@@ -901,27 +919,26 @@ buffer.  Cuando tjei\_g\_output\_buffer\_count es igual a TJEI\_BUFFER\_SIZE,
 entonces llamamos fwrite, escribiendo los contenidos del buffer completo.
 
 Vale la pena notar que al final de la ejecución es probable que haya datos en
-el buffer que no hayan sido escritos. Por eso se hace un \emph{flush} al final
+el \emph{ buffer } que no hayan sido escritos. Por eso se hace un \emph{flush} al final
 del programa, haciendo una última llamada a fwrite con los contenidos del
-buffer.
+\emph{ buffer }.
 
 \subsection{CPU: Saltos condicionales}\label{sub:cpu-branch}
 
 Para terminar las notas de micro-optimización, se va a discutir un truco en la
-implementación de TinyJPEG que trata con predicción de \emph{branches} (i.e.
-saltos condicionales, o bloques \verb+if+)
+implementación de TinyJPEG que trata con predicción de saltos condicionales.
 
-Los CPU son muy buenos ejecutando \emph{branches} cuando pueden predecir su
-comportamiento. Agner Fog \cite{agner} tiene muy buenos recursos para estar al
-día con la manera en que los procesadores de Intel predicen branches. El
-concepto es que cuando el CPU piensa que un branch va a ser ejecutado, lo
-ejecuta \emph{ especulativamente } mientras la condición del salto se computa
-paralelamente. Se le conoce como un \emph{branch missprediction}, que
-traducimos como \emph{mis-predicción de salto} a la situación en cuando el
-salto se calculó especulativamente pero la condición falló. En código de alto
-desempeño como la función interna de JPEG, esto puede ser un cuello de botella.
+Los CPU son muy buenos ejecutando saltos condicionales cuando pueden predecir
+su comportamiento. Agner Fog \cite{agner} tiene muy buenos recursos para estar
+al día con la manera en que los procesadores de Intel predicen saltos
+condicionales. El concepto es que cuando el CPU piensa que un salto condicional
+va a ser ejecutado, lo ejecuta \emph{ especulativamente } mientras la condición
+del salto se computa paralelamente. Se le conoce como una mala predicción de
+salto condicional, a la situación en cuando el salto se calculó
+especulativamente pero la condición falló. En código de alto desempeño como la
+función interna de JPEG, esto puede ser un cuello de botella.
 
-En el caso e TinyJPEG, una vez que se utilizó un algoritmo rápido de DCT, el
+En el caso de TinyJPEG, una vez que se utilizó un algoritmo rápido de DCT, el
 cuello de botella en la función \verb+encode_MCU+ resultó ser la siguiente
 línea de código:
 
@@ -936,7 +953,7 @@ Usando \verb+perf+, se puede visualizar el problema (figura \ref{fig:mispred}):
 
 \begin{figure}[h]
     \includegraphics[width=5.16666in]{round_slow}
-    \caption{Mis-predicción de salto}
+    \caption{Mala predicción de salto}
     \label {fig:mispred}
 \end{figure}
 
@@ -944,8 +961,8 @@ Ambos caminos del salto condicional inducido por el operador \verb+?:+ toman
 alrededor de 9\% de los ciclos de CPU totales para esta función, con un total de 18\%.
 
 Esa información no es suficiente para decidir que el problema es
-mis-predicción, pero se puede atacar al problema como si fuera un problema de
-mis-predicción. Si se hace más rápido, entonces suponemos que el problema era
+mala predicción, pero se puede atacar al problema como si fuera un problema de
+mala predicción. Si se hace más rápido, entonces suponemos que el problema era
 el salto.
 
 En este caso, sabemos que $fval \in [-1024, 1024]$. Esta información nos
@@ -962,7 +979,7 @@ El resultado, con \verb+perf+:
 
 \begin{figure}[hb]
     \includegraphics[width=5.16666in]{round_fast}
-    \caption{Evitando mis-predicción}
+    \caption{Evitando mala predicción}
 \end{figure}
 
 Como logramos alrededor de 2X de mejora en velocidad, podemos concluir con

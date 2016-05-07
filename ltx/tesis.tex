@@ -10,6 +10,9 @@ BCOR=5mm,paper=a4,fontsize=11pt,%11pt,a4paper,%
 ngerman,american,%
 ]{scrreprt}
 
+% \usepackage[spanish,es-tabla]{babel} % No es Cuadro, es Tabla
+
+
 \usepackage{amsmath}
 \usepackage{alltt}
 \usepackage{xcolor}
@@ -29,6 +32,10 @@ ngerman,american,%
 
 \usepackage[fixlanguage]{babelbib}
 \selectbiblanguage{spanish}
+
+% No es Cuadro, es Tabla
+\renewcommand{\listtablename}{Índice de tablas}
+\renewcommand{\tablename}{Tabla}
 
 \newcommand{\titulo}[1]{\def\eltitulo{#1}}
 \newcommand{\carrera}[1]{\def\lacarrera{#1}}
@@ -52,7 +59,6 @@ ngerman,american,%
 \loadglsentries{glosario}
 \glsaddall
 \renewcommand{\glsnamefont}[1]{\spacedlowsmallcaps{#1}}
-
 \begin{document}
 
 \frenchspacing
@@ -62,7 +68,6 @@ ngerman,american,%
 \setbibpreamble{}
 \pagenumbering{roman}
 \pagestyle{plain}
-
 
 % NOTA: xelatex tesis && bibtex tesis && xelatex 2 veces mas...
 

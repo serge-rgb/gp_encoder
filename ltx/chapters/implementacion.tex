@@ -13,11 +13,16 @@ nombre de TinyJPEG \cite{tiny_jpeg}.
 
 En este capítulo se describen los detalles de ambos proyectos.
 
-\section {Términos} Se usan los términos \emph{\gls{depurar}} y
+\section {Términos}
+
+Se usan los términos \emph{\gls{depurar}} y
 \emph{\gls{profiling}}. Depurar, en computación, se refiere al proceso de
 encontrar y arreglar defectos de código. \emph{profiling} es el proceso de
 encontrar los puntos en los que un programa puede ser modificado para mejorar
 el desempeño.
+
+El término \emph{multihilo} se usa para referirse a la arquitectura CPU que
+puede ejecutar múltiples hilos de ejecución en un mismo procesador.
 
 \emph{General Purpose GPU}, o \emph{\gls{GPGPU}} es el término usado para la
 práctica de programar GPU directamente, a diferencia del uso original, donde
@@ -450,19 +455,19 @@ La tupla que regresa DummyJPEG son los parámetros $e(T)$ y $s(T)$ de la funció
 En el cpu, la parte \emph{map} del algoritmo se ve así:
 
 \begin{code}[language=C][h]
-    // Versión de un solo thread.
+    // Versión de un solo hilo.
     for (int i = 0; i < num_bloques; ++i) {
         encode_MCU(i, mcus, qt, huffman);
     }
 \end{code}
 
-Para múltiples \emph{ threads }, se utilizan \emph{ threads } trabajadores que consumen unidades
+Para multihilo, se utilizan hilos de ejeuciones trabajadores que consumen unidades
 de trabajo. Como se muestra con el siguiente pseudo código:
 
 \begin{code}[language=C][h]
     bool loop = true;
     while ( loop ) {
-        // Pseudo-código para el thread trabajador
+        // Pseudo-código para el hilo trabajador
 
         int block_i = -1;
 
@@ -557,8 +562,7 @@ implementación paralela en GPU requirió de sólo el mínimo esfuerzo necesario
 dejando tiempo para hacer las micro-optimizaciones que se describen en la
 sección \ref{sec:microopt}.
 
-El algoritmo funciona correctamente en tres modalidades: Un thread, Múltiples
-\emph{ threads }, y GPU. Para un conjunto de imágenes de prueba, la tabla
+El algoritmo funciona correctamente en tres modalidades: Un hilo, multihilo, y GPU. Para un conjunto de imágenes de prueba, la tabla
 \ref{table:perf_table_orig} muestra el tiempo en segundos que cada modalidad toma
 para realizar la evolución de la tabla de cuantificación y escribir el JPEG
 resultante.
@@ -566,7 +570,7 @@ resultante.
 \begin{figure}[h]
     \begin{tabular}{ |l c c c c r| }
         \hline
-        Nombre &  Un Thread & Múltiples Threads & GPU & Speedup MT & Speedup GPU \\
+        Nombre &  Un Hilo & Multihilo & GPU & Speedup MT & Speedup GPU \\
         \hline
         Diego & 10.796s & 5.210s & 1.391s  & 2.072X & 7.76X \\
         Ghost & 13.706s & 6.607s & 1.760s  & 2.257X & 7.78X \\
@@ -582,7 +586,7 @@ Más adelante se describen las características de las cuatro imágenes de prueb
 \ref{sec:testset}. Cabe notar que aunque la implementación GPU es siempre más
 rápida, en el caso de la imagen ``Plutón", que mide 192MB, el beneficio del GPU
 crece por un factor de alrededor de 5X comparándolo con la modalidad CPU con un
-thread. Es posible que la razón sea que el trabajo a realizar crece
+hilo. Es posible que la razón sea que el trabajo a realizar crece
 proporcionalmente con el tamaño de la imagen, y los GPU están diseñados para
 rendimiento, no latencia. Se puede especular sobre la razón verdadera. Puede
 que el hecho de que haya más wavefronts en vuelo permita que los \emph{ Compute Units }

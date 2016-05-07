@@ -468,13 +468,13 @@ convergencia mientras la evolución avanza.
 
 La tabla \ref{table:perf_table} es una copia de la que se mostró en el capítulo
 \ref{ch:implementacion}. Muestra el desempeño de gp\_encoder en sus diferentes
-modalidades: CPU (single-thread y multi-thread) y GPU (OpenCL). Se vuelve a
+modalidades: CPU (un hilo y multihilo) y GPU (OpenCL). Se vuelve a
 incluír para la conveniencia del lector.
 
 \begin{figure}[h!]
     \begin{tabular}{ |l c c c c r| }
         \hline
-        Nombre &  Un Thread & Múltiples Threads & GPU & Speedup MT & Speedup GPU \\
+        Nombre &  Un hilo & Multihilo & GPU & Speedup MT & Speedup GPU \\
         \hline
         Diego & 10.796s & 5.210s & 1.391s  & 2.072X & 7.76X \\
         Ghost & 13.706s & 6.607s & 1.760s  & 2.257X & 7.78X \\

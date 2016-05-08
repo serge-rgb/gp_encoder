@@ -263,9 +263,6 @@ más ancho de banda en Luma que en Chroma, y el mismo principio se utiliza en
 JPEG, cuya especificación incluye la opción de usar resoluciones más bajas para
 los canales chroma que los luma.
 
-% TO-DO: MOVER ESTE PARRAFO A IMPLEMENTACION
-La implementación de \verb+tiny_jpeg+ usa la misma resolución para los tres canales.
-
 Los tres bloques correspondientes a \verb+Y+, \verb+U+, y \verb+V+ son escritos
 al archivo en ese orden después de ser transformados independientemente.
 
@@ -418,12 +415,10 @@ coeficiente como la diferencia entre su propio coeficiente y el coeficiente
 anterior. La razón para esto es que la variación entre coeficientes DC
 consecutivos tiende a ser pequeña.
 
-% To-do quitar por completo o mover a evolucion
-En los experimentos hechos para paralelizar
-el algoritmo evolutivo, descrito en el capítulo \ref{ch:implementacion}, se
-notó que la compresión delta contribuye con alrededor de $15\%$ de compresión
-adicional, comparado con una versión que no usa compresión delta para el
-coeficiente DC.
+% En los experimentos hechos para paralelizar el algoritmo evolutivo, descrito en
+% el capítulo \ref{ch:implementacion}, se notó que la compresión delta contribuye
+% con alrededor de $15\%$ de compresión adicional, comparado con una versión que
+% no usa compresión delta para el coeficiente DC.
 
 Los otros 63 coeficientes se denominan \emph{\gls{coeficientes AC}}. Se
 comprimen en tuplas de dos elementos. El segundo elemento de la tupla es un

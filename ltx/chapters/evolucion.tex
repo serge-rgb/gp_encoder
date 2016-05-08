@@ -367,7 +367,6 @@ en el capítulo \ref{ch:evolucion}, que utiliza DummyJPEG en su función de
 aptitud y emite el resultado usando TinyJPEG.
 
 
-%to-do presumiendo. Mover
 La biblioteca TinyJPEG, a partir de ser lanzada como código libre, consiguió
 una base de usuarios. Actualmente hay gente usándola en aplicaciones que van
 desde tareas escolares hasta proyectos de investigación \cite{humblebrag}.
@@ -538,10 +537,25 @@ la conveniencia del lector.
 
 El algoritmo evolutivo se desarrolló con el propósito de generar imágenes
 indistinguibles de las originales pero con una buena tasa de compresión. En la
-figura \ref{fig:size-table} comparamos los tamaños de las imágenes de prueba
+tabla \ref{table:size-table} comparamos los tamaños de las imágenes de prueba
 originales con su versión comprimida con la tabla de cuantificación
 evolucionada y la compresión "media" de TinyJPEG, descrita en el capítulo
 \ref{ch:implementacion}.
+
+\begin{table}[h]
+    \begin{tabular}{|l c c r|}
+        \hline
+        Nombre & Original & TinyJPEG & gp\_encoder \\
+        \hline
+        Diego & 2.3M & 355K & 264K \\
+        Ghost & 2.6M & 562K & 361K \\
+        Klay  & 9.1M & 419K & 221K \\
+        Pluto & 192M & 26M  & 19M  \\
+        \hline
+    \end{tabular}
+    \caption{Tamaños de imagen original y con compresión}
+    \label{table:size-table}
+\end{table}
 
 Con todas las imágenes, gp\_encoder produce imágenes codificadas de menor
 tamaño.
@@ -597,20 +611,5 @@ altas.
     \end{matrix}
     \label{fig:klay-table}
 \end{equation}
-
-\begin{figure}[h]
-    \begin{tabular}{|l c c r|}
-        \hline
-        Nombre & Original & TinyJPEG & gp\_encoder \\
-        \hline
-        Diego & 2.3M & 355K & 264K \\
-        Ghost & 2.6M & 562K & 361K \\
-        Klay  & 9.1M & 419K & 221K \\
-        Pluto & 192M & 26M  & 19M  \\
-        \hline
-    \end{tabular}
-    \caption{Tamaños de imagen original y con compresión}
-    \label{fig:size-table}
-\end{figure}
 
 
